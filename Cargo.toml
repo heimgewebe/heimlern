@@ -1,0 +1,7 @@
+[workspace]
+members = ["crates/heimlern-core","crates/heimlern-bandits"]
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
