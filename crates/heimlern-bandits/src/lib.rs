@@ -25,7 +25,7 @@ impl Policy for RemindBandit {
             self.slots[0].clone() // TODO: spätere Werte-Schätzung
         };
         Decision{
-            action: format!("remind.{}", action),
+            action: format!("remind.{action}"),
             score: 0.5,
             why: if explore { "explore ε" } else { "exploit heuristic" }.into(),
             context: Some(serde_json::to_value(ctx).unwrap())
