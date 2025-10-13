@@ -1,10 +1,8 @@
 //! Beispiel-Implementierung eines ε-greedy-Banditen für Erinnerungs-Slots.
 //!
-//! Der `RemindBandit` demonstriert, wie das [`Policy`](heimlern_core::Policy)-Trait
-//! für das häusliche Erinnerungs-Szenario implementiert werden kann. Er wählt
-//! mit Wahrscheinlichkeit `epsilon` zufällig einen Slot (Exploration) und fällt
-//! andernfalls auf eine heuristische Auswertung der beobachteten Rewards zurück
-//! (Exploitation über durchschnittliche Belohnung pro Slot).
+//! Der `RemindBandit` implementiert das [`Policy`](heimlern_core::Policy)-Trait
+//! für ein häusliches Erinnerungs-Szenario. Mit Wahrscheinlichkeit `epsilon` wird
+//! ein Slot zufällig gewählt (Exploration), sonst der beste bekannte Slot (Exploitation).
 
 use heimlern_core::{Context, Decision, Policy};
 use rand::prelude::*;
@@ -15,7 +13,7 @@ use std::collections::HashMap;
 /// ε-greedy Policy für Erinnerungen.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RemindBandit {
-    /// Wahrscheinlichkeit für Explorationsschritte zwischen 0.0 und 1.0.
+    /// Wahrscheinlichkeit für Exploration zwischen 0.0 und 1.0.
     pub epsilon: f32,
     /// Verfügbare Zeit-Slots (Arme).
     pub slots: Vec<String>,
@@ -43,8 +41,6 @@ impl Policy for RemindBandit {
             self.slots = vec!["morning".into(), "afternoon".into(), "evening".into()];
         }
 
-        let explore = rng.gen::<f32>() < self.epsilon;
-
         // Wenn aus irgendeinem Grund immer noch leer: sichere Rückgabe.
         if self.slots.is_empty() {
             return Decision {
@@ -54,6 +50,8 @@ impl Policy for RemindBandit {
                 context: Some(serde_json::to_value(ctx).unwrap()),
             };
         }
+
+        let explore = rng.gen::<f32>() < self.epsilon;
 
         let chosen_slot = if explore {
             // Exploration: zufällig wählen (safe, da nicht leer).
@@ -65,7 +63,7 @@ impl Policy for RemindBandit {
                 .max_by(|a, b| {
                     let val_a = self
                         .values
-                        .get(*a)
+                        .get(*a) // &String deref zu &str via HashMap<String,..>::get erwartet &String? -> siehe unten Fix
                         .map(|(n, v)| if *n > 0 { v / *n as f32 } else { 0.0 })
                         .unwrap_or(0.0);
                     let val_b = self
@@ -177,8 +175,6 @@ mod tests {
         assert_eq!(restored.slots, vec!["a".to_string(), "b".to_string()]);
         assert_eq!(restored.values.get("b"), Some(&(1, 1.0)));
 
-        // Gleiche Entscheidungserwartung nach Restore (mit epsilon 0.33 kann explo/explore schwanken,
-        // aber der beste Slot bleibt b, wenn exploit gewählt wird).
         restored.epsilon = 0.0;
         let d = restored.decide(&ctx);
         assert_eq!(d.action, "remind.b");
