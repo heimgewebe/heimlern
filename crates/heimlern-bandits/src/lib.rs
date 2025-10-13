@@ -1,10 +1,8 @@
 //! Beispiel-Implementierung eines ε-greedy-Banditen für Erinnerungs-Slots.
 //!
-//! Der `RemindBandit` demonstriert, wie das [`Policy`](heimlern_core::Policy)-Trait
-//! für das häusliche Erinnerungs-Szenario implementiert werden kann. Er wählt
-//! mit Wahrscheinlichkeit `epsilon` zufällig einen Slot (Exploration) und fällt
-//! andernfalls auf eine heuristische Auswertung der beobachteten Rewards zurück
-//! (Exploitation über durchschnittliche Belohnung pro Slot).
+//! Der `RemindBandit` implementiert das [`Policy`](heimlern_core::Policy)-Trait
+//! für ein häusliches Erinnerungs-Szenario. Mit Wahrscheinlichkeit `epsilon` wird
+//! ein Slot zufällig gewählt (Exploration), sonst der beste bekannte Slot (Exploitation).
 
 use heimlern_core::{Context, Decision, Policy};
 use rand::prelude::*;
@@ -15,7 +13,7 @@ use std::collections::HashMap;
 /// ε-greedy Policy für Erinnerungen.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RemindBandit {
-    /// Wahrscheinlichkeit für Explorationsschritte zwischen 0.0 und 1.0.
+    /// Wahrscheinlichkeit für Exploration zwischen 0.0 und 1.0.
     pub epsilon: f32,
     /// Verfügbare Zeit-Slots (Arme).
     pub slots: Vec<String>,
@@ -27,11 +25,7 @@ impl Default for RemindBandit {
     fn default() -> Self {
         Self {
             epsilon: 0.2,
-            slots: vec![
-                "morning".into(),
-                "afternoon".into(),
-                "evening".into(),
-            ],
+            slots: vec!["morning".into(), "afternoon".into(), "evening".into()],
             values: HashMap::new(),
         }
     }
@@ -42,16 +36,12 @@ impl Policy for RemindBandit {
     fn decide(&mut self, ctx: &Context) -> Decision {
         let mut rng = thread_rng();
 
+        // Fallback: Slots dürfen nie leer sein.
         if self.slots.is_empty() {
-            self.slots = vec![
-                "morning".into(),
-                "afternoon".into(),
-                "evening".into(),
-            ];
+            self.slots = vec!["morning".into(), "afternoon".into(), "evening".into()];
         }
 
-        let explore = rng.gen::<f32>() < self.epsilon;
-
+        // Wenn aus irgendeinem Grund immer noch leer: sichere Rückgabe.
         if self.slots.is_empty() {
             return Decision {
                 action: "remind.none".into(),
@@ -60,6 +50,8 @@ impl Policy for RemindBandit {
                 context: Some(serde_json::to_value(ctx).unwrap()),
             };
         }
+
+        let explore = rng.gen::<f32>() < self.epsilon;
 
         let chosen_slot = if explore {
             // Exploration: zufällig wählen (safe, da nicht leer).
@@ -71,12 +63,12 @@ impl Policy for RemindBandit {
                 .max_by(|a, b| {
                     let val_a = self
                         .values
-                        .get(a.as_str())
+                        .get(*a) // &String deref zu &str via HashMap<String,..>::get erwartet &String? -> siehe unten Fix
                         .map(|(n, v)| if *n > 0 { v / *n as f32 } else { 0.0 })
                         .unwrap_or(0.0);
                     let val_b = self
                         .values
-                        .get(b.as_str())
+                        .get(*b)
                         .map(|(n, v)| if *n > 0 { v / *n as f32 } else { 0.0 })
                         .unwrap_or(0.0);
                     val_a
@@ -94,7 +86,7 @@ impl Policy for RemindBandit {
             .unwrap_or(0.0);
 
         Decision {
-            action: format!("remind.{}", chosen_slot),
+            action: format!("remind.{chosen_slot}"),
             score: value_estimate,
             why: if explore { "explore ε" } else { "exploit" }.into(),
             context: Some(serde_json::to_value(ctx).unwrap()),
@@ -124,16 +116,10 @@ impl Policy for RemindBandit {
             } else {
                 loaded.epsilon = 0.2;
             }
-
             // Stelle sicher, dass Slots nicht leer sind.
             if loaded.slots.is_empty() {
-                loaded.slots = vec![
-                    "morning".into(),
-                    "afternoon".into(),
-                    "evening".into(),
-                ];
+                loaded.slots = vec!["morning".into(), "afternoon".into(), "evening".into()];
             }
-
             *self = loaded;
         }
     }
@@ -143,7 +129,6 @@ impl Policy for RemindBandit {
 mod tests {
     use super::*;
     use heimlern_core::Policy;
-    use serde_json::json;
 
     #[test]
     fn bandit_learns_and_exploits_best_slot() {
@@ -154,7 +139,7 @@ mod tests {
         };
         let ctx = Context {
             kind: "test".into(),
-            features: json!({"x":1}),
+            features: serde_json::json!({"x":1}),
         };
 
         // Feedback: "afternoon" ist am besten.
@@ -177,7 +162,7 @@ mod tests {
         };
         let ctx = Context {
             kind: "test".into(),
-            features: json!({"k":true}),
+            features: serde_json::json!({"k":true}),
         };
         bandit.feedback(&ctx, "remind.b", 1.0);
 
@@ -190,8 +175,6 @@ mod tests {
         assert_eq!(restored.slots, vec!["a".to_string(), "b".to_string()]);
         assert_eq!(restored.values.get("b"), Some(&(1, 1.0)));
 
-        // Gleiche Entscheidungserwartung nach Restore (mit epsilon 0.33 kann explo/explore schwanken,
-        // aber der beste Slot bleibt b, wenn exploit gewählt wird).
         restored.epsilon = 0.0;
         let d = restored.decide(&ctx);
         assert_eq!(d.action, "remind.b");
