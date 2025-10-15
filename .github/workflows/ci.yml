@@ -7,4 +7,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo build --workspace --all-targets --verbose
-      - run: cargo test --workspace --verbose
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: echo '{}' | cargo run -p heimlern-bandits --example decide
+      - run: cargo test --workspace --all-targets --verbose

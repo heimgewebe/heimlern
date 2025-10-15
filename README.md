@@ -49,6 +49,14 @@ cargo run --example integrate_hauski
 
 Die Ausgabe enthält die gewählte Aktion, den Grund (Exploration oder Heuristik) und den in JSON serialisierten Kontext.
 
+Für schnelle Smoke-Tests des Banditen eignet sich außerdem das Beispiel `decide`. Es liest einen Kontext aus `stdin` (oder verwendet Defaults) und gibt die Entscheidung als JSON im [Policy-Schema](crates/heimlern-core/src/policy.rs) aus:
+
+```bash
+echo '{}' | cargo run -p heimlern-bandits --example decide
+```
+
+Ersetze `{}` durch einen gewünschten Kontext, um andere Slots oder Heuristiken zu prüfen.
+
 ## Weiterführende Dokumentation
 
 * [ADR-Index](docs/adr/README.md) – Übersicht und Motivation hinter den Architekturentscheidungen.
