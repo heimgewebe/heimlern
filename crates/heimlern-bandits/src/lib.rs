@@ -10,6 +10,8 @@ use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+const DEFAULT_SLOTS: &[&str] = &["morning", "afternoon", "evening"];
+
 /// ε-greedy Policy für Erinnerungen.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RemindBandit {
@@ -25,8 +27,26 @@ impl Default for RemindBandit {
     fn default() -> Self {
         Self {
             epsilon: 0.2,
-            slots: vec!["morning".into(), "afternoon".into(), "evening".into()],
+            slots: default_slots(),
             values: HashMap::new(),
+        }
+    }
+}
+
+fn default_slots() -> Vec<String> {
+    DEFAULT_SLOTS.iter().map(|s| (*s).to_string()).collect()
+}
+
+impl RemindBandit {
+    fn sanitize(&mut self) {
+        if !self.epsilon.is_finite() {
+            self.epsilon = 0.0;
+        } else {
+            self.epsilon = self.epsilon.clamp(0.0, 1.0);
+        }
+
+        if self.slots.is_empty() {
+            self.slots = default_slots();
         }
     }
 }
@@ -36,10 +56,7 @@ impl Policy for RemindBandit {
     fn decide(&mut self, ctx: &Context) -> Decision {
         let mut rng = thread_rng();
 
-        // Fallback: Slots dürfen nie leer sein.
-        if self.slots.is_empty() {
-            self.slots = vec!["morning".into(), "afternoon".into(), "evening".into()];
-        }
+        self.sanitize();
 
         // Wenn aus irgendeinem Grund immer noch leer: sichere Rückgabe.
         if self.slots.is_empty() {
@@ -63,12 +80,12 @@ impl Policy for RemindBandit {
                 .max_by(|a, b| {
                     let val_a = self
                         .values
-                        .get(*a) // &String deref zu &str via HashMap<String,..>::get erwartet &String? -> siehe unten Fix
+                        .get(a.as_str())
                         .map(|(n, v)| if *n > 0 { v / *n as f32 } else { 0.0 })
                         .unwrap_or(0.0);
                     let val_b = self
                         .values
-                        .get(*b)
+                        .get(b.as_str())
                         .map(|(n, v)| if *n > 0 { v / *n as f32 } else { 0.0 })
                         .unwrap_or(0.0);
                     val_a
@@ -110,16 +127,7 @@ impl Policy for RemindBandit {
     /// Lädt Zustand aus Snapshot (robust mit Korrekturen).
     fn load(&mut self, v: serde_json::Value) {
         if let Ok(mut loaded) = serde_json::from_value::<RemindBandit>(v) {
-            // Korrigiere epsilon in den gültigen Bereich.
-            if loaded.epsilon.is_finite() {
-                loaded.epsilon = loaded.epsilon.clamp(0.0, 1.0);
-            } else {
-                loaded.epsilon = 0.2;
-            }
-            // Stelle sicher, dass Slots nicht leer sind.
-            if loaded.slots.is_empty() {
-                loaded.slots = vec!["morning".into(), "afternoon".into(), "evening".into()];
-            }
+            loaded.sanitize();
             *self = loaded;
         }
     }
@@ -178,5 +186,33 @@ mod tests {
         restored.epsilon = 0.0;
         let d = restored.decide(&ctx);
         assert_eq!(d.action, "remind.b");
+    }
+
+    #[test]
+    fn load_clamps_epsilon_and_restores_slots() {
+        let bandit = RemindBandit {
+            epsilon: 42.0,
+            slots: vec![],
+            values: HashMap::new(),
+        };
+        let snapshot = bandit.snapshot();
+
+        let mut restored = RemindBandit::default();
+        restored.load(snapshot);
+
+        assert!((restored.epsilon - 1.0).abs() < f32::EPSILON);
+        assert_eq!(restored.slots, default_slots());
+    }
+
+    #[test]
+    fn decisions_have_remind_prefix() {
+        let mut bandit = RemindBandit::default();
+        let ctx = Context {
+            kind: "test".into(),
+            features: serde_json::json!({}),
+        };
+
+        let decision = bandit.decide(&ctx);
+        assert!(decision.action.starts_with("remind."));
     }
 }
