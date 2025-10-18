@@ -1,0 +1,23 @@
+name: validate (aussen samples)
+permissions:
+  contents: read
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: validate ${{ matrix.file }}
+    if: ${{ hashFiles(matrix.file) != '' }}
+    uses: heimgewebe/metarepo/.github/workflows/reusable-validate-jsonl.yml@main
+    with:
+      jsonl_path: ${{ matrix.file }}
+      schema_url: https://raw.githubusercontent.com/heimgewebe/metarepo/main/contracts/aussen.event.schema.json
+    strategy:
+      fail-fast: false
+      matrix:
+        file:
+          - data/samples/aussensensor.jsonl
+          - tests/fixtures/aussen.jsonl

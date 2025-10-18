@@ -1,0 +1,2 @@
+{"type":"link","source":"sensor-hof","title":"Regenwarnung","url":"https://example.com/wetter","tags":["regen","sensor"],"features":{"level":0.82}}
+{"type":"link","source":"sensor-hof","summary":"Keine Daten","url":"https://example.com/offline","meta":{"retry":true}}
