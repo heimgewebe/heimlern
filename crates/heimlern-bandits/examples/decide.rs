@@ -2,7 +2,7 @@ use std::io::{self, Read};
 
 use heimlern_bandits::RemindBandit;
 use heimlern_core::{Context, Policy};
-use serde_json::json;
+use serde_json::{json, Value};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut input = String::new();
@@ -14,12 +14,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             features: json!({}),
         }
     } else {
-        serde_json::from_str::<Context>(&input).or_else(|_| {
-            serde_json::from_value(json!({
-                "kind": input.trim(),
-                "features": json!({}),
-            }))
-        })?
+        match serde_json::from_str::<Context>(&input) {
+            Ok(ctx) => ctx,
+            Err(_) => match serde_json::from_str::<Value>(&input) {
+                Ok(Value::Object(mut obj)) => {
+                    let kind = obj
+                        .remove("kind")
+                        .and_then(|v| v.as_str().map(|s| s.to_owned()))
+                        .unwrap_or_else(|| "reminder".to_string());
+                    let features = obj.remove("features").unwrap_or_else(|| json!({}));
+                    Context { kind, features }
+                }
+                Ok(Value::String(kind)) => Context {
+                    kind,
+                    features: json!({}),
+                },
+                _ => Context {
+                    kind: input.trim().into(),
+                    features: json!({}),
+                },
+            },
+        }
     };
 
     let mut policy = RemindBandit::default();
