@@ -1,4 +1,6 @@
 name: validate (aussen samples)
+permissions:
+  contents: read
 
 on:
   push:
