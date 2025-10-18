@@ -1,4 +1,6 @@
 name: validate (aussen in heimlern)
+permissions:
+  contents: read
 on: [push, pull_request, workflow_dispatch]
 jobs:
   samples:
