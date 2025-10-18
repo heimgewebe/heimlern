@@ -5,6 +5,7 @@ on: [push, pull_request, workflow_dispatch]
 jobs:
   samples:
     name: samples (data/samples/aussensensor.jsonl)
+    if: ${{ hashFiles('data/samples/aussensensor.jsonl') != '' }}
     uses: heimgewebe/metarepo/.github/workflows/reusable-validate-jsonl.yml@contracts-v1
     with:
       jsonl_path: data/samples/aussensensor.jsonl
@@ -14,6 +15,7 @@ jobs:
 
   fixtures:
     name: fixtures (tests/fixtures/aussen.jsonl)
+    if: ${{ hashFiles('tests/fixtures/aussen.jsonl') != '' }}
     uses: heimgewebe/metarepo/.github/workflows/reusable-validate-jsonl.yml@contracts-v1
     with:
       jsonl_path: tests/fixtures/aussen.jsonl
