@@ -1,4 +1,6 @@
 name: contracts
+permissions:
+  contents: read
 on:
   push:
   pull_request:
