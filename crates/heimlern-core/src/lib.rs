@@ -5,6 +5,8 @@
 //! werden. Alle Typen sind `Serialize`/`Deserialize`, damit sie in JSON-basierte
 //! APIs, Persistenzschichten oder Tests eingebettet werden können.
 
+pub mod event;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
