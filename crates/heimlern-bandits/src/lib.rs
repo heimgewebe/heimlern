@@ -38,6 +38,14 @@ fn default_slots() -> Vec<String> {
 }
 
 impl RemindBandit {
+    /// Berechnet den durchschnittlichen Reward für einen Slot.
+    fn get_average_reward(&self, slot: &str) -> f32 {
+        self.values
+            .get(slot)
+            .map(|(n, v)| if *n > 0 { v / *n as f32 } else { 0.0 })
+            .unwrap_or(0.0)
+    }
+
     fn sanitize(&mut self) {
         if !self.epsilon.is_finite() {
             self.epsilon = 0.0;
@@ -78,29 +86,15 @@ impl Policy for RemindBandit {
             self.slots
                 .iter()
                 .max_by(|a, b| {
-                    let val_a = self
-                        .values
-                        .get(a.as_str())
-                        .map(|(n, v)| if *n > 0 { v / *n as f32 } else { 0.0 })
-                        .unwrap_or(0.0);
-                    let val_b = self
-                        .values
-                        .get(b.as_str())
-                        .map(|(n, v)| if *n > 0 { v / *n as f32 } else { 0.0 })
-                        .unwrap_or(0.0);
-                    val_a
-                        .partial_cmp(&val_b)
+                    self.get_average_reward(a)
+                        .partial_cmp(&self.get_average_reward(b))
                         .unwrap_or(std::cmp::Ordering::Equal)
                 })
                 .unwrap()
                 .clone()
         };
 
-        let value_estimate = self
-            .values
-            .get(&chosen_slot)
-            .map(|(n, v)| if *n > 0 { v / *n as f32 } else { 0.0 })
-            .unwrap_or(0.0);
+        let value_estimate = self.get_average_reward(&chosen_slot);
 
         Decision {
             action: format!("remind.{chosen_slot}"),
