@@ -25,7 +25,8 @@ pub struct Context {
 pub struct Decision {
     /// Die gewählte Aktion, typischerweise ein identifizierbarer Name oder Slot.
     pub action: String,
-    /// Heuristische Bewertung der Aktion im Bereich `0.0..=1.0`.
+    /// Heuristische Bewertung der Aktion. Policies können hier beliebige
+    /// numerische Werte verwenden (z. B. gemittelte Rewards ohne Begrenzung).
     pub score: f32,
     /// Erklärung, warum die Aktion gewählt wurde (z. B. "explore ε").
     pub why: String,
