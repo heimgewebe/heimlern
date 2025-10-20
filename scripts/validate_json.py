@@ -42,14 +42,31 @@ def main() -> int:
     doc_path = pathlib.Path(sys.argv[2]).resolve()
 
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
-    data = json.loads(doc_path.read_text(encoding="utf-8"))
-
     resolver = RefResolver.from_schema(schema)
-    Draft202012Validator(schema, resolver=resolver).validate(data)
+    validator = Draft202012Validator(schema, resolver=resolver)
 
-    _extra_checks(schema_path, data)
+    def validate_payload(payload: Any, label: str) -> None:
+        validator.validate(payload)
+        _extra_checks(schema_path, payload)
+        print(f"\u2713 {label} valid against {schema_path.name}")
 
-    print(f"\u2713 {doc_path.name} valid against {schema_path.name}")
+    if doc_path.suffix == ".jsonl":
+        with doc_path.open("r", encoding="utf-8") as handle:
+            for idx, raw in enumerate(handle, start=1):
+                stripped = raw.strip()
+                if not stripped:
+                    continue
+                try:
+                    data = json.loads(stripped)
+                except json.JSONDecodeError as exc:  # pragma: no cover - CLI helper
+                    raise ContractError(
+                        f"line {idx} ist kein valides JSON: {exc}"
+                    ) from exc
+                validate_payload(data, f"{doc_path.name}:{idx}")
+    else:
+        data = json.loads(doc_path.read_text(encoding="utf-8"))
+        validate_payload(data, doc_path.name)
+
     return 0
 
 
