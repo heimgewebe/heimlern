@@ -1,29 +1,46 @@
+//! Datenstrukturen für externe Events, die von Sensoren oder anderen Quellen
+//! stammen.
+//!
+//! Dieses Modul definiert den [`AussenEvent`], der als standardisiertes
+//! Austauschformat für Ereignisse dient, die von außerhalb des Systems
+//! eintreffen. Solche Events können beispielsweise von IoT-Geräten, Webhooks
+//! oder anderen externen APIs stammen.
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-/// Kontrakt-konformer Außensensor-Event (contracts/aussen.event.schema.json)
+/// Repräsentiert ein externes Ereignis, das von einem Sensor, einer API oder
+/// einer anderen Datenquelle stammt.
+///
+/// Die Struktur ist so konzipiert, dass sie mit dem JSON-Schema in
+/// `contracts/aussen_event.schema.json` kompatibel ist.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AussenEvent {
-    /// Eindeutige Kennung des Events.
+    /// Eine eindeutige Kennung für dieses Ereignis, z. B. eine UUID.
     pub id: Option<String>,
-    /// Typ des Events, entspricht dem JSON-Feld `type`.
+    /// Der Typ des Ereignisses, der zur Kategorisierung dient (z. B.
+    /// "sensor.reading", "user.interaction"). Entspricht dem `type`-Feld in
+    /// JSON.
     #[serde(rename = "type")]
     pub kind: String,
-    /// Quelle oder Herkunft des Events.
+    /// Die Quelle des Ereignisses (z. B. "haus-automation", "user-app").
     pub source: String,
-    /// Optionaler Titel zur Anzeige.
+    /// Ein optionaler, menschenlesbarer Titel für das Ereignis.
     pub title: Option<String>,
-    /// Kurzbeschreibung oder Zusammenfassung.
+    /// Eine kurze Zusammenfassung oder Beschreibung des Ereignisses.
     pub summary: Option<String>,
-    /// Referenz-URL für weiterführende Informationen.
+    /// Eine URL, die auf weiterführende Informationen zum Ereignis verweist.
     pub url: Option<String>,
-    /// Tags zur Kategorisierung.
+    /// Eine Liste von Tags zur Kategorisierung oder zum Filtern des Ereignisses.
     pub tags: Option<Vec<String>>,
-    /// ISO-8601-Zeitstempel.
+    /// Ein ISO-8601-formatierter Zeitstempel, der angibt, wann das Ereignis
+    /// aufgetreten ist.
     pub ts: Option<String>,
-    /// Beliebige zusätzliche Merkmale.
+    /// Ein flexibles Feld für beliebige strukturierte Daten, die für die
+    /// Policy-Entscheidung relevant sind.
     pub features: Option<BTreeMap<String, Value>>,
-    /// Weitere Metadaten.
+    /// Zusätzliche Metadaten, die nicht direkt für die Entscheidungsfindung
+    /// verwendet werden, aber für Logging oder Debugging nützlich sein können.
     pub meta: Option<BTreeMap<String, Value>>,
 }
