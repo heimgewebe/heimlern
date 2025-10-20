@@ -60,4 +60,13 @@ Ersetze `{}` durch einen gewünschten Kontext, um andere Slots oder Heuristiken 
 ## Weiterführende Dokumentation
 
 * [ADR-Index](docs/adr/README.md) – Übersicht und Motivation hinter den Architekturentscheidungen.
+* Policy-Lifecycle: `docs/policy-lifecycle.md`
 * Inline-Rustdocs in den Crates (`cargo doc --open`) erläutern Strukturen, Traits und das Snapshot-Format im Detail.
+
+### Beispiel: Außensensor-Events grob scoren
+
+```bash
+# kompiliert und liest JSONL aus Datei oder stdin
+cargo run -p heimlern-core --example ingest_events -- data/samples/aussensensor.jsonl
+```
+Die Ausgabe listet pro Zeile einen Score (0..1) und den Titel (falls vorhanden).
