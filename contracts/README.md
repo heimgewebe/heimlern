@@ -3,6 +3,7 @@
 Diese Verträge definieren das externe Austauschformat:
 - **PolicySnapshot**: Zustandsstand einer Policy (Arme, Zähler, Werte …)
 - **PolicyFeedback**: Rückmeldung zu einer Entscheidung (Reward, Notizen)
+- **Außensensor-Event**: Normalisierte JSON-Struktur für eingehende Sensor-Events
 
 Ziele:
 - Reproduzierbarkeit (Versionierung)
