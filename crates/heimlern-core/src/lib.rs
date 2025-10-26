@@ -48,3 +48,24 @@ pub trait Policy {
     /// Lädt einen zuvor erzeugten JSON-Snapshot wieder in die Policy.
     fn load(&mut self, snapshot: Value);
 }
+
+// -----------------------
+// Tests (Grundabsicherung)
+// -----------------------
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn context_roundtrip() {
+        let ctx = Context {
+            kind: "test".to_string(),
+            features: json!({"key": "value", "n": 1}),
+        };
+        let s = serde_json::to_string(&ctx).unwrap();
+        let back: Context = serde_json::from_str(&s).unwrap();
+        assert_eq!(ctx.kind, back.kind);
+        assert_eq!(ctx.features["key"], "value");
+    }
+}

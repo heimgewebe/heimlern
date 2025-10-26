@@ -1,8 +1,14 @@
+#![warn(clippy::unwrap_used, clippy::expect_used)]
+
 //! Beispiel-Implementierung eines ε-greedy-Banditen für Erinnerungs-Slots.
 //!
 //! Der `RemindBandit` implementiert das [`Policy`](heimlern_core::Policy)-Trait
 //! für ein häusliches Erinnerungs-Szenario. Mit Wahrscheinlichkeit `epsilon` wird
 //! ein Slot zufällig gewählt (Exploration), sonst der beste bekannte Slot (Exploitation).
+
+// Fehler-Typ für zukünftige Refactors (unwrap() -> Result)
+pub mod error;
+pub use error::{BanditError, Result};
 
 use heimlern_core::{Context, Decision, Policy};
 use rand::prelude::*;
@@ -37,6 +43,19 @@ fn default_slots() -> Vec<String> {
     DEFAULT_SLOTS.iter().map(|s| (*s).to_string()).collect()
 }
 
+fn serialize_context(ctx: &Context) -> Option<serde_json::Value> {
+    serde_json::to_value(ctx).ok()
+}
+
+fn fallback_decision(reason: &str, ctx: &Context) -> Decision {
+    Decision {
+        action: "remind.none".into(),
+        score: 0.0,
+        why: reason.into(),
+        context: serialize_context(ctx),
+    }
+}
+
 impl RemindBandit {
     /// Berechnet den durchschnittlichen Reward für einen Slot.
     fn get_average_reward(&self, slot: &str) -> f32 {
@@ -68,30 +87,29 @@ impl Policy for RemindBandit {
 
         // Wenn aus irgendeinem Grund immer noch leer: sichere Rückgabe.
         if self.slots.is_empty() {
-            return Decision {
-                action: "remind.none".into(),
-                score: 0.0,
-                why: "no slots available".into(),
-                context: Some(serde_json::to_value(ctx).unwrap()),
-            };
+            return fallback_decision("no slots available", ctx);
         }
 
         let explore = rng.gen::<f32>() < self.epsilon;
 
         let chosen_slot = if explore {
-            // Exploration: zufällig wählen (safe, da nicht leer).
-            self.slots.choose(&mut rng).unwrap().clone()
+            // Exploration: zufällig wählen (safe, da nicht leer, aber defensiv).
+            if let Some(slot) = self.slots.choose(&mut rng) {
+                slot.clone()
+            } else {
+                return fallback_decision("no slots available", ctx);
+            }
         } else {
             // Exploitation: Slot mit höchstem durchschnittlichem Reward.
-            self.slots
-                .iter()
-                .max_by(|a, b| {
-                    self.get_average_reward(a)
-                        .partial_cmp(&self.get_average_reward(b))
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                })
-                .unwrap()
-                .clone()
+            if let Some(slot) = self.slots.iter().max_by(|a, b| {
+                self.get_average_reward(a)
+                    .partial_cmp(&self.get_average_reward(b))
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            }) {
+                slot.clone()
+            } else {
+                return fallback_decision("no slots available", ctx);
+            }
         };
 
         let value_estimate = self.get_average_reward(&chosen_slot);
@@ -100,7 +118,7 @@ impl Policy for RemindBandit {
             action: format!("remind.{chosen_slot}"),
             score: value_estimate,
             why: if explore { "explore ε" } else { "exploit" }.into(),
-            context: Some(serde_json::to_value(ctx).unwrap()),
+            context: serialize_context(ctx),
         }
     }
 
@@ -115,7 +133,7 @@ impl Policy for RemindBandit {
 
     /// Persistiert vollständigen Zustand als JSON.
     fn snapshot(&self) -> serde_json::Value {
-        serde_json::to_value(self).unwrap()
+        serde_json::to_value(self).unwrap_or(serde_json::Value::Null)
     }
 
     /// Lädt Zustand aus Snapshot (robust mit Korrekturen).
