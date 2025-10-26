@@ -1,5 +1,10 @@
 # heimlern
 
+[![rust (cached)](https://github.com/heimgewebe/heimlern/actions/workflows/ci-rust.yml/badge.svg)](https://github.com/heimgewebe/heimlern/actions/workflows/ci-rust.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+Siehe auch: **Policy-Lifecycle**: `docs/policy-lifecycle.md` und **Contracts** in `contracts/`.
+
 `heimlern` ist ein kleines Experimentierfeld für lernfähige Policies im häuslichen Umfeld. Das Repository besteht aus einem schlanken Kern mit gemeinsam genutzten Traits sowie einer Beispiel-Implementierung eines Bandit-Agenten, die zusammen zeigen, wie Erinnerungs-Policies modelliert, ausgeführt und persistiert werden können.
 
 ## Inhaltsverzeichnis
@@ -9,6 +14,8 @@
 3. [Crates](#crates)
 4. [Beispiel ausführen](#beispiel-ausführen)
 5. [Weiterführende Dokumentation](#weiterführende-dokumentation)
+6. [Installation / Entwicklung](#installation--entwicklung)
+7. [Beitragen](#beitragen)
 
 ## Schnellstart
 
@@ -70,3 +77,20 @@ Ersetze `{}` durch einen gewünschten Kontext, um andere Slots oder Heuristiken 
 cargo run -p heimlern-core --example ingest_events -- data/samples/aussensensor.jsonl
 ```
 Die Ausgabe listet pro Zeile einen Score (0..1) und den Titel (falls vorhanden).
+
+## Installation / Entwicklung
+
+### Anforderungen
+- Rust (stable)
+- Cargo
+
+### Schnellstart
+```bash
+git clone https://github.com/heimgewebe/heimlern.git
+cd heimlern
+cargo build --workspace
+cargo test  --workspace
+```
+
+## Beitragen
+Siehe [CONTRIBUTING.md](CONTRIBUTING.md).
