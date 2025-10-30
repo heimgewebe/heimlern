@@ -21,36 +21,41 @@ jobs:
   build-test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: checkout
         uses: actions/checkout@v4
 
-      - name: Install Rust (stable)
+      - name: toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: stable
           components: clippy, rustfmt
 
-      - name: Cache cargo registry
+      - name: cache cargo registry
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
-      - name: Cache target
+      - name: cache target
         uses: actions/cache@v4
         with:
           path: target
           key: ${{ runner.os }}-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-target-
 
-      - name: Check formatting
+      - name: fmt
         run: cargo fmt --all -- --check
 
-      - name: Clippy lint
+      - name: clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
-      - name: Build workspace
+      - name: build
         run: cargo build --workspace --all-targets --locked
 
-      - name: Test workspace
+      - name: test
         run: cargo test --workspace --all-targets --locked --no-fail-fast
