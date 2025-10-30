@@ -102,9 +102,9 @@ impl Policy for RemindBandit {
         } else {
             // Exploitation: Slot mit höchstem durchschnittlichem Reward.
             if let Some(slot) = self.slots.iter().max_by(|a, b| {
-                self.get_average_reward(a)
-                    .partial_cmp(&self.get_average_reward(b))
-                    .unwrap_or(std::cmp::Ordering::Equal)
+                self
+                    .get_average_reward(a)
+                    .total_cmp(&self.get_average_reward(b))
             }) {
                 slot.clone()
             } else {
@@ -128,19 +128,33 @@ impl Policy for RemindBandit {
             let entry = self.values.entry(slot.to_string()).or_insert((0, 0.0));
             entry.0 += 1; // pulls
             entry.1 += reward; // total reward
+        } else {
+            // Klare Rückmeldung statt stillem Ignorieren.
+            eprintln!(
+                "[heimlern-bandits] feedback(): Aktion ohne erwartetes Präfix 'remind.': '{action}' – ignoriert"
+            );
         }
     }
 
     /// Persistiert vollständigen Zustand als JSON.
     fn snapshot(&self) -> serde_json::Value {
+        // Trait liefert Value, daher hier bewusst kein Result.
+        // Fehler sind extrem unwahrscheinlich; im Fall der Fälle liefern wir Null
+        // (explizit, ohne panic), damit Aufrufer deterministisch bleiben.
         serde_json::to_value(self).unwrap_or(serde_json::Value::Null)
     }
 
     /// Lädt Zustand aus Snapshot (robust mit Korrekturen).
     fn load(&mut self, v: serde_json::Value) {
-        if let Ok(mut loaded) = serde_json::from_value::<RemindBandit>(v) {
-            loaded.sanitize();
-            *self = loaded;
+        match serde_json::from_value::<RemindBandit>(v) {
+            Ok(mut loaded) => {
+                loaded.sanitize();
+                *self = loaded;
+            }
+            Err(e) => {
+                // Nicht schweigend schlucken: sichtbarer Hinweis auf STDOUT/ERR.
+                eprintln!("[heimlern-bandits] load(): Snapshot konnte nicht geladen werden: {e}");
+            }
         }
     }
 }
@@ -226,5 +240,17 @@ mod tests {
 
         let decision = bandit.decide(&ctx);
         assert!(decision.action.starts_with("remind."));
+    }
+
+    #[test]
+    fn feedback_without_prefix_is_ignored_but_warns() {
+        let mut bandit = RemindBandit::default();
+        let ctx = Context {
+            kind: "t".into(),
+            features: serde_json::json!({}),
+        };
+
+        bandit.feedback(&ctx, "afternoon", 0.9);
+        assert!(bandit.values.is_empty());
     }
 }

@@ -20,10 +20,10 @@ pub struct AussenEvent {
     /// Eine eindeutige Kennung für dieses Ereignis, z. B. eine UUID.
     pub id: Option<String>,
     /// Der Typ des Ereignisses, der zur Kategorisierung dient (z. B.
-    /// "sensor.reading", "user.interaction"). Entspricht dem `type`-Feld in
-    /// JSON.
-    #[serde(rename = "type")]
-    pub kind: String,
+    /// "sensor.reading", "user.interaction").
+    /// Hinweis: Wir verwenden ein echtes Feld `type` via raw identifier,
+    /// damit Code und JSON-Name 1:1 übereinstimmen.
+    pub r#type: String,
     /// Die Quelle des Ereignisses (z. B. "haus-automation", "user-app").
     pub source: String,
     /// Ein optionaler, menschenlesbarer Titel für das Ereignis.
