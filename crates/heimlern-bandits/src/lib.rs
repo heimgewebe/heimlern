@@ -101,14 +101,23 @@ impl Policy for RemindBandit {
             }
         } else {
             // Exploitation: Slot mit höchstem durchschnittlichem Reward.
-            if let Some(slot) = self.slots.iter().max_by(|a, b| {
-                self
-                    .get_average_reward(a)
-                    .total_cmp(&self.get_average_reward(b))
-            }) {
+            if let Some((slot, _)) = self
+                .slots
+                .iter()
+                // Ungültige Werte (NaN) ignorieren
+                .filter_map(|s| {
+                    let average = self.get_average_reward(s);
+                    average.is_finite().then_some((s, average))
+                })
+                .max_by(|(_, a_avg), (_, b_avg)| a_avg.total_cmp(b_avg))
+            {
                 slot.clone()
             } else {
-                return fallback_decision("no slots available", ctx);
+                // Falls alle Rewards NaN sind, trotzdem stabil zurückfallen
+                eprintln!(
+                    "[heimlern-bandits] decide(): alle Slots haben ungültige Rewards (NaN) – fallback"
+                );
+                return fallback_decision("invalid rewards", ctx);
             }
         };
 
@@ -240,6 +249,24 @@ mod tests {
 
         let decision = bandit.decide(&ctx);
         assert!(decision.action.starts_with("remind."));
+    }
+
+    #[test]
+    fn nan_rewards_are_ignored_in_exploit() {
+        let mut bandit = RemindBandit {
+            epsilon: 0.0, // Exploit only
+            slots: vec!["a".into(), "b".into()],
+            values: HashMap::new(),
+        };
+        let ctx = Context {
+            kind: "t".into(),
+            features: serde_json::json!({}),
+        };
+        bandit.feedback(&ctx, "remind.b", 0.5);
+        bandit.values.insert("a".into(), (0, f32::NAN));
+
+        let decision = bandit.decide(&ctx);
+        assert!(decision.action.ends_with(".b"));
     }
 
     #[test]
