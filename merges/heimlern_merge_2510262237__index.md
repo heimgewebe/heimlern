@@ -1,0 +1,448 @@
+# Ordner-Merge: heimlern
+
+**Zeitpunkt:** 2025-10-26 22:37
+**Quelle:** `/home/alex/repos/heimlern`
+**Dateien (gefunden):** 37
+**Gesamtgröße (roh):** 44 KB
+
+**Exclude:** ['.gitignore']
+
+## 📁 Struktur
+
+- heimlern/
+  - .gitignore
+  - .hauski-reports
+  - CONTRIBUTING.md
+  - Cargo.lock
+  - Cargo.toml
+  - Justfile
+  - LICENSE
+  - README.md
+  - requirements-tools.txt
+  - tests/
+    - fixtures/
+      - .gitkeep
+      - aussen.jsonl
+  - docs/
+    - policies-os-context.md
+    - policy-lifecycle.md
+    - adr/
+      - 0001-policy-explainability.md
+      - 0002-policy-snapshot-persistenz.md
+      - README.md
+  - .github/
+    - workflows/
+      - ci-rust.yml
+      - ci.yml
+      - contracts.yml
+      - validate-aussen-samples.yml
+      - validate-aussen.yml
+  - .git/
+    - FETCH_HEAD
+    - HEAD
+    - ORIG_HEAD
+    - config
+    - index
+    - packed-refs
+    - hooks/
+      - pre-push
+    - refs/
+      - remotes/
+        - origin/
+          - alert-autofix-2
+          - docs-improve-event-documentation
+          - fehlerbehebung-im-repo
+          - fix-bandit-logic-and-add-tests
+          - main
+          - refactor-reward-calculation
+          - fix/
+            - fehlerfrei-check
+          - codex/
+            - add-adr-0001-and-adr-0002-documents
+            - add-cached-rust-ci-workflow-and-tests
+            - add-contracts-and-validation-scripts
+            - add-documentation-for-policy-lifecycle
+            - add-github-actions-workflow-for-validation
+            - add-missing-workflow-and-event-files
+            - add-policy-lifecycle-documentation-and-workflow
+            - find-code-errors
+            - find-errors-in-the-code
+            - find-errors-in-the-code-msa0re
+            - fix-build-error-in-lib.rs
+            - fix-syntax-errors-in-lib.rs
+            - fix-validate-aussen.yml-workflow-failures
+            - harden-epsilon-handling-and-add-decide-example
+            - update-policies-for-os-context
+            - verify-documentation-completeness
+      - tags/
+      - heads/
+        - main
+        - backup/
+          - main-20251017-182445
+          - main-20251018-090526
+          - main-20251021-124304
+          - main-20251023-070602
+          - main-20251026-162049
+    - logs/
+      - HEAD
+      - refs/
+        - remotes/
+          - origin/
+            - alert-autofix-2
+            - docs-improve-event-documentation
+            - fehlerbehebung-im-repo
+            - fix-bandit-logic-and-add-tests
+            - main
+            - refactor-reward-calculation
+            - fix/
+              - fehlerfrei-check
+            - codex/
+              - add-adr-0001-and-adr-0002-documents
+              - add-cached-rust-ci-workflow-and-tests
+              - add-contracts-and-validation-scripts
+              - add-documentation-for-policy-lifecycle
+              - add-github-actions-workflow-for-validation
+              - add-missing-workflow-and-event-files
+              - add-policy-lifecycle-documentation-and-workflow
+              - find-code-errors
+              - find-errors-in-the-code
+              - find-errors-in-the-code-msa0re
+              - fix-build-error-in-lib.rs
+              - fix-syntax-errors-in-lib.rs
+              - fix-validate-aussen.yml-workflow-failures
+              - harden-epsilon-handling-and-add-decide-example
+              - update-policies-for-os-context
+              - verify-documentation-completeness
+        - heads/
+          - main
+          - backup/
+            - main-20251017-182445
+            - main-20251018-090526
+            - main-20251021-124304
+            - main-20251023-070602
+            - main-20251026-162049
+    - objects/
+      - de/
+        - 4c0423c9b0096c41d6460600d1c115bda976c9
+      - c7/
+        - 5e3c49e1c78021a1a6de7f14c39f6d83b78de9
+      - 87/
+        - 30ae26584d87fe04a7894ce0f80a1ce856869f
+        - ec078c6679540bbd09c4355938e9ed3a5e1e49
+      - ad/
+        - c9ea28221387eef0fd6167f6ada14dcea23570
+      - 89/
+        - a5d9d56327e2b627359508aa922f406a14afab
+      - 6b/
+        - 4ae090b88c66721e23e3445917d1f5996618e4
+      - 54/
+        - 1a675882268106c89eeaebb0766fcb9b82bffd
+      - 17/
+        - 435274f59d73a1d6d884088c9136eed089b7d6
+      - a8/
+        - db0a3b9014bf77aac4e72c688230f7f6879cba
+      - fd/
+        - 2f80638b32137c6ebba6203749fd95a1eb8672
+        - 68cc5a044ee7f6180de4c6b268012aa91859fc
+      - cc/
+        - 2150f009879b9e2e91b751296018046523fbc8
+      - b2/
+        - 8c0dc7aff5cbe8807f86f913b1020f6b0c5627
+        - f535a70d83eac1c899af36bb49f43a42dc944f
+      - 14/
+        - 3012b00e243492fb70d408f0475071b6270bd1
+      - f9/
+        - 634db084ec2c3d565aaf70eb635514bab5312e
+      - 6a/
+        - 1a61d028a9023a70e35bd05e87294e44841d8a
+        - 8a88c218b8b07948def2ebd12bff3a4d75f4e2
+      - 3e/
+        - 155bb69acf964013c15d5152a3d451ced17199
+        - 64930bf15b692555ca7deac352d2d496d53fcd
+        - 98df14d5bfb499e78c4804bd9f805cd6e57283
+      - 01/
+        - b2c165765497625de9b2a2d019f035e6d9b3c7
+      - 13/
+        - 3cfd2fe43a2087add59db2578d8236c896656d
+      - 56/
+        - 67ac24485c80b772e61aef9040f1a39a78b39e
+      - 9e/
+        - a85789f5cf1bd3082cc0641d208e8e4f75d0dc
+        - f115039ebb5eb55c5f2a2392340106813811eb
+      - 2f/
+        - 7896d1d1365eafb0da03d9fe456fac81408487
+      - 8d/
+        - c4129c08ad481d3b2df3a969edeaaf1bbb80e6
+      - pack/
+        - pack-1a5e4d0b13c5d7cd8e8fa88ccac78650c78b1033.idx
+        - pack-1a5e4d0b13c5d7cd8e8fa88ccac78650c78b1033.pack
+      - 9a/
+        - 048552af3d91b04b484add69d5ef68766749e9
+      - f1/
+        - cb042b1481f3aad2ac7d2e5bcffaa023e0fc42
+        - e1dfe054c6aa1164e48e476556076ba181ad6d
+      - 9b/
+        - 23ab534f1a9a72d876f089176d072962d10f71
+      - c3/
+        - 1a09eded75a10ca595c1f140cde5e8a7d5cefb
+      - cb/
+        - 0fd915ef699324fb6d94c6a7a6c52522c8f7b1
+      - bb/
+        - d315277b8d9248c7857aecfd6cb7f9a1a054bf
+      - 94/
+        - 2abbdfb0a33005ce3f10481fcd37dc8b636ec3
+      - 18/
+        - 66874041cb814cc62dc385980ec651e2b61592
+        - e93364a666cf7919a8c35434f96e99aba06ea6
+        - fcabf0832a36f09d493637e02e8f25ee63b150
+      - df/
+        - 08a61a1c79a17d20343afc95d68a6dd28f1070
+      - 3b/
+        - 89661312f4b58d68f14113ed8b117fad3ba6ff
+      - e4/
+        - 10fed35382eea8781c64de1f5594f1feccb677
+      - d4/
+        - 618f5cce579d2e053fbe8d877645e99499608f
+      - 20/
+        - d9cc369d9d4c90ff79e639860b2e2ac4b6f4d9
+      - 19/
+        - 7fd682fb50b11b66f720eff6bbe48bd9ada3b5
+        - 846b330b6b1dba9aeac296be45825d0af5c453
+      - ff/
+        - ee584d4326bba6121d2a6f52806c2da2f5b952
+      - c4/
+        - 3b9991e52683ebad71e769bc5302cd85a6ba63
+        - 7ec264a91ad657860f2deb0ebeb0c203e007a4
+      - fc/
+        - 2a15c434e3add52eb5d9539bd0befd1a590084
+        - c9f917b416a5856a12dd0bac769d727dab2e0b
+      - ec/
+        - 09bd623040e3982c7c1b5cf1536e7413ecf95e
+      - e6/
+        - 4e540de9b0322a2a4602b30b9c82b1e13fbfb1
+      - 50/
+        - a5d4d16531ea7e7766ab53f957d15c11ad1cff
+      - 5b/
+        - 0cfc411270f78daf5768f674dbc61c38a0a6f9
+      - 5d/
+        - 550a3bde39e124eb546a16cc8c00e3aabafb1d
+        - a55307d6aedb9274165a45d82cb9fe70d1a913
+        - ed214a543e54ab517076c013ed0c3360569688
+      - 7a/
+        - 6635b8a8acbae1d946605af0e6cc9adafb388e
+      - 16/
+        - 9ffcb7297ef4d28f3ce6315c30fdb23a1d166d
+      - 28/
+        - cc39a51ba2f7b1c37f763bb63554b2d09831bc
+      - fb/
+        - e53ad8832a50c146f03f9605bc7d89c69384ec
+      - 4c/
+        - 8a4fb5803d59479cd447f0f92394c4206ef5e7
+      - ed/
+        - 742bee7396ec6c72a20acaeaf4334da2348193
+      - 53/
+        - 3b2755a239b7695ec225cfcbf5919c60b661f6
+      - 46/
+        - 070e16a2a53322b173307a3edb926ae022dade
+      - d9/
+        - 1381297b9ec58d603f001dc98e8e2c5f48d2ef
+      - 6f/
+        - 22d1b1ce5861b6b04c12ba58030fa8265b4911
+      - 03/
+        - bb0cca586c3f2ea1e47fe513ec4ee896c3aede
+      - 2b/
+        - 63447e93ec27605a1512918b667b1421766380
+      - 75/
+        - ba1ab190d89fea56d7f568764de70957b079e9
+      - 32/
+        - fb6f2ff1cde77e26b1c2cfbecbd034a46d017b
+      - 63/
+        - 9659017d39fdb9ea184f372d95d734df2c6862
+      - d6/
+        - 9b2786843e78ab38c2177dfceba9d3117c9e83
+      - 80/
+        - 2fe5da93e76e87d80b0e296564c3cc2bbf4840
+      - 2a/
+        - 53909aed93a541989a845c0c56499eeeaf5e3c
+      - 3a/
+        - 1ab85ac0c6368ce65e9ce48f2047279d5ceae6
+      - e2/
+        - d69d6a85fcb8502e648015295f5c313ce75633
+      - b3/
+        - 9d942c0ef7a732b188ebdddf9d8a459eb2b4e8
+      - a5/
+        - 6192472a1ebf2af36cd949345b71218c593be4
+        - 99c70857153012b1bac1f965325211f5d5b3f2
+      - c8/
+        - 69c16f8625fee59bd9d0361c03a4b0adf2cea6
+      - 6e/
+        - 8e4ca935505fb991ab98c308ee2517418c9838
+      - 9c/
+        - d221e2507a204e6ee65c468ba989dbf32e168d
+      - 10/
+        - 7d5bc256a898ea0fa67d8719eca112fba038dc
+      - 1c/
+        - 46a89b42a544bfa8da682c811bb4a71e460fa6
+      - 55/
+        - a0904c93d795bd9c21cd46b709fe1fa85d8608
+      - b1/
+        - 0e2712d41ec33d8b8fc0fa0a3ab3ef2f82a406
+      - 85/
+        - 73d203b14f24b6e0067ac8c36a9ae84c031115
+        - bd28838bdfab4b28be06c537f23e835d777e7a
+      - 21/
+        - 87c5e35bb7ec918716d2fefe28a75fb1015c23
+      - da/
+        - 08ad051a2c5c611d606f431a7c1ceb2388301f
+        - 0e559ce8b96f5de92fb0705ac728e55962c897
+      - 3d/
+        - 1c301ca76aa1beb78b611fee3838b3598e8ec8
+      - 1e/
+        - 1ddf4d428c049ab4423bac24abc15989863042
+        - d3531abbd42392497ae151ad7211f00664f70a
+      - 1f/
+        - 33320bb30c4d3432b2b7199d6ab88d82c14677
+        - 992a77f14ebe5ca2e23d2bc14942e20667a052
+      - dc/
+        - a5c622efca85f947628f13d7617f29d1f8c8d1
+      - 04/
+        - 83d72b7a8abe93b1e4f5fab7297414b8e54c82
+        - 974d99f1a6308e589dbaa1cdb2b298adc2d3a2
+        - e1931c6c55ce1b4c49484d146cd89d70a93e37
+        - f1dae7a2ca4fb554426f946de8a10f0e1d086e
+      - 8c/
+        - 068e9421f7c184e66fab2c63d030c1046f748d
+        - f528bef7311ee195c246617764b7fa023e0ac6
+      - 7f/
+        - 33f8a62457700cfa7a7bf262bd9dd7d08c0c19
+        - b479d0499bbaf1af7f390df30633d206501275
+      - 25/
+        - f2ed3e933f211e8d448b10850c3cbf1548b571
+      - c0/
+        - 3b3efa9bc1f6bc04d7106090406e264e87a515
+      - bf/
+        - a9a3c4449c57dd3eb743ea30160e273605db2b
+      - 05/
+        - 24bfa6cc66a5d176d66c476f248a6a89d18689
+      - 65/
+        - 9233647e218578eb29bff7889211a674e503bd
+      - ea/
+        - 2a5eaec4f70c33e7f194051edbf87575a6111c
+        - 5eb29f0ddeef537b5aeb507165d1c4e11d7188
+      - 51/
+        - 7c5e6654730975500955e8cca2d9265231e956
+        - 88aa12048ff118b09051a959ac528a49b6789f
+        - d746e67e3f0b5293bb3b51b681e35950d3fd14
+      - ee/
+        - 926e0f6d465f71e4504f0d0edf7021a3262914
+      - e7/
+        - f861f275f894fe6e783d093e3e1b4003e43903
+      - 9f/
+        - 62ca5059b0aee771b60f48ec411acd63db7396
+        - 970225adb6a6ada5c22d46d02684b6b0f5525e
+      - 36/
+        - 9e15a9ecbec8d099b0266dc1106ba869563bfd
+      - 93/
+        - c49af6063a40c59832e3421a57e1f269308ff9
+      - info/
+      - 86/
+        - 37a20cb40703b662edd21bfd74e05bbf562931
+      - 15/
+        - 9296874bf256cfe7c089f3b54ade1bfcbcf824
+      - b6/
+        - 4e9f287a803fee8ec4971a15f151978a21dc42
+        - 823db7622482cd39da029189ec6c70a1dff4d1
+        - b0e7739b62ea6e9c23db5b10d1bcb16d45d325
+        - b91c1972c0878b98e44219d9c315aeb1085af7
+      - 40/
+        - acaa567aeb215d1c1d6134ec1892cb4f09f63b
+      - 88/
+        - 1d66b58d092a24fa65719ae4d78c1b2f63cade
+      - 4e/
+        - 8f50ef6fcd1ce14b5f1d696b49cbb62892d3ec
+      - 09/
+        - 3f40de5431baef9d61b9b6c722e5ec52bee46a
+        - ad33aa2ee414f27ae8bdff6cb6a382f17e9ac6
+      - 0b/
+        - 34ac6dddb45abdcc0dab3a7d7c31dc0a022cb7
+        - fd504b4c1d47d5d24d644c7f8cab4aed80ad34
+      - 22/
+        - e8262c92b72b7009ba23b79fff818f2b6c2c63
+      - 33/
+        - 3f7f286ef76171eff1f7a887aa0a415f6dbee8
+        - 76aea0d490f31ac4cad467fba13ec88c6584e3
+      - ef/
+        - 55c348bb37b4ac902e04e0ba5b4c1ef3d5ae53
+        - ab909afdb4e0af60198d03e0fcb56108ed385c
+      - a2/
+        - 00982721b70cd2f23c118b33aac9d245c9c4bd
+  - merges/
+    - heimlern_merge_2510262237__index.md
+  - crates/
+    - heimlern-core/
+      - Cargo.toml
+      - src/
+        - event.rs
+        - lib.rs
+      - examples/
+        - ingest_events.rs
+    - heimlern-bandits/
+      - Cargo.toml
+      - src/
+        - error.rs
+        - lib.rs
+      - examples/
+        - decide.rs
+        - integrate_hauski.rs
+  - scripts/
+    - examples.py
+    - validate_json.py
+  - data/
+    - samples/
+      - .gitkeep
+      - aussensensor.jsonl
+  - contracts/
+    - README.md
+    - aussen_event.schema.json
+    - policy_feedback.schema.json
+    - policy_snapshot.schema.json
+
+## 📦 Inhalte (Chunks)
+
+- .gitignore → `heimlern_merge_2510262237__root.md`
+- CONTRIBUTING.md → `heimlern_merge_2510262237__root.md`
+- Cargo.lock → `heimlern_merge_2510262237__root.md`
+- Cargo.toml → `heimlern_merge_2510262237__root.md`
+- Justfile → `heimlern_merge_2510262237__root.md`
+- LICENSE → `heimlern_merge_2510262237__root.md`
+- README.md → `heimlern_merge_2510262237__root.md`
+- requirements-tools.txt → `heimlern_merge_2510262237__root.md`
+- tests/fixtures/.gitkeep → `heimlern_merge_2510262237__tests_fixtures.md`
+- tests/fixtures/aussen.jsonl → `heimlern_merge_2510262237__tests_fixtures.md`
+- docs/policies-os-context.md → `heimlern_merge_2510262237__docs.md`
+- docs/policy-lifecycle.md → `heimlern_merge_2510262237__docs.md`
+- docs/adr/0001-policy-explainability.md → `heimlern_merge_2510262237__docs_adr.md`
+- docs/adr/0002-policy-snapshot-persistenz.md → `heimlern_merge_2510262237__docs_adr.md`
+- docs/adr/README.md → `heimlern_merge_2510262237__docs_adr.md`
+- .github/workflows/ci-rust.yml → `heimlern_merge_2510262237__.github_workflows.md`
+- .github/workflows/ci.yml → `heimlern_merge_2510262237__.github_workflows.md`
+- .github/workflows/contracts.yml → `heimlern_merge_2510262237__.github_workflows.md`
+- .github/workflows/validate-aussen-samples.yml → `heimlern_merge_2510262237__.github_workflows.md`
+- .github/workflows/validate-aussen.yml → `heimlern_merge_2510262237__.github_workflows.md`
+- crates/heimlern-core/Cargo.toml → `heimlern_merge_2510262237__crates_heimlern-core.md`
+- crates/heimlern-core/src/event.rs → `heimlern_merge_2510262237__crates_heimlern-core_src.md`
+- crates/heimlern-core/src/lib.rs → `heimlern_merge_2510262237__crates_heimlern-core_src.md`
+- crates/heimlern-core/examples/ingest_events.rs → `heimlern_merge_2510262237__crates_heimlern-core_examples.md`
+- crates/heimlern-bandits/Cargo.toml → `heimlern_merge_2510262237__crates_heimlern-bandits.md`
+- crates/heimlern-bandits/src/error.rs → `heimlern_merge_2510262237__crates_heimlern-bandits_src.md`
+- crates/heimlern-bandits/src/lib.rs → `heimlern_merge_2510262237__crates_heimlern-bandits_src.md`
+- crates/heimlern-bandits/examples/decide.rs → `heimlern_merge_2510262237__crates_heimlern-bandits_examples.md`
+- crates/heimlern-bandits/examples/integrate_hauski.rs → `heimlern_merge_2510262237__crates_heimlern-bandits_examples.md`
+- scripts/examples.py → `heimlern_merge_2510262237__scripts.md`
+- scripts/validate_json.py → `heimlern_merge_2510262237__scripts.md`
+- data/samples/.gitkeep → `heimlern_merge_2510262237__data_samples.md`
+- data/samples/aussensensor.jsonl → `heimlern_merge_2510262237__data_samples.md`
+- contracts/README.md → `heimlern_merge_2510262237__contracts.md`
+- contracts/aussen_event.schema.json → `heimlern_merge_2510262237__contracts.md`
+- contracts/policy_feedback.schema.json → `heimlern_merge_2510262237__contracts.md`
+- contracts/policy_snapshot.schema.json → `heimlern_merge_2510262237__contracts.md`
