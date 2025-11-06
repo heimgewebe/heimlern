@@ -133,6 +133,12 @@ impl Policy for RemindBandit {
 
     /// Nimmt Feedback entgegen und aktualisiert die Schätzung pro Slot.
     fn feedback(&mut self, _ctx: &Context, action: &str, reward: f32) {
+        if !reward.is_finite() {
+            eprintln!(
+                "[heimlern-bandits] feedback(): ungültiger Reward '{reward}' für Aktion '{action}' – ignoriert"
+            );
+            return;
+        }
         if let Some(slot) = action.strip_prefix("remind.") {
             let entry = self.values.entry(slot.to_string()).or_insert((0, 0.0));
             entry.0 += 1; // pulls
@@ -279,5 +285,24 @@ mod tests {
 
         bandit.feedback(&ctx, "afternoon", 0.9);
         assert!(bandit.values.is_empty());
+    }
+
+    #[test]
+    fn feedback_with_nan_reward_is_ignored() {
+        let mut bandit = RemindBandit {
+            epsilon: 0.0,
+            slots: vec!["a".into()],
+            values: HashMap::new(),
+        };
+        let ctx = Context {
+            kind: "t".into(),
+            features: serde_json::json!({}),
+        };
+
+        bandit.feedback(&ctx, "remind.a", f32::NAN);
+        let decision = bandit.decide(&ctx);
+
+        assert_eq!(decision.action, "remind.a");
+        assert_eq!(decision.score, 0.0);
     }
 }
