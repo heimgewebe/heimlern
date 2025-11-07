@@ -78,6 +78,30 @@ cargo run -p heimlern-core --example ingest_events -- data/samples/aussensensor.
 ```
 Die Ausgabe listet pro Zeile einen Score (0..1) und den Titel (falls vorhanden).
 
+### Optionale Features
+
+#### Telemetrie
+
+Wenn das `telemetry`-Feature aktiviert ist, können Tracing-Informationen über `stdout` ausgegeben werden. Um dies in einer eigenen Anwendung zu nutzen, fügen Sie `tracing-subscriber` zu Ihren `[dependencies]` hinzu:
+
+```toml
+[dependencies]
+tracing-subscriber = "0.3"
+```
+
+Initialisieren Sie den Subscriber in Ihrer `main.rs`:
+
+```rust
+// nur im Beispiel/Binary, nicht im lib
+#[cfg(feature = "telemetry")]
+{
+    use tracing_subscriber::FmtSubscriber;
+    let _ = FmtSubscriber::builder()
+        .with_max_level(tracing::Level::WARN)
+        .try_init();
+}
+```
+
 ## Installation / Entwicklung
 
 ### Anforderungen
