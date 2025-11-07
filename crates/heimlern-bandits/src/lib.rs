@@ -16,6 +16,22 @@ use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// ---------------------------------
+// Kleiner Logging-Helper:
+// nutzt `tracing::warn!` falls Feature aktiv,
+// sonst fällt er auf eprintln! zurück.
+fn log_warn(msg: &str) {
+    #[cfg(feature = "telemetry")]
+    {
+        tracing::warn!(target: "heimlern-bandits", "{msg}");
+        return;
+    }
+    #[cfg(not(feature = "telemetry"))]
+    {
+        eprintln!("{msg}");
+    }
+}
+
 const DEFAULT_SLOTS: &[&str] = &["morning", "afternoon", "evening"];
 
 /// ε-greedy Policy für Erinnerungen.
@@ -114,9 +130,7 @@ impl Policy for RemindBandit {
                 slot.clone()
             } else {
                 // Falls alle Rewards NaN sind, trotzdem stabil zurückfallen
-                eprintln!(
-                    "[heimlern-bandits] decide(): alle Slots haben ungültige Rewards (NaN) – fallback"
-                );
+                log_warn("decide(): alle Slots haben ungültige Rewards (NaN) – fallback");
                 return fallback_decision("invalid rewards", ctx);
             }
         };
@@ -134,9 +148,9 @@ impl Policy for RemindBandit {
     /// Nimmt Feedback entgegen und aktualisiert die Schätzung pro Slot.
     fn feedback(&mut self, _ctx: &Context, action: &str, reward: f32) {
         if !reward.is_finite() {
-            eprintln!(
-                "[heimlern-bandits] feedback(): ungültiger Reward '{reward}' für Aktion '{action}' – ignoriert"
-            );
+            log_warn(&format!(
+                "feedback(): ungültiger Reward '{reward}' für Aktion '{action}' – ignoriert"
+            ));
             return;
         }
         if let Some(slot) = action.strip_prefix("remind.") {
@@ -145,9 +159,9 @@ impl Policy for RemindBandit {
             entry.1 += reward; // total reward
         } else {
             // Klare Rückmeldung statt stillem Ignorieren.
-            eprintln!(
-                "[heimlern-bandits] feedback(): Aktion ohne erwartetes Präfix 'remind.': '{action}' – ignoriert"
-            );
+            log_warn(&format!(
+                "feedback(): Aktion ohne erwartetes Präfix 'remind.': '{action}' – ignoriert"
+            ));
         }
     }
 
@@ -167,8 +181,8 @@ impl Policy for RemindBandit {
                 *self = loaded;
             }
             Err(e) => {
-                // Nicht schweigend schlucken: sichtbarer Hinweis auf STDOUT/ERR.
-                eprintln!("[heimlern-bandits] load(): Snapshot konnte nicht geladen werden: {e}");
+                // Nicht schweigend schlucken: sichtbarer Hinweis für Betreiber:innen.
+                log_warn(&format!("load(): Snapshot konnte nicht geladen werden: {e}"));
             }
         }
     }

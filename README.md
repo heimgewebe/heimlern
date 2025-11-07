@@ -70,6 +70,27 @@ Ersetze `{}` durch einen gewünschten Kontext, um andere Slots oder Heuristiken 
 * Policy-Lifecycle: `docs/policy-lifecycle.md`
 * Inline-Rustdocs in den Crates (`cargo doc --open`) erläutern Strukturen, Traits und das Snapshot-Format im Detail.
 
+### Optional: Telemetry-Logging
+Mit dem Feature-Flag `telemetry` nutzt der Bandit strukturiertes Logging via [`tracing`](https://crates.io/crates/tracing).
+Für lokale Runs kannst du – etwa im Binary oder Beispiel – einen Subscriber setzen, um formatierte Ausgaben zu erhalten:
+
+```rust
+// main.rs (nur im Beispiel/Binary, nicht im lib)
+#[cfg(feature = "telemetry")]
+{
+    use tracing_subscriber::FmtSubscriber;
+    let _ = FmtSubscriber::builder()
+        .with_max_level(tracing::Level::WARN)
+        .try_init();
+}
+```
+
+Start:
+
+```bash
+cargo run -p heimlern-bandits --features telemetry --example decide
+```
+
 ### Beispiel: Außensensor-Events grob scoren
 
 ```bash
