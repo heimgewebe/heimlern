@@ -24,7 +24,6 @@ fn log_warn(msg: &str) {
     #[cfg(feature = "telemetry")]
     {
         tracing::warn!(target: "heimlern-bandits", "{msg}");
-        return;
     }
     #[cfg(not(feature = "telemetry"))]
     {
