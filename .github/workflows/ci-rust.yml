@@ -30,7 +30,7 @@ jobs:
   build-test:
     runs-on: ubuntu-latest
     env:
-      toolchain: ${{ github.event.inputs.toolchain || env.toolchain }}
+      toolchain: ${{ github.event.inputs.toolchain || 'stable' }}
     steps:
       - name: checkout
         uses: actions/checkout@v4
