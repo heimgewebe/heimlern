@@ -13,6 +13,15 @@ on:
       - "Cargo.lock"
       - "crates/**"
       - ".github/workflows/ci-rust.yml"
+  workflow_dispatch:
+    inputs:
+      toolchain:
+        description: "Rust toolchain version"
+        required: true
+        default: stable
+
+env:
+  toolchain: stable
 
 permissions:
   contents: read
@@ -20,6 +29,8 @@ permissions:
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    env:
+      toolchain: ${{ github.event.inputs.toolchain || env.toolchain }}
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -27,7 +38,7 @@ jobs:
       - name: toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: ${{ env.toolchain }}
           components: clippy, rustfmt
 
       - name: cache cargo registry
