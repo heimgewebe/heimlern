@@ -15,6 +15,7 @@ use rand::prelude::*;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 // ---------------------------------
 // Kleiner Logging-Helper:
@@ -42,6 +43,19 @@ pub struct RemindBandit {
     pub slots: Vec<String>,
     /// Statistiken je Slot: (Anzahl Ziehungen, summierte Rewards).
     values: HashMap<String, (u32, f32)>,
+}
+
+// ---- Contract-Snapshot (gemäß contracts/policy_snapshot.schema.json) ----
+#[derive(Debug, Serialize, Deserialize)]
+struct ContractSnapshot {
+    version: String,
+    policy_id: String,
+    ts: String,
+    arms: Vec<String>,
+    counts: Vec<u32>,
+    values: Vec<f32>,
+    epsilon: f32,
+    #[serde(skip_serializing_if = "Option::is_none")] seed: Option<u64>,
 }
 
 impl Default for RemindBandit {
@@ -164,20 +178,44 @@ impl Policy for RemindBandit {
         }
     }
 
-    /// Persistiert vollständigen Zustand als JSON.
+    /// Persistiert Zustand als Contract-Snapshot (JSON-konform zum Schema).
     fn snapshot(&self) -> serde_json::Value {
-        // Trait liefert Value, daher hier bewusst kein Result.
-        // Fehler sind extrem unwahrscheinlich; im Fall der Fälle liefern wir Null
-        // (explizit, ohne panic), damit Aufrufer deterministisch bleiben.
-        serde_json::to_value(self).unwrap_or(serde_json::Value::Null)
+        self.to_contract_snapshot()
     }
 
-    /// Lädt Zustand aus Snapshot (robust mit Korrekturen).
+    /// Lädt Zustand aus einem Contract-Snapshot (robust, mit Sanitisierung).
     fn load(&mut self, v: serde_json::Value) {
+        // Unterstütze sowohl altes („direct self“) als auch neues Contract-Format:
+        // 1) Versuch: ContractSnapshot
+        if let Ok(snap) = serde_json::from_value::<ContractSnapshot>(v.clone()) {
+            self.epsilon = if snap.epsilon.is_finite() {
+                snap.epsilon.clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            self.slots = if snap.arms.is_empty() {
+                default_slots()
+            } else {
+                snap.arms
+            };
+            // Rückbau avg → totals: total = avg * n
+            let mut map = HashMap::new();
+            let len = self.slots.len();
+            for i in 0..len {
+                let n = snap.counts.get(i).copied().unwrap_or(0);
+                let avg = snap.values.get(i).copied().unwrap_or(0.0);
+                let total = if n > 0 && avg.is_finite() { avg * n as f32 } else { 0.0 };
+                map.insert(self.slots[i].clone(), (n, total));
+            }
+            self.values = map;
+            self.sanitize();
+            return;
+        }
+        // 2) Fallback: alte Form (direkte Struct-Serialization)
         match serde_json::from_value::<RemindBandit>(v) {
-            Ok(mut loaded) => {
-                loaded.sanitize();
-                *self = loaded;
+            Ok(mut legacy) => {
+                legacy.sanitize();
+                *self = legacy;
             }
             Err(e) => {
                 // Nicht schweigend schlucken: sichtbarer Hinweis für Betreiber:innen.
@@ -186,6 +224,50 @@ impl Policy for RemindBandit {
         }
     }
 }
+
+// ---- kleine Helfer ----
+fn to_value_or_null<T: Serialize>(t: T) -> serde_json::Value {
+    serde_json::to_value(t).unwrap_or(serde_json::Value::Null)
+}
+fn iso8601_now() -> String {
+    // RFC3339/ISO-8601-konformer UTC-Zeitstempel, z. B. "2025-11-09T12:34:56Z"
+    OffsetDateTime::now_utc()
+        .format(&Rfc3339)
+        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string())
+}
+
+// ---- Contract-konforme Snapshot/Load-Implementierung (ersetzt Dummy oben) ----
+impl RemindBandit {
+    /// Persistiert Zustand als Contract-Snapshot (JSON-konform zum Schema).
+    pub fn to_contract_snapshot(&self) -> serde_json::Value {
+        // Slots in stabiler Reihenfolge exportieren:
+        let mut arms = self.slots.clone();
+        if arms.is_empty() {
+            arms = default_slots();
+        }
+        // Für jeden Arm counts/avg-Werte bereitstellen:
+        let mut counts = Vec::with_capacity(arms.len());
+        let mut values = Vec::with_capacity(arms.len());
+        for arm in &arms {
+            let (n, sum) = self.values.get(arm).copied().unwrap_or((0, 0.0));
+            counts.push(n);
+            let avg = if n > 0 { sum / n as f32 } else { 0.0 };
+            values.push(avg);
+        }
+        let snap = ContractSnapshot {
+            version: "0.1.0".into(),
+            policy_id: "remind-bandit".into(),
+            ts: iso8601_now(),
+            arms,
+            counts,
+            values,
+            epsilon: self.epsilon.clamp(0.0, 1.0),
+            seed: None,
+        };
+        to_value_or_null(snap)
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -317,5 +399,67 @@ mod tests {
 
         assert_eq!(decision.action, "remind.a");
         assert_eq!(decision.score, 0.0);
+    }
+
+    #[test]
+    fn contract_snapshot_roundtrip_structure() {
+        let mut bandit = RemindBandit {
+            epsilon: 0.4,
+            slots: vec!["m".into(), "a".into()],
+            values: HashMap::new(),
+        };
+        let ctx = Context { kind: "t".into(), features: serde_json::json!({}) };
+        bandit.feedback(&ctx, "remind.m", 1.0);
+        bandit.feedback(&ctx, "remind.m", 0.0);
+        bandit.feedback(&ctx, "remind.a", 0.5);
+
+        let snap = bandit.snapshot();
+        // Erwartete Felder laut Schema:
+        for key in &["version","policy_id","ts","arms","counts","values","epsilon"] {
+            assert!(snap.get(key).is_some(), "missing key {}", key);
+        }
+        // Längen müssen passen
+        assert_eq!(snap["arms"].as_array().unwrap().len(), 2);
+        assert_eq!(snap["counts"].as_array().unwrap().len(), 2);
+        assert_eq!(snap["values"].as_array().unwrap().len(), 2);
+
+        // Load zurück
+        let mut restored = RemindBandit::default();
+        restored.load(snap);
+        // epsilon geklemmt + slots übernommen
+        assert!((restored.epsilon - 0.4).abs() < f32::EPSILON);
+        assert_eq!(restored.slots, vec!["m".to_string(), "a".to_string()]);
+        // Exploit-only sollte stabil den höheren Durchschnitt ziehen (m: 0.5 vs a: 0.5 -> stabil erlaubt beide; wir prüfen nur Nicht-Panik)
+        restored.epsilon = 0.0;
+        let _ = restored.decide(&ctx);
+    }
+
+    #[test]
+    fn contract_snapshot_semantics_counts_values() {
+        let mut bandit = RemindBandit {
+            epsilon: 0.3,
+            slots: vec!["x".into(), "y".into(), "z".into()],
+            values: HashMap::new(),
+        };
+        let ctx = Context { kind: "t".into(), features: serde_json::json!({}) };
+        // x: drei Feedbacks (Summe 1.2) -> n=3, avg=0.4
+        bandit.feedback(&ctx, "remind.x", 0.2);
+        bandit.feedback(&ctx, "remind.x", 0.5);
+        bandit.feedback(&ctx, "remind.x", 0.5);
+        // y: zwei Feedbacks (Summe 0.0) -> n=2, avg=0.0
+        bandit.feedback(&ctx, "remind.y", 0.0);
+        bandit.feedback(&ctx, "remind.y", 0.0);
+        // z: kein Feedback -> n=0, avg=0.0
+
+        let snap = bandit.to_contract_snapshot();
+        let arms   = snap["arms"].as_array().unwrap();
+        let counts = snap["counts"].as_array().unwrap();
+        let values = snap["values"].as_array().unwrap();
+        assert_eq!(arms,   &vec!["x","y","z"].into_iter().map(|s| serde_json::Value::String(s.into())).collect::<Vec<_>>());
+        assert_eq!(counts, &vec![3,2,0].into_iter().map(|n| serde_json::Value::from(n)).collect::<Vec<_>>());
+        // floats: 0.4, 0.0, 0.0
+        assert!((values[0].as_f64().unwrap() - 0.4).abs() < 1e-6);
+        assert_eq!(values[1].as_f64().unwrap(), 0.0);
+        assert_eq!(values[2].as_f64().unwrap(), 0.0);
     }
 }
