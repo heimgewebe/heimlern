@@ -419,9 +419,9 @@ mod tests {
             assert!(snap.get(key).is_some(), "missing key {}", key);
         }
         // Längen müssen passen
-        assert_eq!(snap["arms"].as_array().unwrap().len(), 2);
-        assert_eq!(snap["counts"].as_array().unwrap().len(), 2);
-        assert_eq!(snap["values"].as_array().unwrap().len(), 2);
+        assert_eq!(snap["arms"].as_array().expect("Feld 'arms' ist kein Array").len(), 2);
+        assert_eq!(snap["counts"].as_array().expect("Feld 'counts' ist kein Array").len(), 2);
+        assert_eq!(snap["values"].as_array().expect("Feld 'values' ist kein Array").len(), 2);
 
         // Load zurück
         let mut restored = RemindBandit::default();
@@ -452,14 +452,28 @@ mod tests {
         // z: kein Feedback -> n=0, avg=0.0
 
         let snap = bandit.to_contract_snapshot();
-        let arms   = snap["arms"].as_array().unwrap();
-        let counts = snap["counts"].as_array().unwrap();
-        let values = snap["values"].as_array().unwrap();
+        let arms   = snap["arms"].as_array().expect("Feld 'arms' ist kein Array");
+        let counts = snap["counts"].as_array().expect("Feld 'counts' ist kein Array");
+        let values = snap["values"].as_array().expect("Feld 'values' ist kein Array");
         assert_eq!(arms,   &vec!["x","y","z"].into_iter().map(|s| serde_json::Value::String(s.into())).collect::<Vec<_>>());
         assert_eq!(counts, &vec![3,2,0].into_iter().map(|n| serde_json::Value::from(n)).collect::<Vec<_>>());
         // floats: 0.4, 0.0, 0.0
-        assert!((values[0].as_f64().unwrap() - 0.4).abs() < 1e-6);
-        assert_eq!(values[1].as_f64().unwrap(), 0.0);
-        assert_eq!(values[2].as_f64().unwrap(), 0.0);
+        let val1 = match values[0].as_f64() {
+            Some(v) => v,
+            None => panic!("Wert ist nicht als f64 lesbar"),
+        };
+        assert!((val1 - 0.4).abs() < 1e-6);
+
+        let val2 = match values[1].as_f64() {
+            Some(v) => v,
+            None => panic!("Wert ist nicht als f64 lesbar"),
+        };
+        assert!((val2 - 0.0).abs() < 1e-6);
+
+        let val3 = match values[2].as_f64() {
+            Some(v) => v,
+            None => panic!("Wert ist nicht als f64 lesbar"),
+        };
+        assert!((val3 - 0.0).abs() < 1e-6);
     }
 }
