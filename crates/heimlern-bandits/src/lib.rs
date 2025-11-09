@@ -180,6 +180,13 @@ impl Policy for RemindBandit {
         // Unterstütze sowohl altes („direct self“) als auch neues Contract-Format:
         // 1) Versuch: ContractSnapshot
         if let Ok(snap) = serde_json::from_value::<ContractSnapshot>(v.clone()) {
+            if snap.policy_id != "remind-bandit" {
+                log_warn(&format!(
+                    "load(): falsche policy_id '{}' im Snapshot, erwarte 'remind-bandit'.",
+                    snap.policy_id
+                ));
+                return; // Nicht laden.
+            }
             self.epsilon = if snap.epsilon.is_finite() {
                 snap.epsilon.clamp(0.0, 1.0)
             } else {
@@ -467,5 +474,19 @@ mod tests {
             None => panic!("Wert ist nicht als f64 lesbar"),
         };
         assert!((val3 - 0.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn load_rejects_snapshot_with_wrong_policy_id() {
+        let mut bandit = RemindBandit::default();
+        let original_epsilon = bandit.epsilon;
+
+        let mut snapshot_json = bandit.snapshot();
+        snapshot_json["policy_id"] = serde_json::Value::String("wrong-policy".into());
+
+        bandit.load(snapshot_json);
+
+        // Verify that the bandit's state has not changed
+        assert_eq!(bandit.epsilon, original_epsilon);
     }
 }
