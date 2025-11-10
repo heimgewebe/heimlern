@@ -69,7 +69,7 @@ impl Default for RemindBandit {
 }
 
 fn default_slots() -> Vec<String> {
-    DEFAULT_SLOTS.iter().map(|s| (*s).to_string()).collect()
+    DEFAULT_SLOTS.iter().map(ToString::to_string).collect()
 }
 
 fn serialize_context(ctx: &Context) -> Option<serde_json::Value> {
