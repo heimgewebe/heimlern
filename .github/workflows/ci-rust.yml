@@ -29,8 +29,10 @@ permissions:
 jobs:
   build-test:
     runs-on: ubuntu-latest
-    env:
-      toolchain: ${{ github.event.inputs.toolchain || 'stable' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: [ "1.70.0", "stable" ]
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -38,7 +40,7 @@ jobs:
       - name: toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ env.toolchain }}
+          toolchain: ${{ matrix.rust }}
           components: clippy, rustfmt
 
       - name: cache cargo registry
@@ -47,16 +49,18 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.rust }}-
             ${{ runner.os }}-cargo-
 
       - name: cache target
         uses: actions/cache@v4
         with:
           path: target
-          key: ${{ runner.os }}-target-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-target-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
+            ${{ runner.os }}-target-${{ matrix.rust }}-
             ${{ runner.os }}-target-
 
       - name: fmt

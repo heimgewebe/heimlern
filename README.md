@@ -139,3 +139,21 @@ cargo test  --workspace
 
 ## Beitragen
 Siehe [CONTRIBUTING.md](CONTRIBUTING.md).
+
+### Telemetrie-Logging (optional)
+Der Bandit kann strukturiert loggen, wenn das Feature `telemetry` aktiviert ist:
+
+```bash
+cargo run -p heimlern-bandits --features telemetry --example decide
+```
+
+In einem Binary/Beispiel kann optional ein Subscriber gesetzt werden:
+```rust
+#[cfg(feature = "telemetry")]
+{
+    use tracing_subscriber::FmtSubscriber;
+    let _ = FmtSubscriber::builder()
+        .with_max_level(tracing::Level::WARN)
+        .try_init();
+}
+```
