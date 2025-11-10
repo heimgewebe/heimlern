@@ -2,9 +2,9 @@ ai_context_version: 1.0
 
 project:
   name: heimlern
-  summary: Learning/feedback loops over events, scoring & policies.
-  role: analytics_policy_feedback
-  primary_language: python
+  summary: Reinforcement-/Bandit-Policy-Framework (Rust)
+  role: policy_engine
+  primary_language: rust
   visibility: internal
 
 dependencies:
@@ -24,7 +24,8 @@ dependencies:
 
 architecture:
   entrypoints:
-    - src/main.py
+    - crates/heimlern-bandits/examples/decide.rs
+    - crates/heimlern-bandits/src/lib.rs
   key_paths:
     - path: src/scoring/
       purpose: quality scoring & policy checks
