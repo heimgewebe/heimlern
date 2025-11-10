@@ -28,49 +28,68 @@ permissions:
 
 jobs:
   build-test:
+    name: Rust ${{ matrix.rust }} • ${{ matrix.features }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         rust: [ "${{ github.event.inputs.toolchain || '1.70.0' }}", "stable" ]
+        features: [ "default", "telemetry" ]
     steps:
-      - name: checkout
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: toolchain
+      - name: Install Rust (${{ matrix.rust }})
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.rust }}
           components: clippy, rustfmt
 
-      - name: cache cargo registry
+      - name: Cache cargo registry
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ matrix.features }}-
             ${{ runner.os }}-cargo-${{ matrix.rust }}-
             ${{ runner.os }}-cargo-
 
-      - name: cache target
+      - name: Cache target
         uses: actions/cache@v4
         with:
           path: target
-          key: ${{ runner.os }}-target-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-target-${{ matrix.rust }}-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
+            ${{ runner.os }}-target-${{ matrix.rust }}-${{ matrix.features }}-
             ${{ runner.os }}-target-${{ matrix.rust }}-
             ${{ runner.os }}-target-
 
-      - name: fmt
+      - name: Check formatting
         run: cargo fmt --all -- --check
 
-      - name: clippy
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Clippy lint (${{ matrix.features }})
+        run: |
+          if [ "${{ matrix.features }}" = "telemetry" ]; then
+            cargo clippy --workspace --all-targets --locked --features telemetry -- -D warnings
+          else
+            cargo clippy --workspace --all-targets --locked -- -D warnings
+          fi
 
-      - name: build
-        run: cargo build --workspace --all-targets --locked
+      - name: Build workspace (${{ matrix.features }})
+        run: |
+          if [ "${{ matrix.features }}" = "telemetry" ]; then
+            cargo build --workspace --all-targets --locked --features telemetry
+          else
+            cargo build --workspace --all-targets --locked
+          fi
 
-      - name: test
-        run: cargo test --workspace --all-targets --locked --no-fail-fast
+      - name: Test workspace (${{ matrix.features }})
+        run: |
+          if [ "${{ matrix.features }}" = "telemetry" ]; then
+            cargo test --workspace --all-targets --locked --no-fail-fast --features telemetry
+          else
+            cargo test --workspace --all-targets --locked --no-fail-fast
+          fi
