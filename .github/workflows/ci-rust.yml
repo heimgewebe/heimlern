@@ -32,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust: [ "1.70.0", "stable" ]
+        rust: [ "${{ github.event.inputs.toolchain || '1.70.0' }}", "stable" ]
     steps:
       - name: checkout
         uses: actions/checkout@v4

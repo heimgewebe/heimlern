@@ -14,7 +14,7 @@ fn write_temp_jsonl() -> std::path::PathBuf {
         r#"{"type":"link","source":"t","title":"Hello","url":"https://e.org","tags":["demo"]}
 {"type":"link","source":"t","summary":"No title","url":"https://e.org/2"}"#,
     )
-    .expect("write jsonl");
+    .unwrap_or_else(|e| panic!("Fehler beim Schreiben der temporären JSONL-Datei: {}", e));
     tmp
 }
 
@@ -29,7 +29,9 @@ fn example_ingest_events_outputs_two_lines_and_scores() {
         "--example",
         "ingest_events",
         "--",
-        path.to_str().unwrap(),
+        path.to_str().unwrap_or_else(|| {
+            panic!("Temporärer Pfad ist kein valides UTF-8: {:?}", path)
+        }),
     ]);
 
     cmd.assert()
@@ -64,14 +66,19 @@ fn example_ingest_events_scores_range_between_0_and_1() {
         "--example",
         "ingest_events",
         "--",
-        path.to_str().unwrap(),
+        path.to_str().unwrap_or_else(|| {
+            panic!("Temporärer Pfad ist kein valides UTF-8: {:?}", path)
+        }),
     ]);
     let output = cmd.assert().get_output().stdout.clone();
 
     let out_str = String::from_utf8_lossy(&output);
     for line in out_str.lines() {
         if let Some((score_str, _title)) = line.split_once('\t') {
-            let score: f32 = score_str.parse().unwrap();
+            let score: f32 = match score_str.parse() {
+                Ok(s) => s,
+                Err(_) => panic!("Score '{}' konnte nicht als f32 geparst werden.", score_str),
+            };
             assert!((0.0..=1.0).contains(&score), "Score außerhalb 0..1: {}", score);
         }
     }
