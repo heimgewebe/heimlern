@@ -25,3 +25,7 @@ schema:validate: venv
 	. .venv/bin/activate && python scripts/validate_json.py contracts/policy_snapshot.schema.json /tmp/heimlern_snapshot.json
 	. .venv/bin/activate && python scripts/validate_json.py contracts/policy_feedback.schema.json /tmp/heimlern_feedback.json
 	@echo "✓ alle Beispiel-Dokumente sind valide"
+default: lint
+lint:
+    bash -n $(git ls-files *.sh *.bash)
+    echo "lint ok"
