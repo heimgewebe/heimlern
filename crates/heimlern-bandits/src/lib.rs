@@ -481,7 +481,7 @@ mod tests {
             None => panic!("Feld 'values' ist kein Array"),
         };
         assert_eq!(arms,   &vec!["x","y","z"].into_iter().map(|s| serde_json::Value::String(s.into())).collect::<Vec<_>>());
-        assert_eq!(counts, &vec![3,2,0].into_iter().map(|n| serde_json::Value::from(n)).collect::<Vec<_>>());
+        assert_eq!(counts, &vec![3,2,0].into_iter().map(serde_json::Value::from).collect::<Vec<_>>());
         // floats: 0.4, 0.0, 0.0
         let val1 = match values[0].as_f64() {
             Some(v) => v,
