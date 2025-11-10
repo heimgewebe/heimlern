@@ -418,9 +418,18 @@ mod tests {
             assert!(snap.get(key).is_some(), "missing key {}", key);
         }
         // Längen müssen passen
-        assert_eq!(snap["arms"].as_array().expect("Feld 'arms' ist kein Array").len(), 2);
-        assert_eq!(snap["counts"].as_array().expect("Feld 'counts' ist kein Array").len(), 2);
-        assert_eq!(snap["values"].as_array().expect("Feld 'values' ist kein Array").len(), 2);
+        match snap["arms"].as_array() {
+            Some(array) => assert_eq!(array.len(), 2),
+            None => panic!("Feld 'arms' ist kein Array"),
+        }
+        match snap["counts"].as_array() {
+            Some(array) => assert_eq!(array.len(), 2),
+            None => panic!("Feld 'counts' ist kein Array"),
+        }
+        match snap["values"].as_array() {
+            Some(array) => assert_eq!(array.len(), 2),
+            None => panic!("Feld 'values' ist kein Array"),
+        }
 
         // Load zurück
         let mut restored = RemindBandit::default();
@@ -451,9 +460,18 @@ mod tests {
         // z: kein Feedback -> n=0, avg=0.0
 
         let snap = bandit.to_contract_snapshot();
-        let arms   = snap["arms"].as_array().expect("Feld 'arms' ist kein Array");
-        let counts = snap["counts"].as_array().expect("Feld 'counts' ist kein Array");
-        let values = snap["values"].as_array().expect("Feld 'values' ist kein Array");
+        let arms = match snap["arms"].as_array() {
+            Some(array) => array,
+            None => panic!("Feld 'arms' ist kein Array"),
+        };
+        let counts = match snap["counts"].as_array() {
+            Some(array) => array,
+            None => panic!("Feld 'counts' ist kein Array"),
+        };
+        let values = match snap["values"].as_array() {
+            Some(array) => array,
+            None => panic!("Feld 'values' ist kein Array"),
+        };
         assert_eq!(arms,   &vec!["x","y","z"].into_iter().map(|s| serde_json::Value::String(s.into())).collect::<Vec<_>>());
         assert_eq!(counts, &vec![3,2,0].into_iter().map(|n| serde_json::Value::from(n)).collect::<Vec<_>>());
         // floats: 0.4, 0.0, 0.0
