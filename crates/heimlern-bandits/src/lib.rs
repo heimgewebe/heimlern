@@ -17,11 +17,19 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
-// ---------------------------------
-// Kleiner Logging-Helper:
-// nutzt `tracing::warn!`.
+/// Logging-Helfer:
+/// Mit Feature `telemetry` → `tracing::warn!`, sonst → `eprintln!`.
+#[inline(always)]
 fn log_warn(msg: &str) {
-    tracing::warn!(target: "heimlern-bandits", "{msg}");
+    #[cfg(feature = "telemetry")]
+    {
+        use tracing::warn;
+        warn!(target: "heimlern-bandits", "{msg}");
+    }
+    #[cfg(not(feature = "telemetry"))]
+    {
+        eprintln!("[heimlern-bandits] {msg}");
+    }
 }
 
 const DEFAULT_SLOTS: &[&str] = &["morning", "afternoon", "evening"];
