@@ -16,6 +16,7 @@ Siehe auch: **Policy-Lifecycle**: `docs/policy-lifecycle.md` und **Contracts** i
 5. [Weiterführende Dokumentation](#weiterführende-dokumentation)
 6. [Installation / Entwicklung](#installation--entwicklung)
 7. [Beitragen](#beitragen)
+8. [Optional: Telemetrie-Logging](#optional-telemetrie-logging)
 
 ## Schnellstart
 
@@ -64,33 +65,6 @@ echo '{}' | cargo run -p heimlern-bandits --example decide
 
 Ersetze `{}` durch einen gewünschten Kontext, um andere Slots oder Heuristiken zu prüfen.
 
-## Weiterführende Dokumentation
-
-* [ADR-Index](docs/adr/README.md) – Übersicht und Motivation hinter den Architekturentscheidungen.
-* Policy-Lifecycle: `docs/policy-lifecycle.md`
-* Inline-Rustdocs in den Crates (`cargo doc --open`) erläutern Strukturen, Traits und das Snapshot-Format im Detail.
-
-### Optional: Telemetry-Logging
-Mit dem Feature-Flag `telemetry` nutzt der Bandit strukturiertes Logging via [`tracing`](https://crates.io/crates/tracing).
-Für lokale Runs kannst du – etwa im Binary oder Beispiel – einen Subscriber setzen, um formatierte Ausgaben zu erhalten:
-
-```rust
-// main.rs (nur im Beispiel/Binary, nicht im lib)
-#[cfg(feature = "telemetry")]
-{
-    use tracing_subscriber::FmtSubscriber;
-    let _ = FmtSubscriber::builder()
-        .with_max_level(tracing::Level::WARN)
-        .try_init();
-}
-```
-
-Start:
-
-```bash
-cargo run -p heimlern-bandits --features telemetry --example decide
-```
-
 ### Beispiel: Außensensor-Events grob scoren
 
 ```bash
@@ -99,29 +73,11 @@ cargo run -p heimlern-core --example ingest_events -- data/samples/aussensensor.
 ```
 Die Ausgabe listet pro Zeile einen Score (0..1) und den Titel (falls vorhanden).
 
-### Optionale Features
+## Weiterführende Dokumentation
 
-#### Telemetrie
-
-Wenn das `telemetry`-Feature aktiviert ist, können Tracing-Informationen über `stdout` ausgegeben werden. Um dies in einer eigenen Anwendung zu nutzen, fügen Sie `tracing-subscriber` zu Ihren `[dependencies]` hinzu:
-
-```toml
-[dependencies]
-tracing-subscriber = "0.3"
-```
-
-Initialisieren Sie den Subscriber in Ihrer `main.rs`:
-
-```rust
-// nur im Beispiel/Binary, nicht im lib
-#[cfg(feature = "telemetry")]
-{
-    use tracing_subscriber::FmtSubscriber;
-    let _ = FmtSubscriber::builder()
-        .with_max_level(tracing::Level::WARN)
-        .try_init();
-}
-```
+* [ADR-Index](docs/adr/README.md) – Übersicht und Motivation hinter den Architekturentscheidungen.
+* Policy-Lifecycle: `docs/policy-lifecycle.md`
+* Inline-Rustdocs in den Crates (`cargo doc --open`) erläutern Strukturen, Traits und das Snapshot-Format im Detail.
 
 ## Installation / Entwicklung
 
@@ -140,20 +96,21 @@ cargo test  --workspace
 ## Beitragen
 Siehe [CONTRIBUTING.md](CONTRIBUTING.md).
 
-### Telemetrie-Logging (optional)
-Der Bandit kann strukturiert loggen, wenn das Feature `telemetry` aktiviert ist:
+## Optional: Telemetrie-Logging
 
+Das Feature `telemetry` aktiviert strukturiertes Logging via [`tracing`](https://docs.rs/tracing).
+Ohne das Feature wird zu `stderr` (`eprintln!`) geloggt.
+
+### Aktivieren
 ```bash
 cargo run -p heimlern-bandits --features telemetry --example decide
 ```
 
-In einem Binary/Beispiel kann optional ein Subscriber gesetzt werden:
+### Beispiel: Subscriber konfigurieren
+In einem Binary kann ein einfacher Subscriber gesetzt werden:
 ```rust
 #[cfg(feature = "telemetry")]
 {
-    use tracing_subscriber::FmtSubscriber;
-    let _ = FmtSubscriber::builder()
-        .with_max_level(tracing::Level::WARN)
-        .try_init();
+    tracing_subscriber::fmt().with_max_level(tracing::Level::WARN).init();
 }
 ```
