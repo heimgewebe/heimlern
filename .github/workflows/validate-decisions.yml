@@ -33,6 +33,7 @@ jobs:
  set -euo pipefail
  SCHEMA_URL="https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/policy.decision.schema.json"
  curl -fsSL "$SCHEMA_URL" -o /tmp/policy.decision.schema.json
+ shopt -s globstar
  shopt -s nullglob
  mapfile -t FILES < <(compgen -G "tests/fixtures/decision/**/*.json" || true)
  if (( ${#FILES[@]} == 0 )); then
