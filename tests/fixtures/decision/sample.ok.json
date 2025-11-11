@@ -1,0 +1,17 @@
+{
+ "ts": "2025-01-01T12:00:00Z",
+ "policy": "reminder_time_selection",
+ "context": {
+ "source": "aussensensor",
+ "tags": ["calendar", "focus"],
+ "features": { "hour_local": 9, "has_conflict": false }
+ },
+ "candidates": ["now", "later_today", "tomorrow_morning"],
+ "action": "later_today",
+ "score": 0.73,
+ "why": "calendar_free_window & circadian_preference",
+ "meta": {
+ "model": "bandit:v0.3",
+ "exploration": 0.1
+ }
+}
