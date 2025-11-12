@@ -5,25 +5,26 @@ on:
   pull_request:
     paths:
       - "tests/fixtures/decision/**/*.json"
-      - ".github/workflows/validate-decisions.yml"
+      - ".github/workflows/validate-policy-decisions.yml"
   workflow_dispatch:
 
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Checkout (pinned)
+        uses: actions/checkout@8ade135a242bde00fd19c0e54fb3760beea110ee # v4.1.0
+      - name: Setup Node (pinned)
+        uses: actions/setup-node@5e221da4786ffb21888b21dfc9c80efb16b52cd3b # v4.0.2
         with:
           node-version: "20"
-      - name: Validate fixtures
+      - name: Validate policy.decision fixtures (AJV)
         env:
-          SCHEMA_URL: https://raw.githubusercontent.com/heimgewebe/metarepo/main/contracts/policy.decision.schema.json
+          SCHEMA_URL: "https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/policy.decision.schema.json"
         run: |
           set -euo pipefail
-          shopt -s globstar
+          shopt -s globstar nullglob
           FILES=(tests/fixtures/decision/**/*.json)
           if (( ${#FILES[@]} == 0 )); then
             echo "::notice::No decision fixtures found."
@@ -32,8 +33,10 @@ jobs:
           curl -fsSL "$SCHEMA_URL" -o /tmp/policy.decision.schema.json
           fails=0
           for f in "${FILES[@]}"; do
-            if ! npx --yes ajv-cli@5 validate \
-              --spec=draft2020 --all-errors --validate-formats=true \
+            if ! npx --yes ajv-cli@5.0.0 validate \
+              --spec=draft2020 \
+              --all-errors \
+              --validate-formats=true \
               -s /tmp/policy.decision.schema.json \
               -d "$f"
             then
@@ -41,4 +44,4 @@ jobs:
               fails=1
             fi
           done
-          (( fails == 0 )) || exit 1
+          (( fails == 0 ))
