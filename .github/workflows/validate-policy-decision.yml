@@ -1,0 +1,35 @@
+name: validate-policy-decision
+permissions:
+  contents: read
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  ajv-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8ade135a242bde00fd19c0e54fb3760beea110ee # v4.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@5e221d4786ffb21088b21dfc9c80efb16b52cd3b # v4.0.2
+
+      - name: Validate policy.decision fixtures (AJV)
+        run: |
+          set -euo pipefail
+          npx --yes ajv-cli@5.0.0 --version >/dev/null
+          SCHEMA_URL="https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/policy.decision.schema.json"
+          for f in tests/fixtures/decision/*.json; do
+            [[ -e "$f" ]] || { echo "::notice::No fixtures found"; exit 0; }
+            echo "→ $f"
+            npx --yes ajv-cli@5.0.0 validate \
+              --spec=draft2020 \
+              --all-errors \
+              --validate-formats=true \
+              -s "$SCHEMA_URL" \
+              -d "$f"
+          done
+          echo "OK: All policy.decision fixtures are valid."
