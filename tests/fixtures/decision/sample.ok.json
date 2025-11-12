@@ -1,17 +1,19 @@
 {
- "ts": "2025-01-01T12:00:00Z",
- "policy": "reminder_time_selection",
- "context": {
- "source": "aussensensor",
- "tags": ["calendar", "focus"],
- "features": { "hour_local": 9, "has_conflict": false }
- },
- "candidates": ["now", "later_today", "tomorrow_morning"],
- "action": "later_today",
- "score": 0.73,
- "why": "calendar_free_window & circadian_preference",
- "meta": {
- "model": "bandit:v0.3",
- "exploration": 0.1
- }
+  "ts": "2025-01-01T12:00:00Z",
+  "policy": "reminder.next_best_time",
+  "context": {
+    "user_state": {"calendar_free": true},
+    "source": "aussensensor",
+    "features": {"priority": 0.8}
+  },
+  "candidates": [
+    {"action": "notify_now"},
+    {"action": "notify_in_30m"}
+  ],
+  "decision": {
+    "chosen": {"action": "notify_in_30m"},
+    "score": 0.73,
+    "why": ["calendar_free", "medium_priority"]
+  },
+  "meta": {"version": "1.0.0"}
 }

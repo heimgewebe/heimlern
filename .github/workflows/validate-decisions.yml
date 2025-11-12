@@ -1,48 +1,44 @@
 name: validate-policy-decisions
-
 on:
- push:
- paths:
- - "tests/fixtures/decision/**/*.json"
- - ".github/workflows/validate-decisions.yml"
- pull_request:
- paths:
- - "tests/fixtures/decision/**/*.json"
- - ".github/workflows/validate-decisions.yml"
- workflow_dispatch:
+  pull_request:
+    paths:
+      - "tests/fixtures/decision/**/*.json"
+      - ".github/workflows/validate-decisions.yml"
+  workflow_dispatch:
 
 jobs:
- ajv-validate:
- runs-on: ubuntu-latest
- timeout-minutes: 5
- steps:
- - name: Checkout
- uses: actions/checkout@v4
-
- - name: Setup Node
- uses: actions/setup-node@v4
- with:
- node-version: '20'
-
- - name: Install ajv-cli
- run: npm i -g ajv-cli@5
-
- - name: Validate fixtures against policy.decision schema
- shell: bash
- run: |
- set -euo pipefail
- SCHEMA_URL="https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/policy.decision.schema.json"
- curl -fsSL "$SCHEMA_URL" -o /tmp/policy.decision.schema.json
- shopt -s globstar
- shopt -s nullglob
- mapfile -t FILES < <(compgen -G "tests/fixtures/decision/**/*.json" || true)
- if (( ${#FILES[@]} == 0 )); then
- echo "::warning::No fixtures found under tests/fixtures/decision/"
- exit 0
- fi
- for f in "${FILES[@]}"; do
- echo "Validating $f"
- ajv validate --spec=draft2020 --strict=true --validate-formats=true \
- -s /tmp/policy.decision.schema.json -d "$f"
- done
- echo "✓ All fixtures valid."
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Show ajv version
+        run: npx --yes ajv-cli@5 --version
+      - name: Validate fixtures
+        env:
+          SCHEMA_URL: https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/policy.decision.schema.json
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          mapfile -t FILES < <(compgen -G "tests/fixtures/decision/**/*.json" || true)
+          if (( ${#FILES[@]} == 0 )); then
+            echo "::notice::No decision fixtures found."
+            exit 0
+          fi
+          curl -fsSL "$SCHEMA_URL" -o /tmp/policy.decision.schema.json
+          fails=0
+          for f in "${FILES[@]}"; do
+            if ! npx --yes ajv-cli@5 validate \
+              --spec=draft2020 --all-errors --validate-formats=true \
+              -s /tmp/policy.decision.schema.json \
+              -d "$f"
+            then
+              echo "::error file=${f}::Schema validation failed"
+              fails=1
+            fi
+          done
+          (( fails == 0 )) || exit 1
