@@ -18,8 +18,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Show ajv version
-        run: npx --yes ajv-cli@5 --version
       - name: Validate fixtures
         env:
           SCHEMA_URL: https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/policy.decision.schema.json
