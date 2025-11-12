@@ -20,7 +20,7 @@ jobs:
           node-version: "20"
       - name: Validate fixtures
         env:
-          SCHEMA_URL: https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/policy.decision.schema.json
+          SCHEMA_URL: https://raw.githubusercontent.com/heimgewebe/metarepo/main/contracts/policy.decision.schema.json
         run: |
           set -euo pipefail
           shopt -s globstar
