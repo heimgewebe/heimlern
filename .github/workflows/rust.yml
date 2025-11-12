@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check for @main references
+        uses: ./.github/actions/check-main-refs
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
