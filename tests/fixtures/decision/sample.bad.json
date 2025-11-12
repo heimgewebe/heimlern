@@ -1,0 +1,6 @@
+{
+  "policy": 42,
+  "decision": {
+    "chosen": {"action": 123}
+  }
+}

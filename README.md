@@ -73,6 +73,11 @@ cargo run -p heimlern-core --example ingest_events -- data/samples/aussensensor.
 ```
 Die Ausgabe listet pro Zeile einen Score (0..1) und den Titel (falls vorhanden).
 
+## Tests / CI
+- **Schema-Fixtures:** Unter `tests/fixtures/decision/` liegen Beispiel-Entscheidungen.
+ Die CI (`validate-policy-decisions`) prüft sie gegen das Contract-Schema
+ `contracts/policy.decision.schema.json` (Tag-pinned `contracts-v1` aus dem metarepo).
+
 ## Weiterführende Dokumentation
 
 * [ADR-Index](docs/adr/README.md) – Übersicht und Motivation hinter den Architekturentscheidungen.
