@@ -74,9 +74,13 @@ cargo run -p heimlern-core --example ingest_events -- data/samples/aussensensor.
 Die Ausgabe listet pro Zeile einen Score (0..1) und den Titel (falls vorhanden).
 
 ## Tests / CI
-- **Schema-Fixtures:** Unter `tests/fixtures/decision/` liegen Beispiel-Entscheidungen.
- Die CI (`validate-policy-decisions`) prüft sie gegen das Contract-Schema
- `contracts/policy.decision.schema.json` (Tag-pinned `contracts-v1` aus dem metarepo).
+`cargo test` führt die Policy-Unit- und Integrationstests aus.
+
+### Fixtures & Contracts
+Im Ordner `tests/fixtures/decision/` liegen Beispiel-Entscheidungen.
+Die CI validiert diese Dateien gegen das zentrale Schema
+`policy.decision.schema.json` (Tag `contracts-v1`) mit **AJV**.
+→ Bricht ein Fixture das Schema, schlägt der Job `validate-policy-decision` fehl.
 
 ## Weiterführende Dokumentation
 
