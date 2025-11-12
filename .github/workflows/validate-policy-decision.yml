@@ -33,7 +33,8 @@ jobs:
           SCHEMA_URL: https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/policy.decision.schema.json
         run: |
           set -euo pipefail
+          shopt -s extglob
           npx --yes ajv-cli@5 validate \
             --spec=draft2020 --all-errors --validate-formats=true --strict=true \
             -s "$SCHEMA_URL" \
-            -d "tests/fixtures/decision/*.json"
+            -d tests/fixtures/decision/!(*bad*).json
