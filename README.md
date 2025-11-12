@@ -76,11 +76,10 @@ Die Ausgabe listet pro Zeile einen Score (0..1) und den Titel (falls vorhanden).
 ## Tests / CI
 `cargo test` führt die Policy-Unit- und Integrationstests aus.
 
-### Fixtures & Contracts
-Im Ordner `tests/fixtures/decision/` liegen Beispiel-Entscheidungen.
-Die CI validiert diese Dateien gegen das zentrale Schema
-`policy.decision.schema.json` (Tag `contracts-v1`) mit **AJV**.
-→ Bricht ein Fixture das Schema, schlägt der Job `validate-policy-decision` fehl.
+### CI: Validierung von Policy-Entscheidungen
+Fixtures unter `tests/fixtures/decision/*.json` werden in CI gegen
+`contracts/policy.decision.schema.json` (metarepo `@contracts-v1`) mit **ajv-cli** geprüft.
+Ungültige Beispiele lassen die Pipeline fehlschlagen.
 
 ## Weiterführende Dokumentation
 

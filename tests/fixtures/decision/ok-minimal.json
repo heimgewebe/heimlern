@@ -1,18 +1,7 @@
 {
- "$schema": "https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/policy.decision.schema.json",
  "policy_id": "remind-bandit-v1",
- "ts": "2025-01-01T12:00:00Z",
- "context": {
-  "source": "aussensensor",
-  "repo": "heimlern",
-  "signal": "calendar.slot",
-  "features": { "hour": 9, "weekday": 2 }
- },
- "candidates": [
-  {"action": "REMIND", "params": {"topic": "drink_water"}},
-  {"action": "SKIP", "params": {}}
- ],
- "decision": {"action": "REMIND", "params": {"topic": "drink_water"}},
- "score": 0.73,
- "explanation": "Exploration ε=0.1, UCB tilt 0.2"
+ "context": { "source": "demo", "ts": "2025-01-01T12:00:00Z" },
+ "decision": { "action": "remind", "score": 0.73 },
+ "explanation": "demo fixture",
+ "ts": "2025-01-01T12:00:00Z"
 }
