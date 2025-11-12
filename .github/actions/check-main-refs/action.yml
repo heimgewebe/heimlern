@@ -1,0 +1,12 @@
+name: 'Check for @main references in Actions'
+description: 'Checks for @main references in GitHub Actions workflow files.'
+runs:
+  using: 'composite'
+  steps:
+    - name: Check for @main references
+      run: |
+        if grep -r "@main" .github/workflows/; then
+          echo "Error: Found '@main' references in workflow files. Please use a specific commit SHA or tag."
+          exit 1
+        fi
+      shell: bash
