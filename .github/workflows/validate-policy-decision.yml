@@ -1,0 +1,36 @@
+name: validate-policy-decision
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "tests/fixtures/decision/*.json"
+      - ".github/workflows/validate-policy-decision.yml"
+  pull_request:
+    paths:
+      - "tests/fixtures/decision/*.json"
+      - ".github/workflows/validate-policy-decision.yml"
+  workflow_dispatch: {}
+
+jobs:
+  ajv-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8ade135a242bde00fd19c0e54fb3760beea110ee # v4.1.0
+      - name: Setup Node
+        uses: actions/setup-node@5e221d4786ffb21088b21dfc9c80efb16b52cd3b # v4.0.2
+        with:
+          node-version: "20"
+      - name: Show ajv-cli version
+        run: npx --yes ajv-cli@5 --version
+      - name: Validate fixtures against contracts-v1
+        env:
+          SCHEMA_URL: https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/policy.decision.schema.json
+        run: |
+          set -euo pipefail
+          npx --yes ajv-cli@5 validate \
+            --spec=draft2020 --all-errors --validate-formats=true --strict=true \
+            -s "$SCHEMA_URL" \
+            -d "tests/fixtures/decision/*.json"
