@@ -16,7 +16,7 @@ jobs:
       - name: Checkout (pinned)
         uses: actions/checkout@8ade135a242bde00fd19c0e54fb3760beea110ee # v4.1.0
       - name: Setup Node (pinned)
-        uses: actions/setup-node@5e221da4786ffb21888b21dfc9c80efb16b52cd3b # v4.0.2
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
       - name: Validate policy.decision fixtures (AJV)
