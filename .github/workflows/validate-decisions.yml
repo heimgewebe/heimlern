@@ -23,8 +23,8 @@ jobs:
           SCHEMA_URL: https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/policy.decision.schema.json
         run: |
           set -euo pipefail
-          shopt -s nullglob
-          mapfile -t FILES < <(compgen -G "tests/fixtures/decision/**/*.json" || true)
+          shopt -s globstar
+          FILES=(tests/fixtures/decision/**/*.json)
           if (( ${#FILES[@]} == 0 )); then
             echo "::notice::No decision fixtures found."
             exit 0
