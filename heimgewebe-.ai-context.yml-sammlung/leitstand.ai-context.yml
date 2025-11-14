@@ -2,41 +2,48 @@ ai_context_version: 1.0
 
 project:
   name: leitstand
-  summary: Event ingest and processing hub.
-  role: central_event_store
-  primary_language: rust
+  summary: UI/Dashboard für das Heimgewebe.
+  role: observability_control_room
+  primary_language: typescript
   visibility: internal
 
 dependencies:
   internal:
-    - name: contracts
+    - name: chronik
       relationship: uses
       interface:
-        - json_schema
-        - proto
+        - event_query
+        - timeline_view
+    - name: semantah
+      relationship: uses
+      interface:
+        - graph_query
+        - insight_stream
+    - name: hauski
+      relationship: uses
+      interface:
+        - trace_view
+        - action_log
   external:
-    - name: tokio
-      version: "1.x"
-    - name: serde
-    - name: serde_json
-    - name: tracing
+    - name: React
+    - name: Vite
 
 architecture:
   entrypoints:
-    - src/main.rs
+    - apps/web/src/main.tsx
   key_paths:
-    - path: src/ingest/
-      purpose: HTTP ingest + validation
-    - path: src/pipeline/
-      purpose: event processing
+    - path: apps/web/
+      purpose: main UI application
+    - path: src/
+      purpose: shared components and libraries
   data_flow:
-    input: HTTP POST /ingest/*
-    processing: JSON Schema validation + pipelines
-    output: storage + metrics
+    input: user interactions
+    processing: API calls to backend services
+    output: rendered UI
 
 conventions:
   branching: "main, feature/*"
-  commit_prefix: "leitstand"
+  commit_prefix: "leitstand-ui"
   ci_platform: github_actions
 
 documentation:
@@ -45,7 +52,7 @@ documentation:
 
 ai_guidance:
   do:
-    - pull validation rules from contracts and reject non-conforming events
-    - prefer structured logs via tracing; avoid println! in hot paths
+    - follow the design system and component library
+    - ensure accessibility and responsive design
   dont:
-    - accept payloads without schema validation
+    - introduce breaking changes to the API contracts
