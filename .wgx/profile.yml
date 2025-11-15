@@ -1,0 +1,6 @@
+class: rust-service
+tasks:
+  smoke: ""
+  guard: ""
+  metrics: ""
+  snapshot: ""
