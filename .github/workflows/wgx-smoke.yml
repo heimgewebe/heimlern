@@ -1,0 +1,8 @@
+name: wgx-smoke
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+jobs:
+  smoke:
+    uses: heimgewebe/wgx/.github/workflows/wgx-smoke.yml@main

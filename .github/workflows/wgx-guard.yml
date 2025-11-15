@@ -1,0 +1,8 @@
+name: wgx-guard
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+jobs:
+  guard:
+    uses: heimgewebe/wgx/.github/workflows/wgx-guard.yml@main
