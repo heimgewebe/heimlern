@@ -5,4 +5,4 @@ on:
     branches: [ main ]
 jobs:
   smoke:
-    uses: heimgewebe/metarepo/.github/workflows/wgx-smoke.yml@main
+    uses: heimgewebe/wgx/.github/workflows/wgx-smoke.yml@main

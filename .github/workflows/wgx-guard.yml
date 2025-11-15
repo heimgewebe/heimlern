@@ -5,4 +5,4 @@ on:
     branches: [ main ]
 jobs:
   guard:
-    uses: heimgewebe/metarepo/.github/workflows/wgx-guard.yml@main
+    uses: heimgewebe/wgx/.github/workflows/wgx-guard.yml@main
