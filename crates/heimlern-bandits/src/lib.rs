@@ -55,7 +55,8 @@ struct ContractSnapshot {
     counts: Vec<u32>,
     values: Vec<f32>,
     epsilon: f32,
-    #[serde(skip_serializing_if = "Option::is_none")] seed: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    seed: Option<u64>,
 }
 
 impl Default for RemindBandit {
@@ -211,7 +212,11 @@ impl Policy for RemindBandit {
             for i in 0..len {
                 let n = snap.counts.get(i).copied().unwrap_or(0);
                 let avg = snap.values.get(i).copied().unwrap_or(0.0);
-                let total = if n > 0 && avg.is_finite() { avg * n as f32 } else { 0.0 };
+                let total = if n > 0 && avg.is_finite() {
+                    avg * n as f32
+                } else {
+                    0.0
+                };
                 map.insert(self.slots[i].clone(), (n, total));
             }
             self.values = map;
@@ -226,7 +231,9 @@ impl Policy for RemindBandit {
             }
             Err(e) => {
                 // Nicht schweigend schlucken: sichtbarer Hinweis für Betreiber:innen.
-                log_warn(&format!("load(): Snapshot konnte nicht geladen werden: {e}"));
+                log_warn(&format!(
+                    "load(): Snapshot konnte nicht geladen werden: {e}"
+                ));
             }
         }
     }
@@ -274,7 +281,6 @@ impl RemindBandit {
         to_value_or_null(snap)
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -415,14 +421,25 @@ mod tests {
             slots: vec!["m".into(), "a".into()],
             values: HashMap::new(),
         };
-        let ctx = Context { kind: "t".into(), features: serde_json::json!({}) };
+        let ctx = Context {
+            kind: "t".into(),
+            features: serde_json::json!({}),
+        };
         bandit.feedback(&ctx, "remind.m", 1.0);
         bandit.feedback(&ctx, "remind.m", 0.0);
         bandit.feedback(&ctx, "remind.a", 0.5);
 
         let snap = bandit.snapshot();
         // Erwartete Felder laut Schema:
-        for key in &["version","policy_id","ts","arms","counts","values","epsilon"] {
+        for key in &[
+            "version",
+            "policy_id",
+            "ts",
+            "arms",
+            "counts",
+            "values",
+            "epsilon",
+        ] {
             assert!(snap.get(key).is_some(), "missing key {}", key);
         }
         // Längen müssen passen
@@ -457,7 +474,10 @@ mod tests {
             slots: vec!["x".into(), "y".into(), "z".into()],
             values: HashMap::new(),
         };
-        let ctx = Context { kind: "t".into(), features: serde_json::json!({}) };
+        let ctx = Context {
+            kind: "t".into(),
+            features: serde_json::json!({}),
+        };
         // x: drei Feedbacks (Summe 1.2) -> n=3, avg=0.4
         bandit.feedback(&ctx, "remind.x", 0.2);
         bandit.feedback(&ctx, "remind.x", 0.5);
@@ -480,8 +500,20 @@ mod tests {
             Some(array) => array,
             None => panic!("Feld 'values' ist kein Array"),
         };
-        assert_eq!(arms,   &vec!["x","y","z"].into_iter().map(|s| serde_json::Value::String(s.into())).collect::<Vec<_>>());
-        assert_eq!(counts, &vec![3,2,0].into_iter().map(serde_json::Value::from).collect::<Vec<_>>());
+        assert_eq!(
+            arms,
+            &vec!["x", "y", "z"]
+                .into_iter()
+                .map(|s| serde_json::Value::String(s.into()))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            counts,
+            &vec![3, 2, 0]
+                .into_iter()
+                .map(serde_json::Value::from)
+                .collect::<Vec<_>>()
+        );
         // floats: 0.4, 0.0, 0.0
         let val1 = match values[0].as_f64() {
             Some(v) => v,

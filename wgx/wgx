@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+WGX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export WGX_ROOT
+
+# shellcheck source=wgx/lib/logging.bash
+source "${WGX_ROOT}/wgx/lib/logging.bash"
+
+main() {
+  local cmd="${1:-}"
+  if [[ -z "${cmd}" ]]; then
+    wgx_log_error "Usage: wgx <command>"
+    exit 1
+  fi
+  shift
+
+  local profile_path="${WGX_ROOT}/.wgx/profile.yml"
+  if [[ ! -f "${profile_path}" ]]; then
+    wgx_log_error "Profile not found: ${profile_path}"
+    exit 1
+  fi
+
+  local task
+  task=$(yq e ".tasks.${cmd}" "${profile_path}")
+
+  if [[ "${task}" == "null" ]] || [[ -z "${task}" ]]; then
+    wgx_log_error "Task not found in profile: ${cmd}"
+    exit 1
+  fi
+
+  wgx_log "Executing task: ${cmd}"
+  cd "${WGX_ROOT}"
+  eval "${task}"
+}
+
+main "$@"
