@@ -1,17 +1,8 @@
 name: wgx-smoke
 on:
-  workflow_call:
-
+  pull_request:
+  push:
+    branches: [ main ]
 jobs:
   smoke:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run wgx smoke
-        run: |
-          if [ -f "wgx" ]; then
-            bash wgx smoke
-          else
-            echo "wgx executable not found"
-            exit 1
-          fi
+    uses: heimgewebe/metarepo/.github/workflows/wgx-smoke.yml@main

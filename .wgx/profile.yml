@@ -1,6 +1,15 @@
-class: rust-service
+class: rust-lib
+
 tasks:
-  smoke: ""
-  guard: ""
-  metrics: ""
+  smoke: |
+    cargo test --workspace --tests -- --test-threads=1
+  guard: |
+    cargo fmt --all --check
+    cargo clippy --all-targets --all-features -- -D warnings
+  metrics: |
+    if [ -x scripts/wgx-metrics-snapshot.sh ]; then
+      scripts/wgx-metrics-snapshot.sh --json
+    else
+      echo "no metrics script defined for heimlern; skipping"
+    fi
   snapshot: ""

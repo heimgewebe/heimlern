@@ -1,17 +1,8 @@
 name: wgx-guard
 on:
-  workflow_call:
-
+  pull_request:
+  push:
+    branches: [ main ]
 jobs:
   guard:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run wgx guard
-        run: |
-          if [ -f "wgx" ]; then
-            bash wgx guard
-          else
-            echo "wgx executable not found"
-            exit 1
-          fi
+    uses: heimgewebe/metarepo/.github/workflows/wgx-guard.yml@main

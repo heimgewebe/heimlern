@@ -13,7 +13,7 @@ main() {
   shift || true
 
   case "${cmd}" in
-  guard | smoke)
+  guard | smoke | metrics | snapshot)
     local cmd_path="${WGX_ROOT}/wgx_lib/cmd/${cmd}.sh"
     if [[ -f "${cmd_path}" ]]; then
       # shellcheck source=/dev/null
