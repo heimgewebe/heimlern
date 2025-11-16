@@ -12,4 +12,5 @@ tasks:
     else
       echo "no metrics script defined for heimlern; skipping"
     fi
-  snapshot: ""
+  snapshot: |
+    echo "no snapshot task defined for heimlern; skipping"

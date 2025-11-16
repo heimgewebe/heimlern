@@ -8,31 +8,84 @@ export WGX_ROOT
 # shellcheck source=wgx/lib/logging.bash
 source "${WGX_ROOT}/wgx/lib/logging.bash"
 
+_WGX_PROFILE_PATH="${WGX_ROOT}/.wgx/profile.yml"
+
+# Kleiner, auf das heimlern-Profil zugeschnittener YAML-Reader:
+# liest aus .wgx/profile.yml die Shell-Payload unter tasks.<cmd>.
+wgx_resolve_task() {
+  local cmd="$1"
+  local profile_path="${2:-${_WGX_PROFILE_PATH}}"
+
+  if [[ ! -f "${profile_path}" ]]; then
+    wgx_log_error "Profile not found: ${profile_path}"
+    return 1
+  fi
+
+  awk -v task="$cmd" '
+    BEGIN {
+      in_tasks = 0
+      mode = ""
+    }
+
+    /^tasks:[[:space:]]*$/ {
+      in_tasks = 1
+      next
+    }
+
+    # Task-Zeile, z.B. "  smoke:" oder "  smoke: |"
+    in_tasks && $1 == (task ":") {
+      # Inline-Variante: "task: <befehl>"
+      if (NF > 1 && $2 != "|") {
+        sub(/^[[:space:]]*[^:]+:[[:space:]]*/, "", $0)
+        print $0
+        exit
+      }
+      # Block-Variante mit Literal: "task: |"
+      if (NF >= 2 && $2 == "|") {
+        mode = "literal"
+        next
+      }
+    }
+
+    # Zeilen eines Literal-Blocks einsammeln
+    in_tasks && mode == "literal" {
+      # Nächste Task-Zeile mit gleicher Einrückung beendet den Block
+      if ($0 ~ /^[[:space:]][[:space:]][A-Za-z0-9_-]+:[[:space:]]*(\||\"|'\''|$)/) {
+        exit
+      }
+      sub(/^[[:space:]]+/, "", $0)
+      print $0
+    }
+  ' "${profile_path}"
+}
+
 main() {
   local cmd="${1:-}"
   if [[ -z "${cmd}" ]]; then
     wgx_log_error "Usage: wgx <command>"
     exit 1
   fi
-  shift
+  shift || true
 
-  local profile_path="${WGX_ROOT}/.wgx/profile.yml"
+  local profile_path="${_WGX_PROFILE_PATH}"
   if [[ ! -f "${profile_path}" ]]; then
     wgx_log_error "Profile not found: ${profile_path}"
     exit 1
   fi
 
   local task
-  task=$(yq e ".tasks.${cmd}" "${profile_path}")
+  task="$(wgx_resolve_task "${cmd}" "${profile_path}" || true)"
 
-  if [[ "${task}" == "null" ]] || [[ -z "${task}" ]]; then
-    wgx_log_error "Task not found in profile: ${cmd}"
-    exit 1
-  fi
+  case "${task}" in
+    "" | "null" | "\"\"" | "''")
+      wgx_log_error "Task not found or empty in profile: ${cmd}"
+      exit 1
+      ;;
+  esac
 
-  wgx_log "Executing task: ${cmd}"
+  wgx_log "Executing task from profile: ${cmd}"
   cd "${WGX_ROOT}"
-  eval "${task}"
+  bash -lc "${task}"
 }
 
 main "$@"
