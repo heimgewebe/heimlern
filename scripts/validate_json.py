@@ -40,6 +40,10 @@ def _extra_checks(schema_path: pathlib.Path, data: Any) -> None:
 
 def validate_single(schema_path: pathlib.Path, doc_path: pathlib.Path) -> None:
     """Validate a single document against a schema."""
+    if not schema_path.exists():
+        raise ContractError(f"Schema file {schema_path} does not exist")
+    if not doc_path.exists():
+        raise ContractError(f"Document file {doc_path} does not exist")
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     resolver = RefResolver.from_schema(schema)
     validator = Draft202012Validator(schema, resolver=resolver)
