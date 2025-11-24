@@ -75,6 +75,10 @@ SCHEMA_MAPPING = {
 
 def validate_batch(schemas_dir: pathlib.Path, samples_dir: pathlib.Path) -> None:
     """Batch validate samples against schemas using naming convention."""
+    if not samples_dir.is_dir():
+        raise ContractError(f"Samples directory {samples_dir} does not exist or is not a directory")
+    if not schemas_dir.is_dir():
+        raise ContractError(f"Schemas directory {schemas_dir} does not exist or is not a directory")
     validated = 0
     for sample_file in samples_dir.iterdir():
         if sample_file.name.startswith("."):
