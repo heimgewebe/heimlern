@@ -124,7 +124,9 @@ def main() -> int:
     args = parser.parse_args()
 
     # Batch mode: --schemas and --samples
-    if args.schemas and args.samples:
+    if args.schemas or args.samples:
+        if not (args.schemas and args.samples):
+            parser.error("Both --schemas and --samples are required for batch mode")
         validate_batch(args.schemas.resolve(), args.samples.resolve())
         return 0
 
