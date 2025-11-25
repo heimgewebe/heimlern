@@ -1,16 +1,26 @@
-class: rust-lib
+wgx:
+  apiVersion: v1
 
 tasks:
-  smoke: |
-    cargo test --workspace --tests -- --test-threads=1
-  guard: |
-    cargo fmt --all --check
-    cargo clippy --all-targets --all-features -- -D warnings
-  metrics: |
-    if [ -x scripts/wgx-metrics-snapshot.sh ]; then
-      scripts/wgx-metrics-snapshot.sh --json
-    else
-      echo "no metrics script defined for heimlern; skipping"
-    fi
-  snapshot: |
-    echo "no snapshot task defined for heimlern; skipping"
+  smoke:
+    cmd: "cargo test --workspace --tests -- --test-threads=1"
+    safe: true
+
+  guard:
+    cmd: |
+      cargo fmt --all --check
+      cargo clippy --all-targets --all-features -- -D warnings
+    safe: true
+
+  metrics:
+    cmd: |
+      if [ -x scripts/wgx-metrics-snapshot.sh ]; then
+        scripts/wgx-metrics-snapshot.sh --json
+      else
+        echo "no metrics script defined for heimlern; skipping"
+      fi
+    safe: true
+
+  snapshot:
+    cmd: echo "no snapshot task defined for heimlern; skipping"
+    safe: true
