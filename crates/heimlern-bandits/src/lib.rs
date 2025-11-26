@@ -2,7 +2,7 @@
 
 //! Beispiel-Implementierung eines ε-greedy-Banditen für Erinnerungs-Slots.
 //!
-//! Der `RemindBandit` implementiert das [`Policy`](heimlern_core::Policy)-Trait
+//! Der `RemindBandit` implementiert das [`Policy`]-Trait
 //! für ein häusliches Erinnerungs-Szenario. Mit Wahrscheinlichkeit `epsilon` wird
 //! ein Slot zufällig gewählt (Exploration), sonst der beste bekannte Slot (Exploitation).
 
