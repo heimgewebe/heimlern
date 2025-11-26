@@ -11,7 +11,7 @@ Entscheidungen sollen reproduzierbar und begründet sein.
 
 ## Konsequenzen
 - Klare Schnittstelle zu hausKI; leicht testbar.
-- `why` wird im Leitstand angezeigt.
+- `why` wird in der Chronik angezeigt.
 
 ## Alternativen
 - Ad-hoc Heuristiken ohne Begründung: verworfen.
