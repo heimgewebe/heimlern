@@ -1,4 +1,6 @@
 # ADR: Rename leitstand → chronik, introduce leitstand UI
+Status: Accepted
+Date: 2025-11-26
 
 ## Context
 
