@@ -6,10 +6,10 @@ The `leitstand` repository currently serves as an event ingest and persistence l
 
 ## Decision
 
-To resolve this, we will:
+To resolve this, we:
 
-1.  **Rename the backend repository:** `leitstand` will be renamed to `chronik` to accurately reflect its role as an event store.
-2.  **Create a new UI repository:** A new repository named `leitstand` will be created for the UI/Dashboard, which will act as the central control room for the Heimgewebe ecosystem.
+1.  **Renamed the backend repository:** `chronik` is now the canonical name for the event store backend.
+2.  **Created a new UI repository:** The `leitstand` UI/Dashboard exists as the central control room for the Heimgewebe ecosystem.
 
 ## Consequences
 
