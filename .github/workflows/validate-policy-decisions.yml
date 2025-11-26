@@ -2,6 +2,11 @@ name: validate-policy-decisions
 permissions:
   contents: read
 on:
+  push:
+    branches: [ main ]
+    paths:
+      - "tests/fixtures/decision/**/*.json"
+      - ".github/workflows/validate-policy-decisions.yml"
   pull_request:
     paths:
       - "tests/fixtures/decision/**/*.json"
@@ -16,7 +21,7 @@ jobs:
       - name: Checkout (pinned)
         uses: actions/checkout@8ade135a242bde00fd19c0e54fb3760beea110ee # v4.1.0
       - name: Setup Node (pinned)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "20"
       - name: Validate policy.decision fixtures (AJV)
@@ -24,8 +29,13 @@ jobs:
           SCHEMA_URL: "https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/policy.decision.schema.json"
         run: |
           set -euo pipefail
-          shopt -s globstar nullglob
-          FILES=(tests/fixtures/decision/**/*.json)
+          shopt -s globstar nullglob extglob
+          # Exclude files containing "bad" in their name (test fixtures for invalid data)
+          FILES=()
+          for f in tests/fixtures/decision/**/*.json; do
+            [[ "$(basename "$f")" == *bad* ]] && continue
+            FILES+=("$f")
+          done
           if (( ${#FILES[@]} == 0 )); then
             echo "::notice::No decision fixtures found."
             exit 0
