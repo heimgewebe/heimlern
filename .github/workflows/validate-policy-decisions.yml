@@ -40,7 +40,17 @@ jobs:
             echo "::notice::No decision fixtures found."
             exit 0
           fi
-          curl -fsSL "$SCHEMA_URL" -o /tmp/policy.decision.schema.json
+
+          # prefer a local vendored schema if present
+          if [ -f tests/schemas/policy.decision.schema.json ]; then
+            cp tests/schemas/policy.decision.schema.json /tmp/policy.decision.schema.json
+          else
+            curl -fsSL "$SCHEMA_URL" -o /tmp/policy.decision.schema.json || {
+              echo "::error::Failed to download schema from $SCHEMA_URL"
+              exit 1
+            }
+          fi
+
           fails=0
           for f in "${FILES[@]}"; do
             if ! npx --yes ajv-cli@5.0.0 validate \
