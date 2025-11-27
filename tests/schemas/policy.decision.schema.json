@@ -18,16 +18,16 @@
         "score": { "type": "number" },
         "why": {
           "anyOf": [
-             { "type": "string" },
-             { "type": "array", "items": { "type": "string" } }
+          { "type": "string" },
+          { "type": "array", "items": { "type": "string" } }
           ]
         },
         "chosen": {
-           "type": "object",
-           "properties": {
-             "action": { "type": "string" }
+        "type": "object",
+        "properties": {
+          "action": { "type": "string" }
            },
-           "required": ["action"]
+        "required": ["action"]
         },
         "context": { "type": "object" }
       },
