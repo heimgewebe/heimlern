@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.heimgewebe.org/contracts/policy.decision.schema.json",
+  "title": "heimlern decision record",
+  "type": "object",
+  "properties": {
+    "ts": { "type": "string", "format": "date-time" },
+    "policy_id": { "type": "string" },
+    "policy": { "type": "string" },
+    "context": { "type": "object" },
+    "explanation": { "type": "string" },
+    "meta": { "type": "object" },
+    "candidates": { "type": "array" },
+    "decision": {
+      "type": "object",
+      "properties": {
+        "action": { "type": "string" },
+        "score": { "type": "number" },
+        "why": {
+          "anyOf": [
+             { "type": "string" },
+             { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "chosen": {
+           "type": "object",
+           "properties": {
+             "action": { "type": "string" }
+           },
+           "required": ["action"]
+        },
+        "context": { "type": "object" }
+      },
+      "required": ["score"]
+    }
+  },
+  "required": ["ts", "decision"]
+}
