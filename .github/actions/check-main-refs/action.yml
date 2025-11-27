@@ -1,12 +1,12 @@
-name: 'Check for @main references in Actions'
-description: 'Checks for @main references in GitHub Actions workflow files.'
+name: 'Check for @main or @master references in Actions'
+description: 'Checks for @main or @master references in GitHub Actions workflow files.'
 runs:
   using: 'composite'
   steps:
-    - name: Check for @main references
+    - name: Check for default branch references
       run: |
-        if grep -r "@main" .github/workflows/; then
-          echo "Error: Found '@main' references in workflow files. Please use a specific commit SHA or tag."
+        if grep -rE "@(main|master)" .github/workflows/; then
+          echo "Error: Found '@main' or '@master' references in workflow files. Please use a specific commit SHA or tag."
           exit 1
         fi
       shell: bash
