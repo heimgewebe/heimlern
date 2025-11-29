@@ -12,6 +12,6 @@ permissions:
 jobs:
   dispatch:
     if: github.event.issue.pull_request != null
-    uses: heimgewebe/metarepo/.github/workflows/heimgewebe-command-dispatch.yml@main
+    uses: heimgewebe/metarepo/.github/workflows/heimgewebe-command-dispatch.yml@79552feed232f8b7322cb1d126da4c6f2470c898 # main
     secrets:
       HEIMGEWEBE_AUTOBOT_TOKEN: ${{ secrets.HEIMGEWEBE_AUTOBOT_TOKEN }}
