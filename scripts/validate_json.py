@@ -16,7 +16,7 @@ import pathlib
 import sys
 from typing import Any, Sequence
 
-from jsonschema import Draft202012Validator, RefResolver
+from jsonschema import Draft202012Validator
 
 
 class ContractError(ValueError):
@@ -45,8 +45,7 @@ def validate_single(schema_path: pathlib.Path, doc_path: pathlib.Path) -> None:
     if not doc_path.exists():
         raise ContractError(f"Document file {doc_path} does not exist")
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
-    resolver = RefResolver.from_schema(schema)
-    validator = Draft202012Validator(schema, resolver=resolver)
+    validator = Draft202012Validator(schema)
 
     def validate_payload(payload: Any, label: str) -> None:
         validator.validate(payload)
