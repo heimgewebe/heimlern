@@ -4,7 +4,7 @@
   "title": "heimlern decision record",
   "type": "object",
   "properties": {
-    "ts": { "type": "string", "format": "date-time" },
+    "ts": { "type": "string" },
     "policy_id": { "type": "string" },
     "policy": { "type": "string" },
     "context": { "type": "object" },
