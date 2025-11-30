@@ -20,7 +20,7 @@ können.
    Zufalls-Seed und weitere Parameter zwischen Sessions erhalten.
 3. Für reproduzierbare Testdaten können die Beispielskripte verwendet werden:
    ```bash
-   just snapshot:example
+   just snapshot-example
    # legt /tmp/heimlern_snapshot.json an
    ```
 
@@ -37,7 +37,7 @@ Versionskontrolle oder Objektspeichern abgelegt werden können.
    ```bash
    python scripts/validate_json.py contracts/policy_snapshot.schema.json /tmp/heimlern_snapshot.json
    ```
-   Alternativ validiert `just schema:validate` sowohl Snapshot als auch
+   Alternativ validiert `just schema-validate` sowohl Snapshot als auch
    Feedback-Beispiel in einem Lauf.
 3. Der Validator führt neben der JSON-Schema-Prüfung zusätzliche Konsistenz-
    Checks aus, z. B. dass die Längen von `arms`, `counts` und `values`
