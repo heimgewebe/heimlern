@@ -19,7 +19,7 @@ use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 /// Logging-Helfer:
 /// Mit Feature `telemetry` → `tracing::warn!`, sonst → `eprintln!`.
-#[inline(always)]
+#[inline]
 fn log_warn(msg: &str) {
     #[cfg(feature = "telemetry")]
     {
