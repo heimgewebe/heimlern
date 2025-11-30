@@ -80,9 +80,9 @@ fn example_ingest_events_scores_range_between_0_and_1() {
     let out_str = String::from_utf8_lossy(&output);
     for line in out_str.lines() {
         if let Some((score_str, _title)) = line.split_once('\t') {
-            let score: f32 = score_str
-                .parse()
-                .unwrap_or_else(|e| panic!("Score '{score_str}' konnte nicht als f32 geparst werden: {e}"));
+            let score: f32 = score_str.parse().unwrap_or_else(|e| {
+                panic!("Score '{score_str}' konnte nicht als f32 geparst werden: {e}")
+            });
             assert!(
                 (0.0..=1.0).contains(&score),
                 "Score außerhalb 0..1: {score}"
