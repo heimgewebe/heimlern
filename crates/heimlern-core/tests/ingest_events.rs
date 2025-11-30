@@ -85,8 +85,7 @@ fn example_ingest_events_scores_range_between_0_and_1() {
                 .unwrap_or_else(|e| panic!("Score '{score_str}' konnte nicht als f32 geparst werden: {e}"));
             assert!(
                 (0.0..=1.0).contains(&score),
-                "Score außerhalb 0..1: {}",
-                score
+                "Score außerhalb 0..1: {score}"
             );
         }
     }
