@@ -1,6 +1,6 @@
 # heimlern
 
-[![rust (cached)](https://github.com/heimgewebe/heimlern/actions/workflows/ci-rust.yml/badge.svg)](https://github.com/heimgewebe/heimlern/actions/workflows/ci-rust.yml)
+[![rust (cached)](https://github.com/heimgewebe/heimlern/actions/workflows/rust.yml/badge.svg)](https://github.com/heimgewebe/heimlern/actions/workflows/rust.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Siehe auch: **Policy-Lifecycle**: `docs/policy-lifecycle.md` und **Contracts** in `contracts/`.
