@@ -372,14 +372,21 @@ mod tests {
 
         assert!(snapshot.is_object(), "Snapshot darf nicht Null werden");
 
-        let epsilon = snapshot.get("epsilon").and_then(Value::as_f64);
-        assert_eq!(epsilon, Some(0.0), "epsilon muss vorhanden sein");
+        let Some(epsilon) = snapshot
+            .get("epsilon")
+            .and_then(Value::as_f64)
+        else {
+            panic!("epsilon muss vorhanden sein")
+        };
+        assert_eq!(epsilon, 0.0);
 
-        let values = snapshot.get("values").and_then(Value::as_array);
-        assert!(values.is_some(), "values müssen eine Liste sein");
-        if let Some(vals) = values {
-            assert_eq!(vals[0].as_f64(), Some(0.0));
-        }
+        let Some(values) = snapshot
+            .get("values")
+            .and_then(Value::as_array)
+        else {
+            panic!("values müssen eine Liste sein")
+        };
+        assert_eq!(values[0].as_f64(), Some(0.0));
     }
 
     #[test]
