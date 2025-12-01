@@ -104,7 +104,7 @@ impl RemindBandit {
             self.epsilon = 0.0;
         }
 
-        for (_, (_, sum)) in &mut self.values {
+        for (_, sum) in self.values.values_mut() {
             if !sum.is_finite() {
                 *sum = 0.0;
             }
