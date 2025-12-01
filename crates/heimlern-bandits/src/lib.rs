@@ -541,18 +541,27 @@ mod tests {
 
     #[test]
     fn load_rejects_snapshot_with_wrong_policy_id() {
-        let mut bandit = RemindBandit::default();
-        let original_epsilon = bandit.epsilon;
+        // 1. Setup a bandit with NON-DEFAULT state (epsilon = 0.99)
+        let mut source_bandit = RemindBandit::default();
+        source_bandit.epsilon = 0.99;
 
-        let mut snapshot_json = bandit.snapshot();
+        let mut snapshot_json = source_bandit.snapshot();
+
+        // 2. Mangle the policy_id
         snapshot_json["policy_id"] = serde_json::Value::String("wrong-policy".into());
 
-        bandit.load(snapshot_json);
+        // 3. Create a target bandit with DIFFERENT state (default epsilon = 0.2)
+        let mut target_bandit = RemindBandit::default();
+        let original_target_epsilon = target_bandit.epsilon;
+        assert!((original_target_epsilon - 0.2).abs() < f32::EPSILON);
 
-        // Verify that the bandit's state has not changed
+        // 4. Load the mangled snapshot
+        target_bandit.load(snapshot_json);
+
+        // 5. Verify that the state was NOT updated (should still be 0.2, not 0.99)
         #[allow(clippy::float_cmp)]
         {
-            assert_eq!(bandit.epsilon, original_epsilon);
+            assert_eq!(target_bandit.epsilon, original_target_epsilon);
         }
     }
 }
