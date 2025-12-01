@@ -104,6 +104,12 @@ impl RemindBandit {
             self.epsilon = 0.0;
         }
 
+        for (_, (_, sum)) in &mut self.values {
+            if !sum.is_finite() {
+                *sum = 0.0;
+            }
+        }
+
         if self.slots.is_empty() {
             self.slots = default_slots();
         }
@@ -243,9 +249,6 @@ impl Policy for RemindBandit {
 }
 
 // ---- kleine Helfer ----
-fn to_value_or_null<T: Serialize>(t: T) -> serde_json::Value {
-    serde_json::to_value(t).unwrap_or(serde_json::Value::Null)
-}
 fn iso8601_now() -> String {
     // RFC3339/ISO-8601-konformer UTC-Zeitstempel, z. B. "2025-11-09T12:34:56Z"
     OffsetDateTime::now_utc()
@@ -258,6 +261,12 @@ impl RemindBandit {
     /// Persistiert Zustand als Contract-Snapshot (JSON-konform zum Schema).
     #[must_use]
     pub fn to_contract_snapshot(&self) -> serde_json::Value {
+        let epsilon = if self.epsilon.is_finite() {
+            self.epsilon.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+
         // Slots in stabiler Reihenfolge exportieren:
         let mut arms = self.slots.clone();
         if arms.is_empty() {
@@ -268,9 +277,10 @@ impl RemindBandit {
         let mut values = Vec::with_capacity(arms.len());
         for arm in &arms {
             let (n, sum) = self.values.get(arm).copied().unwrap_or((0, 0.0));
+            let sanitized_sum = if sum.is_finite() { sum } else { 0.0 };
             counts.push(n);
             #[allow(clippy::cast_precision_loss)]
-            let avg = if n > 0 { sum / n as f32 } else { 0.0 };
+            let avg = if n > 0 { sanitized_sum / n as f32 } else { 0.0 };
             values.push(avg);
         }
         let snap = ContractSnapshot {
@@ -280,10 +290,16 @@ impl RemindBandit {
             arms,
             counts,
             values,
-            epsilon: self.epsilon.clamp(0.0, 1.0),
+            epsilon,
             seed: None,
         };
-        to_value_or_null(snap)
+
+        serde_json::to_value(snap).unwrap_or_else(|e| {
+            log_warn(&format!(
+                "to_contract_snapshot(): Snapshot konnte nicht serialisiert werden: {e}"
+            ));
+            serde_json::Value::Null
+        })
     }
 }
 
@@ -291,6 +307,7 @@ impl RemindBandit {
 mod tests {
     use super::*;
     use heimlern_core::Policy;
+    use serde_json::Value;
 
     #[test]
     fn bandit_learns_and_exploits_best_slot() {
@@ -343,6 +360,32 @@ mod tests {
     }
 
     #[test]
+    fn snapshot_sanitizes_non_finite_values() {
+        let mut bandit = RemindBandit {
+            epsilon: f32::NAN,
+            slots: vec!["a".into()],
+            values: HashMap::new(),
+        };
+        bandit.values.insert("a".into(), (1, f32::INFINITY));
+
+        let snapshot = bandit.snapshot();
+
+        assert!(snapshot.is_object(), "Snapshot darf nicht Null werden");
+
+        let epsilon = snapshot
+            .get("epsilon")
+            .and_then(Value::as_f64)
+            .expect("epsilon muss vorhanden sein");
+        assert_eq!(epsilon, 0.0);
+
+        let values = snapshot
+            .get("values")
+            .and_then(Value::as_array)
+            .expect("values müssen eine Liste sein");
+        assert_eq!(values[0].as_f64(), Some(0.0));
+    }
+
+    #[test]
     fn load_clamps_epsilon_and_restores_slots() {
         let bandit = RemindBandit {
             epsilon: 42.0,
@@ -368,6 +411,23 @@ mod tests {
 
         let decision = bandit.decide(&ctx);
         assert!(decision.action.starts_with("remind."));
+    }
+
+    #[test]
+    fn sanitize_resets_non_finite_sums_and_slots() {
+        let mut bandit = RemindBandit {
+            epsilon: 0.5,
+            slots: vec![],
+            values: HashMap::new(),
+        };
+        bandit.values.insert("a".into(), (2, f32::NAN));
+        bandit.values.insert("b".into(), (3, f32::INFINITY));
+
+        bandit.sanitize();
+
+        assert_eq!(bandit.slots, default_slots());
+        assert_eq!(bandit.values.get("a"), Some(&(2, 0.0)));
+        assert_eq!(bandit.values.get("b"), Some(&(3, 0.0)));
     }
 
     #[test]
