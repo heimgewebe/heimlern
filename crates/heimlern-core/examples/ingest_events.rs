@@ -22,11 +22,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         if event.url.is_some() {
             score += 0.5;
         }
-        if event.title.as_ref().map(|t| !t.is_empty()).unwrap_or(false) {
+        if event.title.as_ref().is_some_and(|t| !t.is_empty()) {
             score += 0.3;
         }
         if let Some(tags) = &event.tags {
-            score += (tags.len().min(5) as f32) * 0.04;
+            #[allow(clippy::cast_precision_loss)]
+            let tag_score = (tags.len().min(5) as f32) * 0.04;
+            score += tag_score;
         }
 
         println!(

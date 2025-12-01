@@ -20,7 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(Value::Object(mut obj)) => {
                     let kind = obj
                         .remove("kind")
-                        .and_then(|v| v.as_str().map(|s| s.to_owned()))
+                        .and_then(|v| v.as_str().map(std::borrow::ToOwned::to_owned))
                         .unwrap_or_else(|| "reminder".to_string());
                     let features = obj.remove("features").unwrap_or_else(|| json!({}));
                     Context { kind, features }

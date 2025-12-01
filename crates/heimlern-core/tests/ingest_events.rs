@@ -31,7 +31,7 @@ fn example_ingest_events_outputs_two_lines_and_scores() {
         "ingest_events",
         "--",
         path.to_str()
-            .unwrap_or_else(|| panic!("Temporärer Pfad ist kein valides UTF-8: {:?}", path)),
+            .unwrap_or_else(|| panic!("Temporärer Pfad ist kein valides UTF-8: {path:?}")),
     ]);
 
     cmd.assert()

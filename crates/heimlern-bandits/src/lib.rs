@@ -89,17 +89,19 @@ fn fallback_decision(reason: &str, ctx: &Context) -> Decision {
 impl RemindBandit {
     /// Berechnet den durchschnittlichen Reward für einen Slot.
     fn get_average_reward(&self, slot: &str) -> f32 {
-        self.values
-            .get(slot)
-            .map(|(n, v)| if *n > 0 { v / *n as f32 } else { 0.0 })
-            .unwrap_or(0.0)
+        #[allow(clippy::cast_precision_loss)]
+        {
+            self.values
+                .get(slot)
+                .map_or(0.0, |(n, v)| if *n > 0 { v / *n as f32 } else { 0.0 })
+        }
     }
 
     fn sanitize(&mut self) {
-        if !self.epsilon.is_finite() {
-            self.epsilon = 0.0;
-        } else {
+        if self.epsilon.is_finite() {
             self.epsilon = self.epsilon.clamp(0.0, 1.0);
+        } else {
+            self.epsilon = 0.0;
         }
 
         if self.slots.is_empty() {
@@ -212,6 +214,7 @@ impl Policy for RemindBandit {
             for i in 0..len {
                 let n = snap.counts.get(i).copied().unwrap_or(0);
                 let avg = snap.values.get(i).copied().unwrap_or(0.0);
+                #[allow(clippy::cast_precision_loss)]
                 let total = if n > 0 && avg.is_finite() {
                     avg * n as f32
                 } else {
@@ -253,6 +256,7 @@ fn iso8601_now() -> String {
 // ---- Contract-konforme Snapshot/Load-Implementierung (ersetzt Dummy oben) ----
 impl RemindBandit {
     /// Persistiert Zustand als Contract-Snapshot (JSON-konform zum Schema).
+    #[must_use]
     pub fn to_contract_snapshot(&self) -> serde_json::Value {
         // Slots in stabiler Reihenfolge exportieren:
         let mut arms = self.slots.clone();
@@ -265,6 +269,7 @@ impl RemindBandit {
         for arm in &arms {
             let (n, sum) = self.values.get(arm).copied().unwrap_or((0, 0.0));
             counts.push(n);
+            #[allow(clippy::cast_precision_loss)]
             let avg = if n > 0 { sum / n as f32 } else { 0.0 };
             values.push(avg);
         }
@@ -380,7 +385,10 @@ mod tests {
         bandit.values.insert("a".into(), (0, f32::NAN));
 
         let decision = bandit.decide(&ctx);
-        assert!(decision.action.ends_with(".b"));
+        #[allow(clippy::case_sensitive_file_extension_comparisons)]
+        {
+            assert!(decision.action.ends_with(".b"));
+        }
     }
 
     #[test]
@@ -411,7 +419,10 @@ mod tests {
         let decision = bandit.decide(&ctx);
 
         assert_eq!(decision.action, "remind.a");
-        assert_eq!(decision.score, 0.0);
+        #[allow(clippy::float_cmp)]
+        {
+            assert_eq!(decision.score, 0.0);
+        }
     }
 
     #[test]
@@ -440,7 +451,7 @@ mod tests {
             "values",
             "epsilon",
         ] {
-            assert!(snap.get(key).is_some(), "missing key {}", key);
+            assert!(snap.get(key).is_some(), "missing key {key}");
         }
         // Längen müssen passen
         match snap["arms"].as_array() {
@@ -488,17 +499,14 @@ mod tests {
         // z: kein Feedback -> n=0, avg=0.0
 
         let snap = bandit.to_contract_snapshot();
-        let arms = match snap["arms"].as_array() {
-            Some(array) => array,
-            None => panic!("Feld 'arms' ist kein Array"),
+        let Some(arms) = snap["arms"].as_array() else {
+            panic!("Feld 'arms' ist kein Array")
         };
-        let counts = match snap["counts"].as_array() {
-            Some(array) => array,
-            None => panic!("Feld 'counts' ist kein Array"),
+        let Some(counts) = snap["counts"].as_array() else {
+            panic!("Feld 'counts' ist kein Array")
         };
-        let values = match snap["values"].as_array() {
-            Some(array) => array,
-            None => panic!("Feld 'values' ist kein Array"),
+        let Some(values) = snap["values"].as_array() else {
+            panic!("Feld 'values' ist kein Array")
         };
         assert_eq!(
             arms,
@@ -515,21 +523,18 @@ mod tests {
                 .collect::<Vec<_>>()
         );
         // floats: 0.4, 0.0, 0.0
-        let val1 = match values[0].as_f64() {
-            Some(v) => v,
-            None => panic!("Wert ist nicht als f64 lesbar"),
+        let Some(val1) = values[0].as_f64() else {
+            panic!("Wert ist nicht als f64 lesbar")
         };
         assert!((val1 - 0.4).abs() < 1e-6);
 
-        let val2 = match values[1].as_f64() {
-            Some(v) => v,
-            None => panic!("Wert ist nicht als f64 lesbar"),
+        let Some(val2) = values[1].as_f64() else {
+            panic!("Wert ist nicht als f64 lesbar")
         };
         assert!((val2 - 0.0).abs() < 1e-6);
 
-        let val3 = match values[2].as_f64() {
-            Some(v) => v,
-            None => panic!("Wert ist nicht als f64 lesbar"),
+        let Some(val3) = values[2].as_f64() else {
+            panic!("Wert ist nicht als f64 lesbar")
         };
         assert!((val3 - 0.0).abs() < 1e-6);
     }
@@ -545,6 +550,9 @@ mod tests {
         bandit.load(snapshot_json);
 
         // Verify that the bandit's state has not changed
-        assert_eq!(bandit.epsilon, original_epsilon);
+        #[allow(clippy::float_cmp)]
+        {
+            assert_eq!(bandit.epsilon, original_epsilon);
+        }
     }
 }
