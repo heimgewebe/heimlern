@@ -542,8 +542,10 @@ mod tests {
     #[test]
     fn load_rejects_snapshot_with_wrong_policy_id() {
         // 1. Setup a bandit with NON-DEFAULT state (epsilon = 0.99)
-        let mut source_bandit = RemindBandit::default();
-        source_bandit.epsilon = 0.99;
+        let source_bandit = RemindBandit {
+            epsilon: 0.99,
+            ..Default::default()
+        };
 
         let mut snapshot_json = source_bandit.snapshot();
 
