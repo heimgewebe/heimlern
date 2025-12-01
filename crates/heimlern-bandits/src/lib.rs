@@ -104,7 +104,7 @@ impl RemindBandit {
             self.epsilon = 0.0;
         }
 
-        for (_, (_, sum)) in &mut self.values {
+        for (_, sum) in self.values.values_mut() {
             if !sum.is_finite() {
                 *sum = 0.0;
             }
@@ -372,17 +372,14 @@ mod tests {
 
         assert!(snapshot.is_object(), "Snapshot darf nicht Null werden");
 
-        let epsilon = snapshot
-            .get("epsilon")
-            .and_then(Value::as_f64)
-            .expect("epsilon muss vorhanden sein");
-        assert_eq!(epsilon, 0.0);
+        let epsilon = snapshot.get("epsilon").and_then(Value::as_f64);
+        assert_eq!(epsilon, Some(0.0), "epsilon muss vorhanden sein");
 
-        let values = snapshot
-            .get("values")
-            .and_then(Value::as_array)
-            .expect("values müssen eine Liste sein");
-        assert_eq!(values[0].as_f64(), Some(0.0));
+        let values = snapshot.get("values").and_then(Value::as_array);
+        assert!(values.is_some(), "values müssen eine Liste sein");
+        if let Some(vals) = values {
+            assert_eq!(vals[0].as_f64(), Some(0.0));
+        }
     }
 
     #[test]
