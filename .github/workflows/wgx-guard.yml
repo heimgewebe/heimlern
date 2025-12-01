@@ -7,4 +7,4 @@ on:
     branches: [ main ]
 jobs:
   guard:
-    uses: heimgewebe/wgx/.github/workflows/wgx-guard.yml@5d810ddd6df54e085762440066b8723d251e05de # main
+    uses: heimgewebe/wgx/.github/workflows/wgx-guard.yml@5d810ddd6df54e085762440066b8723d251e05de
