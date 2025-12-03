@@ -50,8 +50,8 @@ jobs:
             echo "::notice::Using local schema from tests/schemas/"
           else
             echo "::warning::Downloading schema from $SCHEMA_URL (fallback)"
-            curl -fsSL "$SCHEMA_URL" -o /tmp/policy.decision.schema.json || {
-              echo "::error::Failed to download schema from $SCHEMA_URL"
+            if ! curl -fsSL "$SCHEMA_URL" -o /tmp/policy.decision.schema.json; then
+              echo "::error::Schema could not be found locally at contracts/policy.decision.schema.json or downloaded from $SCHEMA_URL. Please ensure the schema file exists or the URL is accessible."
               exit 1
             fi
           fi
