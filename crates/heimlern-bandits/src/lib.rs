@@ -83,6 +83,7 @@ fn fallback_decision(reason: &str, ctx: &Context) -> Decision {
         score: 0.0,
         why: reason.into(),
         context: serialize_context(ctx),
+        chosen: None, // Wird ggf. vom Aufrufer gefüllt oder ist optional
     }
 }
 
@@ -164,6 +165,7 @@ impl Policy for RemindBandit {
             score: value_estimate,
             why: if explore { "explore ε" } else { "exploit" }.into(),
             context: serialize_context(ctx),
+            chosen: None, // Optional, kann hier leer bleiben
         }
     }
 

@@ -1,5 +1,5 @@
 {
- "policy_id": "remind-bandit-v1",
+ "policy_id": "remind-bandit",
  "context": { "source": "demo", "ts": "2025-01-01T12:00:00Z" },
  "decision": { "action": "remind", "score": 0.73 },
  "explanation": "demo fixture",

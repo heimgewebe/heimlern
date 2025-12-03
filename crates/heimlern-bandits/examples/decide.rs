@@ -1,7 +1,7 @@
 use std::io::{self, Read};
 
 use heimlern_bandits::RemindBandit;
-use heimlern_core::{Context, Decision, Policy};
+use heimlern_core::{Chosen, Context, Decision, Policy};
 use serde::Serialize;
 use serde_json::{json, Value};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
@@ -12,20 +12,7 @@ struct PolicyDecisionRecord {
     policy_id: String,
     policy: String,
     context: Context,
-    decision: DecisionWrapper,
-}
-
-#[derive(Serialize)]
-struct DecisionWrapper {
-    #[serde(flatten)]
-    inner: Decision,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    chosen: Option<Chosen>,
-}
-
-#[derive(Serialize)]
-struct Chosen {
-    action: String,
+    decision: Decision,
 }
 
 fn iso8601_now() -> String {
@@ -68,22 +55,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let mut policy = RemindBandit::default();
-    let decision = policy.decide(&ctx);
+    let mut decision = policy.decide(&ctx);
 
-    // Ensure strict schema compliance (policy.decision.schema.json)
-    // The schema requires `decision` object to have `score` (present in Decision).
-    // It also allows optional `chosen` object with `action`.
+    // Populate the 'chosen' field for strict schema compliance
+    if decision.chosen.is_none() {
+        decision.chosen = Some(Chosen {
+            action: decision.action.clone(),
+        });
+    }
+
     let record = PolicyDecisionRecord {
         ts: iso8601_now(),
         policy_id: "remind-bandit".to_string(), // Matches RemindBandit snapshot ID
         policy: "heimlern-bandits".to_string(),
         context: ctx.clone(),
-        decision: DecisionWrapper {
-            chosen: Some(Chosen {
-                action: decision.action.clone(),
-            }),
-            inner: decision,
-        },
+        decision,
     };
 
     serde_json::to_writer_pretty(io::stdout(), &record)?;
