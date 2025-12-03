@@ -42,13 +42,15 @@ jobs:
           fi
 
           # prefer a local vendored schema if present
-          if [ -f tests/schemas/policy.decision.schema.json ]; then
+          if [ -f contracts/policy.decision.schema.json ]; then
+            cp contracts/policy.decision.schema.json /tmp/policy.decision.schema.json
+          elif [ -f tests/schemas/policy.decision.schema.json ]; then
             cp tests/schemas/policy.decision.schema.json /tmp/policy.decision.schema.json
           else
-            curl -fsSL "$SCHEMA_URL" -o /tmp/policy.decision.schema.json || {
-              echo "::error::Failed to download schema from $SCHEMA_URL"
+            if ! curl -fsSL "$SCHEMA_URL" -o /tmp/policy.decision.schema.json; then
+              echo "::error::Schema konnte weder lokal noch remote gefunden werden."
               exit 1
-            }
+            fi
           fi
 
           fails=0
