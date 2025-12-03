@@ -20,6 +20,12 @@ pub struct Context {
     pub features: Value,
 }
 
+/// Struktur für das `chosen`-Feld, wie vom Schema gefordert.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Chosen {
+    pub action: String,
+}
+
 /// Antwort einer Policy auf einen gegebenen [`Context`].
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Decision {
@@ -32,6 +38,9 @@ pub struct Decision {
     pub why: String,
     /// Optionaler, serialisierter Kontext (z. B. zum Logging oder Debugging).
     pub context: Option<Value>,
+    /// Optionales Objekt für Schema-Kompatibilität, enthält erneut die Action.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chosen: Option<Chosen>,
 }
 
 /// Schnittstelle, die jede heimlern-Policy implementieren muss.
