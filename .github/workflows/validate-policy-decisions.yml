@@ -48,7 +48,7 @@ jobs:
             cp tests/schemas/policy.decision.schema.json /tmp/policy.decision.schema.json
           else
             if ! curl -fsSL "$SCHEMA_URL" -o /tmp/policy.decision.schema.json; then
-              echo "::error::Schema could not be found locally or remotely."
+              echo "::error::Schema could not be found locally at contracts/policy.decision.schema.json or downloaded from $SCHEMA_URL. Please ensure the schema file exists or the URL is accessible."
               exit 1
             fi
           fi
