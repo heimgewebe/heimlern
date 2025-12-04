@@ -1,3 +1,5 @@
+#![warn(clippy::unwrap_used, clippy::expect_used)]
+
 //! Kern-Typen und Traits für das heimlern-Ökosystem.
 //!
 //! Die hier definierten Strukturen bilden die Schnittstelle zwischen konkreten
@@ -37,6 +39,7 @@ pub struct Decision {
     /// Erklärung, warum die Aktion gewählt wurde (z. B. "explore ε").
     pub why: String,
     /// Optionaler, serialisierter Kontext (z. B. zum Logging oder Debugging).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<Value>,
     /// Optionales Objekt für Schema-Kompatibilität, enthält erneut die Action.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -67,14 +70,15 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn context_roundtrip() {
+    fn context_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
         let ctx = Context {
             kind: "test".to_string(),
             features: json!({"key": "value", "n": 1}),
         };
-        let s = serde_json::to_string(&ctx).unwrap();
-        let back: Context = serde_json::from_str(&s).unwrap();
+        let s = serde_json::to_string(&ctx)?;
+        let back: Context = serde_json::from_str(&s)?;
         assert_eq!(ctx.kind, back.kind);
         assert_eq!(ctx.features["key"], "value");
+        Ok(())
     }
 }
