@@ -178,7 +178,11 @@ impl Policy for RemindBandit {
             return;
         }
         if let Some(slot) = action.strip_prefix("remind.") {
-            let entry = self.values.entry(slot.to_string()).or_insert((0, 0.0));
+            let slot_name = slot.to_string();
+            if !self.slots.contains(&slot_name) {
+                self.slots.push(slot_name.clone());
+            }
+            let entry = self.values.entry(slot_name).or_insert((0, 0.0));
             entry.0 += 1; // pulls
             entry.1 += reward; // total reward
         } else {
@@ -483,6 +487,27 @@ mod tests {
         {
             assert_eq!(decision.score, 0.0);
         }
+    }
+
+    #[test]
+    fn feedback_adds_unknown_slot_and_prefers_it_on_exploit() {
+        let mut bandit = RemindBandit {
+            epsilon: 0.0, // exploit only for determinism
+            slots: vec!["morning".into(), "evening".into()],
+            values: HashMap::new(),
+        };
+        let ctx = Context {
+            kind: "t".into(),
+            features: serde_json::json!({}),
+        };
+
+        // Provide feedback for a slot not yet known to the bandit.
+        bandit.feedback(&ctx, "remind.night", 1.0);
+
+        // The slot should be added and chosen when exploiting.
+        let decision = bandit.decide(&ctx);
+        assert_eq!(decision.action, "remind.night");
+        assert!(bandit.slots.contains(&"night".to_string()));
     }
 
     #[test]
