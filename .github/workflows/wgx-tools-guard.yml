@@ -1,4 +1,6 @@
 name: WGX Tools Guard
+permissions:
+  contents: read
 
 on:
   push:
