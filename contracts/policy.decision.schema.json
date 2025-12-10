@@ -1,38 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.heimgewebe.org/contracts/policy.decision.schema.json",
-  "title": "heimlern decision record",
+  "title": "heimlern decision",
+  "x-producers": ["heimlern"],
+  "x-consumers": ["hausKI", "chronik"],
   "type": "object",
+  "required": ["action", "score", "why"],
   "properties": {
-    "ts": { "type": "string" },
-    "policy_id": { "type": "string" },
-    "policy": { "type": "string" },
-    "context": { "type": "object" },
-    "explanation": { "type": "string" },
-    "meta": { "type": "object" },
-    "candidates": { "type": "array" },
-    "decision": {
-      "type": "object",
-      "properties": {
-        "action": { "type": "string" },
-        "score": { "type": "number" },
-        "why": {
-          "anyOf": [
-          { "type": "string" },
-          { "type": "array", "items": { "type": "string" } }
-          ]
-        },
-        "chosen": {
-        "type": "object",
-        "properties": {
-          "action": { "type": "string" }
-           },
-        "required": ["action"]
-        },
-        "context": { "type": "object" }
-      },
-      "required": ["score"]
-    }
+    "action": { "type": "string" },
+    "score": { "type": "number" },
+    "why": { "type": "string" },
+    "context": { "type": "object" }
   },
-  "required": ["ts", "decision"]
+  "additionalProperties": false
 }
