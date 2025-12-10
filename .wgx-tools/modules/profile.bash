@@ -225,6 +225,10 @@ profile::ensure_version() {
     return 0
   fi
   if ! declare -F semver_norm >/dev/null 2>&1; then
+    # WGX semver helpers live in the central WGX installation pointed to by WGX_DIR.
+    # In this repo's .wgx-tools snapshot the module is not present; for ShellCheck
+    # this is an external dependency and must not be resolved against the local tree.
+    # shellcheck source=/dev/null
     source "${WGX_DIR:-.}/modules/semver.bash"
   fi
   local have="${WGX_VERSION:-0.0.0}"
@@ -314,6 +318,10 @@ profile::tasks_json() {
   profile::ensure_loaded || return 1
   local safe_only="${1:-0}" include_groups="${2:-0}"
   if ! declare -F json_escape >/dev/null 2>&1; then
+    # WGX JSON helpers live in the central WGX installation pointed to by WGX_DIR.
+    # In this repo's .wgx-tools snapshot the module is not present; for ShellCheck
+    # this is an external dependency and must not be resolved against the local tree.
+    # shellcheck source=/dev/null
     source "${WGX_DIR:-.}/modules/json.bash"
   fi
   local sep=""
