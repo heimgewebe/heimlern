@@ -13,5 +13,5 @@ permissions:
 jobs:
   dispatch:
     if: github.event.issue.pull_request != null
-    uses: heimgewebe/metarepo/.github/workflows/heimgewebe-command-dispatch.yml@main
+    uses: heimgewebe/metarepo/.github/workflows/heimgewebe-command-dispatch.yml@53edb0606fb404cc7e65ec680ed68b6e849cc218
     secrets: inherit
