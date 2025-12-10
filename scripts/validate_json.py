@@ -72,7 +72,7 @@ def validate_single(schema_path: pathlib.Path, doc_path: pathlib.Path) -> None:
 
 # Mapping from sample file names to their expected schema
 SCHEMA_MAPPING = {
-    "aussensensor.jsonl": "aussen_event.schema.json",
+    "aussensensor.jsonl": "aussen.event.schema.json",
 }
 
 

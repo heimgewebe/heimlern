@@ -1,10 +1,16 @@
+---
 name: wgx-smoke
-permissions:
-  contents: read
-on:
-  pull_request:
+permissions: read-all
+
+"on":
+  workflow_dispatch:
   push:
-    branches: [ main ]
+    paths:
+      - ".wgx/**"
+      - "docs/wgx-konzept.md"
+
 jobs:
   smoke:
-    uses: heimgewebe/wgx/.github/workflows/wgx-smoke.yml@5d810ddd6df54e085762440066b8723d251e05de # main
+    # auch hier: statt eigener CI-Logik nur noch Forwarder auf das
+    # kanonische wgx-Workflow-Repo.
+    uses: heimgewebe/wgx/.github/workflows/wgx-smoke.yml@6bff05c51aeed8cf8fc7a7ba2181bfae58397c8f
