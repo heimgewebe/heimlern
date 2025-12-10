@@ -28,5 +28,6 @@ jobs:
         with:
           scandir: '.wgx-tools/modules'
           check_together: 'yes'
-          # Use -x to ignore "source" failures for external files not present in the scan dir
-          options: --format=gcc -x
+          format: gcc
+        env:
+          SHELLCHECK_OPTS: -x
