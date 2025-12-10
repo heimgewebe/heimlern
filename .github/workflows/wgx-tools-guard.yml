@@ -1,0 +1,33 @@
+name: WGX Tools Guard
+permissions:
+  contents: read
+
+on:
+  push:
+    paths:
+      - '.wgx-tools/**'
+      - '.github/workflows/wgx-tools-guard.yml'
+  pull_request:
+    paths:
+      - '.wgx-tools/**'
+      - '.github/workflows/wgx-tools-guard.yml'
+
+jobs:
+  validate-bash:
+    name: Validate Bash Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Bash Syntax
+        run: |
+          bash -n .wgx-tools/modules/profile.bash
+
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@2.0.0
+        with:
+          scandir: '.wgx-tools/modules'
+          check_together: 'yes'
+          format: gcc
+        env:
+          SHELLCHECK_OPTS: -x
