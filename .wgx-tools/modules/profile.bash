@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 # shellcheck shell=bash
+# NOTE: This module intentionally stays Bash-only. Parser output is validated before any eval.
 
 PROFILE_FILE=""
 PROFILE_VERSION=""
@@ -110,6 +111,59 @@ profile::_normalize_task_name() {
   printf '%s' "${name,,}"
 }
 
+profile::_parser_line_is_safe() {
+  local line="${1:-}"
+  # strip CR (Windows line endings)
+  line="${line//$'\r'/}"
+
+  # allow empty + comment lines
+  [[ -n $line ]] || return 0
+  [[ ${line:0:1} == "#" ]] && return 0
+
+  # hard reject obvious non-bash / python-ish tokens (fast fail, better error)
+  if [[ $line == *"try:"* || $line == *"except"* || $line == import\ * || $line == *"sys.exit"* || $line == *"print("* ]]; then
+    return 1
+  fi
+
+  # reject typical code-injection primitives
+  # (values should be quoted by the parser; if they aren't, we prefer failing closed)
+  if [[ $line == *'$('* || $line == *'`'* || $line == *';'* || $line == *'|'* || $line == *'&'* || $line == *'<'* || $line == *'>'* ]]; then
+    return 1
+  fi
+
+  # allow only assignment-like forms:
+  #   VAR=...
+  #   VAR+=...
+  #   VAR[...]=...
+  #   declare -g[aA]? VAR=(...)
+  #   declare -g[aA]? VAR=...
+  if [[ $line =~ ^declare[[:space:]]+-g[a-zA-Z-]*[[:space:]]+[A-Za-z_][A-Za-z0-9_]*= ]]; then
+    return 0
+  fi
+  if [[ $line =~ ^[A-Za-z_][A-Za-z0-9_]*(\[[^]]+\])?(\+?=).+ ]]; then
+    return 0
+  fi
+
+  return 1
+}
+
+profile::_apply_parser_line() {
+  local line="${1:-}"
+  line="${line//$'\r'/}"
+  [[ -n $line ]] || return 0
+  [[ ${line:0:1} == "#" ]] && return 0
+
+  if ! profile::_parser_line_is_safe "$line"; then
+    echo "FAIL: profile_parser.py produced an unsafe line for bash eval:" >&2
+    echo "  $line" >&2
+    echo "Hint: parser must output ONLY bash assignments (no python, no commands)." >&2
+    return 1
+  fi
+
+  # shellcheck disable=SC2086,SC2090
+  eval "$line"
+}
+
 profile::_python_parse() {
   local file="$1" output
   local module_dir
@@ -128,7 +182,9 @@ profile::_python_parse() {
   local line
   while IFS= read -r line; do
     [[ -n $line ]] || continue
-    eval "$line"
+    if ! profile::_apply_parser_line "$line"; then
+      return 1
+    fi
   done <<<"$output"
 
   return 0
