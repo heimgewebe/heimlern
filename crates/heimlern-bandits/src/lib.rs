@@ -45,7 +45,7 @@ pub struct RemindBandit {
     values: HashMap<String, (u32, f32)>,
 }
 
-// ---- Contract-Snapshot (gemäß contracts/policy_snapshot.schema.json) ----
+// ---- Contract-Snapshot (gemäß contracts/policy.snapshot.schema.json) ----
 #[derive(Debug, Serialize, Deserialize)]
 struct ContractSnapshot {
     version: String,
