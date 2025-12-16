@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 /// einer anderen Datenquelle stammt.
 ///
 /// Die Struktur ist so konzipiert, dass sie mit dem JSON-Schema in
-/// `contracts/aussen_event.schema.json` kompatibel ist.
+/// `contracts/aussen.event.schema.json` kompatibel ist.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AussenEvent {
     /// Eine eindeutige Kennung für dieses Ereignis, z. B. eine UUID.

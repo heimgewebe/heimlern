@@ -1,16 +1,53 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.heimgewebe.org/contracts/policy.decision.schema.json",
-  "title": "heimlern decision",
+  "title": "heimlern decision record",
   "x-producers": ["heimlern"],
   "x-consumers": ["hausKI", "chronik"],
   "type": "object",
-  "required": ["action", "score", "why"],
+  "required": ["ts", "policy_id", "decision"],
   "properties": {
-    "action": { "type": "string" },
-    "score": { "type": "number" },
-    "why": { "type": "string" },
-    "context": { "type": "object" }
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp of the decision"
+    },
+    "policy_id": {
+      "type": "string",
+      "description": "Unique identifier of the policy instance (e.g., 'remind-bandit')"
+    },
+    "policy": {
+      "type": "string",
+      "description": "Name or type of the policy (e.g., 'heimlern-bandits')"
+    },
+    "context": {
+      "type": "object",
+      "description": "The context provided to the policy"
+    },
+    "decision": {
+      "type": "object",
+      "required": ["action", "score", "why"],
+      "properties": {
+        "action": { "type": "string" },
+        "score": { "type": "number" },
+        "why": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "chosen": {
+          "type": "object",
+          "required": ["action"],
+          "properties": {
+            "action": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "context": { "type": "object" }
+      },
+      "additionalProperties": false
+    }
   },
   "additionalProperties": false
 }
