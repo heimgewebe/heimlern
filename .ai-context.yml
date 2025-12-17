@@ -5,7 +5,7 @@
 system_context:
   heimgeist: "../metarepo/ai-contexts/heimgeist.ai-context.yml"
 
-ai_context_version: 1.0
+ai_context_version: 1.1
 
 project:
   name: heimlern
@@ -13,6 +13,30 @@ project:
   role: policy_engine
   primary_language: rust
   visibility: internal
+
+heimgewebe:
+  axis:
+    - Decisions
+    - Learning
+    - Contracts
+  fleet:
+    enabled: true
+  wgx:
+    profile_expected: true
+    guard_smoke_expected: true
+
+interfaces:
+  consumes:
+    - "event.line"
+    - "contracts"
+  produces:
+    - "decisions"
+    - "signals"
+
+contracts:
+  schemas:
+    - path: "contracts/*.schema.json"
+      note: "Validate against canonical contracts."
 
 dependencies:
   internal:
@@ -25,9 +49,14 @@ dependencies:
       relationship: uses
       interface:
         - json_schema
+    - name: metarepo
+      relationship: uses
+      interface: [docs, templates]
   external:
     - name: pydantic
     - name: pandas
+    - name: bash
+      version: ">=4"
 
 architecture:
   entrypoints:
@@ -36,10 +65,18 @@ architecture:
   key_paths:
     - path: src/scoring/
       purpose: quality scoring & policy checks
+    - path: docs/
+      purpose: "Operator docs / ADRs"
   data_flow:
     input: events/metrics from chronik
     processing: scoring + feedback
     output: reports/signals
+
+boundaries:
+  not_responsible_for:
+    - "Defining canonical schemas (metarepo/contracts do that)."
+  dangerous_assumptions:
+    - "Treat style as policy without explicit rule."
 
 conventions:
   branching: "main, feature/*"
@@ -53,5 +90,9 @@ documentation:
 ai_guidance:
   do:
     - log model versions and seeds for reproducibility
+    - "Start with entrypoints and key_paths."
+    - "Prefer contract-compatible changes."
   dont:
     - change scoring semantics without a version bump
+    - "Invent missing schemas."
+    - "Change repo role without updating ai-context."
