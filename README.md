@@ -69,7 +69,7 @@ Ersetze `{}` durch einen gewünschten Kontext, um andere Slots oder Heuristiken 
 
 ```bash
 # kompiliert und liest JSONL aus Datei oder stdin
-cargo run -p heimlern-core --example ingest_events -- data/samples/aussensensor.jsonl
+cargo run -p heimlern-core --example ingest_events -- data/samples/foreign-aussensensor.jsonl
 ```
 Die Ausgabe listet pro Zeile einen Score (0..1) und den Titel (falls vorhanden).
 

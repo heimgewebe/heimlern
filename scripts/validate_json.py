@@ -24,7 +24,7 @@ class ContractError(ValueError):
 
 
 def _extra_checks(schema_path: pathlib.Path, data: Any) -> None:
-    if schema_path.name == "policy_snapshot.schema.json":
+    if schema_path.name == "policy.snapshot.schema.json":
         arms = data.get("arms")
         counts = data.get("counts")
         values = data.get("values")
@@ -72,7 +72,9 @@ def validate_single(schema_path: pathlib.Path, doc_path: pathlib.Path) -> None:
 
 # Mapping from sample file names to their expected schema
 SCHEMA_MAPPING = {
-    "aussensensor.jsonl": "aussen.event.schema.json",
+    "policy.decision.sample.jsonl": "policy.decision.schema.json",
+    "policy.snapshot.sample.json": "policy.snapshot.schema.json",
+    "policy.feedback.sample.json": "policy.feedback.schema.json",
 }
 
 
