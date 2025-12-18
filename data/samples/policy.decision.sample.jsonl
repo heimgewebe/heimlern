@@ -1,0 +1,2 @@
+{"ts":"2023-10-27T10:00:00Z","policy_id":"remind-bandit","decision":{"action":"send_reminder","score":0.8,"why":"high_priority"}}
+{"ts":"2023-10-27T10:05:00Z","policy_id":"remind-bandit","context":{"user_id":"123"},"decision":{"action":"skip","score":0.2,"why":["low_priority","recent_interaction"]}}

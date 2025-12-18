@@ -63,12 +63,12 @@ Import aus Drittquellen absichern.
 
 ## Validator-Workflow für JSONL-Samples
 
-Beispiel-Events (z. B. `data/samples/aussensensor.jsonl`) enthalten mehrere
+Beispiel-Events (z. B. `data/samples/foreign-aussensensor.jsonl`) enthalten mehrere
 Dokumente im JSON-Lines-Format. Sie können direkt gegen den
-[Außensensor-Contract](../contracts/aussen_event.schema.json) geprüft werden:
+[Außensensor-Contract](../contracts/aussen.event.schema.json) geprüft werden:
 
 ```bash
-python scripts/validate_json.py contracts/aussen_event.schema.json data/samples/aussensensor.jsonl
+python scripts/validate_json.py contracts/aussen.event.schema.json data/samples/foreign-aussensensor.jsonl
 ```
 
 Der Validator liest jede Zeile, validiert sie einzeln und gibt ein ✓ je Zeile
@@ -77,7 +77,7 @@ gefunden und korrigiert werden können. Anschließend lassen sich die gleichen
 Samples z. B. über das Beispiel `ingest_events` einlesen:
 
 ```bash
-cargo run -p heimlern-core --example ingest_events -- data/samples/aussensensor.jsonl
+cargo run -p heimlern-core --example ingest_events -- data/samples/foreign-aussensensor.jsonl
 ```
 
 Damit steht für Sensorsamples der gleiche Qualitäts-Check zur Verfügung wie
