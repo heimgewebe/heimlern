@@ -63,6 +63,7 @@ jobs:
               --all-errors \
               --strict=false \
               --validate-formats=true \
+              --strict=false \
               -s /tmp/policy.decision.schema.json \
               -d "$f"
             then
