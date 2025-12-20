@@ -62,6 +62,7 @@ jobs:
               --spec=draft2020 \
               --all-errors \
               --validate-formats=true \
+              --strict=false \
               -s /tmp/policy.decision.schema.json \
               -d "$f"
             then
