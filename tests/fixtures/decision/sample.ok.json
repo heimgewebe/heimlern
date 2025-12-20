@@ -1,19 +1,16 @@
 {
   "ts": "2025-01-01T12:00:00Z",
+  "policy_id": "remind-bandit",
   "policy": "reminder.next_best_time",
   "context": {
     "user_state": {"calendar_free": true},
     "source": "aussensensor",
     "features": {"priority": 0.8}
   },
-  "candidates": [
-    {"action": "notify_now"},
-    {"action": "notify_in_30m"}
-  ],
   "decision": {
+    "action": "notify_in_30m",
     "chosen": {"action": "notify_in_30m"},
     "score": 0.73,
     "why": ["calendar_free", "medium_priority"]
-  },
-  "meta": {"version": "1.0.0"}
+  }
 }
