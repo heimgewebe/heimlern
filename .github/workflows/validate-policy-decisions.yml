@@ -58,9 +58,11 @@ jobs:
 
           fails=0
           for f in "${FILES[@]}"; do
+            # strict=false required to allow custom metadata keywords (x-producers, x-consumers)
             if ! npx --yes ajv-cli@5.0.0 validate \
               --spec=draft2020 \
               --all-errors \
+              --strict=false \
               --validate-formats=true \
               -s /tmp/policy.decision.schema.json \
               -d "$f"
