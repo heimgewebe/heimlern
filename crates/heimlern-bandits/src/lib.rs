@@ -81,7 +81,7 @@ fn fallback_decision(reason: &str, ctx: &Context) -> Decision {
     Decision {
         action: "remind.none".into(),
         score: 0.0,
-        why: reason.into(),
+        why: vec![reason.into()],
         context: serialize_context(ctx),
         chosen: None, // Wird ggf. vom Aufrufer gefüllt oder ist optional
     }
@@ -163,7 +163,7 @@ impl Policy for RemindBandit {
         Decision {
             action: format!("remind.{chosen_slot}"),
             score: value_estimate,
-            why: if explore { "explore ε" } else { "exploit" }.into(),
+            why: vec![if explore { "explore ε" } else { "exploit" }.into()],
             context: serialize_context(ctx),
             chosen: None, // Optional, kann hier leer bleiben
         }
