@@ -37,13 +37,37 @@ pub struct Decision {
     /// numerische Werte verwenden (z. B. gemittelte Rewards ohne Begrenzung).
     pub score: f32,
     /// Erklärung, warum die Aktion gewählt wurde (z. B. "explore ε").
-    pub why: String,
+    /// Das Schema erlaubt `string` oder `array of strings`. Wir normalisieren auf `Vec<String>`.
+    #[serde(deserialize_with = "one_or_many::deserialize")]
+    pub why: Vec<String>,
     /// Optionaler, serialisierter Kontext (z. B. zum Logging oder Debugging).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<Value>,
     /// Optionales Objekt für Schema-Kompatibilität, enthält erneut die Action.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chosen: Option<Chosen>,
+}
+
+mod one_or_many {
+    use serde::{Deserialize, Deserializer};
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum OneOrMany {
+            One(String),
+            Many(Vec<String>),
+        }
+
+        let res = OneOrMany::deserialize(deserializer)?;
+        match res {
+            OneOrMany::One(s) => Ok(vec![s]),
+            OneOrMany::Many(v) => Ok(v),
+        }
+    }
 }
 
 /// Schnittstelle, die jede heimlern-Policy implementieren muss.
