@@ -127,7 +127,7 @@ profile::_parser_line_is_safe() {
 
   # reject typical code-injection primitives
   # (values should be quoted by the parser; if they aren't, we prefer failing closed)
-  if [[ $line == *'$('* || $line == *'`'* || $line == *';'* || $line == *'|'* || $line == *'&'* || $line == *'<'* || $line == *'>'* ]]; then
+  if [[ $line == *"\$("* || $line == *"\`"* || $line == *";"* || $line == *"|"* || $line == *"&"* || $line == *"<"* || $line == *">"* ]]; then
     return 1
   fi
 
