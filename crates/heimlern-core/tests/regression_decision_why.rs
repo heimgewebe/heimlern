@@ -1,6 +1,6 @@
 use heimlern_core::Decision;
-use std::fs;
 use serde::Deserialize;
+use std::fs;
 
 #[derive(Deserialize, Debug)]
 struct DecisionRecord {
