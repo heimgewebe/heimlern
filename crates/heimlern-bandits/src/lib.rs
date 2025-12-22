@@ -210,30 +210,46 @@ impl Policy for RemindBandit {
                 ));
                 return; // Nicht laden.
             }
-            self.epsilon = if snap.epsilon.is_finite() {
+            let epsilon = if snap.epsilon.is_finite() {
                 snap.epsilon.clamp(0.0, 1.0)
             } else {
                 0.0
             };
-            self.slots = if snap.arms.is_empty() {
-                default_slots()
-            } else {
-                snap.arms
-            };
+            let arms_empty = snap.arms.is_empty();
+            if arms_empty {
+                log_warn("load(): Snapshot ohne arms ist ungültig – verworfen");
+                return;
+            }
+
+            let counts_len = snap.counts.len();
+            let values_len = snap.values.len();
+            let arms = snap.arms;
+            let expected_len = arms.len();
+            // counts/values müssen zur Länge der Arme passen, sonst ist der Snapshot ungültig.
+            let lengths_match = counts_len == expected_len && values_len == expected_len;
+            if !lengths_match {
+                log_warn(&format!(
+                    "load(): counts/values-Länge passt nicht zu arms (arms={expected_len}, counts={counts_len}, values={values_len})"
+                ));
+                return;
+            }
+
+            let counts = snap.counts;
+            let values = snap.values;
+
             // Rückbau avg → totals: total = avg * n
             let mut map = HashMap::new();
-            let len = self.slots.len();
-            for i in 0..len {
-                let n = snap.counts.get(i).copied().unwrap_or(0);
-                let avg = snap.values.get(i).copied().unwrap_or(0.0);
+            for (arm, (n, avg)) in arms.iter().zip(counts.iter().zip(values.iter())) {
                 #[allow(clippy::cast_precision_loss)]
-                let total = if n > 0 && avg.is_finite() {
-                    avg * n as f32
+                let total = if *n > 0 && avg.is_finite() {
+                    avg * *n as f32
                 } else {
                     0.0
                 };
-                map.insert(self.slots[i].clone(), (n, total));
+                map.insert(arm.clone(), (*n, total));
             }
+            self.epsilon = epsilon;
+            self.slots = arms;
             self.values = map;
             self.sanitize();
             return;
@@ -650,5 +666,64 @@ mod tests {
         {
             assert_eq!(target_bandit.epsilon, original_target_epsilon);
         }
+    }
+
+    #[test]
+    fn load_rejects_snapshot_with_empty_arms() {
+        // Snapshot mit leerem arms-Array darf den Zustand nicht überschreiben.
+        let mut bandit = RemindBandit {
+            epsilon: 0.77,
+            slots: vec!["x".into()],
+            values: HashMap::from([("x".into(), (1, 0.5))]),
+        };
+
+        let invalid_snapshot = serde_json::json!({
+            "version": "0.1.0",
+            "policy_id": "remind-bandit",
+            "ts": "2024-01-01T00:00:00Z",
+            "arms": [],
+            "counts": [],
+            "values": [],
+            "epsilon": 0.1
+        });
+
+        bandit.load(invalid_snapshot);
+
+        #[allow(clippy::float_cmp)]
+        {
+            assert_eq!(bandit.epsilon, 0.77);
+        }
+        assert_eq!(bandit.slots, vec!["x".to_string()]);
+        assert_eq!(bandit.values.get("x"), Some(&(1, 0.5)));
+    }
+
+    #[test]
+    fn load_rejects_snapshot_with_mismatching_lengths() {
+        let mut bandit = RemindBandit {
+            epsilon: 0.55,
+            slots: vec!["a".into(), "b".into()],
+            values: HashMap::from([("a".into(), (2, 1.0)), ("b".into(), (1, 0.2))]),
+        };
+
+        // counts und values haben unterschiedliche Längen -> Snapshot muss verworfen werden.
+        let invalid_snapshot = serde_json::json!({
+            "version": "0.1.0",
+            "policy_id": "remind-bandit",
+            "ts": "2024-01-01T00:00:00Z",
+            "arms": ["a", "b"],
+            "counts": [5],
+            "values": [0.1, 0.2],
+            "epsilon": 0.1
+        });
+
+        bandit.load(invalid_snapshot);
+
+        #[allow(clippy::float_cmp)]
+        {
+            assert_eq!(bandit.epsilon, 0.55);
+        }
+        assert_eq!(bandit.slots, vec!["a".to_string(), "b".to_string()]);
+        assert_eq!(bandit.values.get("a"), Some(&(2, 1.0)));
+        assert_eq!(bandit.values.get("b"), Some(&(1, 0.2)));
     }
 }
