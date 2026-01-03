@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import argparse
-import sys
 import re
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -131,8 +131,16 @@ def main() -> int:
     ap.add_argument("--templates-dir", help="Validate templates directory (metarepo)")
     args = ap.parse_args()
 
+    # Convenience defaults: try conventional locations when no flag is given.
     if not args.file and not args.templates_dir:
-        die("provide --file and/or --templates-dir")
+        default_file = Path(".ai-context.yml")
+        default_templates = Path("ai-contexts")
+        if default_file.exists():
+            args.file = str(default_file)
+        if default_templates.exists():
+            args.templates_dir = str(default_templates)
+        if not args.file and not args.templates_dir:
+            die("no default ai-context paths found; provide --file and/or --templates-dir")
 
     rc = 0
     if args.file:

@@ -19,5 +19,9 @@ Validiert `.ai-context.yml` (Repo-Root) und optional Templates unter `ai-context
 Repo-Root prüfen:
 python scripts/ai_context/validate_ai_context.py --file .ai-context.yml
 
+Ohne Argumente nutzt das Script die Standardpfade, falls vorhanden:
+- `.ai-context.yml` im Repo-Root
+- `ai-contexts/` als Templates-Verzeichnis
+
 Templates prüfen (metarepo):
 python scripts/ai_context/validate_ai_context.py --templates-dir ai-contexts
