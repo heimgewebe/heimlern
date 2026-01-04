@@ -130,11 +130,19 @@ let adjustment = load_approved_adjustment("proposals/adjust-001.json")?;
 for (key, delta) in adjustment.deltas {
     match key.as_str() {
         "epsilon" => {
-            if let DeltaValue::Numeric(d) = delta {
-                policy.epsilon = (policy.epsilon + d).clamp(0.0, 1.0);
+            if let DeltaValue::Absolute { value } = delta {
+                policy.epsilon = (policy.epsilon + value).clamp(0.0, 1.0);
+            }
+        }
+        "recency.half_life" => {
+            if let DeltaValue::Relative { value, unit } = delta {
+                if unit == "percent" {
+                    policy.recency_half_life *= 1.0 + (value / 100.0);
+                }
             }
         }
         // ... weitere Parameter
+        _ => {}
     }
 }
 

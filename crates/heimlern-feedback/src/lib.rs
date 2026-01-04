@@ -614,7 +614,7 @@ mod tests {
 
     #[test]
     fn fixtures_weight_adjustment_deserializes() {
-        // Test that the example fixture format works
+        // Test that the example fixture format works with both delta types
         let json = r#"{
             "version": "0.1.0",
             "basis_policy": "remind-bandit-v1",
@@ -623,6 +623,11 @@ mod tests {
                 "epsilon": {
                     "kind": "absolute",
                     "value": -0.05
+                },
+                "recency.half_life": {
+                    "kind": "relative",
+                    "value": -20.0,
+                    "unit": "percent"
                 }
             },
             "confidence": 0.68,
@@ -639,5 +644,31 @@ mod tests {
         assert!((proposal.confidence - 0.68).abs() < 1e-6);
         assert_eq!(proposal.evidence.decisions_analyzed, 143);
         assert_eq!(proposal.status, ProposalStatus::Proposed);
+        
+        // Verify both delta types deserialize correctly
+        assert_eq!(proposal.deltas.len(), 2);
+        if let Some(DeltaValue::Absolute { value }) = proposal.deltas.get("epsilon") {
+            assert!((value + 0.05).abs() < 1e-6);
+        } else {
+            panic!("Expected Absolute delta for epsilon");
+        }
+        if let Some(DeltaValue::Relative { value, unit }) = proposal.deltas.get("recency.half_life") {
+            assert!((value + 20.0).abs() < 1e-6);
+            assert_eq!(unit, "percent");
+        } else {
+            panic!("Expected Relative delta for recency.half_life");
+        }
+    }
+    
+    #[test]
+    fn fixtures_full_adjustment_file_deserializes() {
+        // Test that the actual fixture file deserializes correctly
+        let json = include_str!("../../../tests/fixtures/feedback/adjustment.ok.json");
+        let proposal: WeightAdjustmentProposal = serde_json::from_str(json).unwrap();
+        
+        assert_eq!(proposal.basis_policy, "remind-bandit-v1");
+        assert_eq!(proposal.deltas.len(), 2);
+        assert!(proposal.reasoning.as_ref().map_or(false, |r| r.len() >= 2));
+        assert!(proposal.evidence.patterns.as_ref().map_or(false, |p| p.len() >= 2));
     }
 }
