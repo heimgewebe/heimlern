@@ -1,0 +1,19 @@
+{
+  "decision_id": "d123",
+  "ts": "2026-01-04T12:00:00Z",
+  "policy_id": "remind-bandit-v1",
+  "action": "remind.morning",
+  "outcome": "failure",
+  "success": false,
+  "reward": 0.0,
+  "context": {
+    "kind": "reminder",
+    "features": {
+      "time_of_day": "morning"
+    }
+  },
+  "metadata": {
+    "user_id": "user123",
+    "device": "mobile"
+  }
+}

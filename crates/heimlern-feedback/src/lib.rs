@@ -533,4 +533,49 @@ mod tests {
         assert!(simulated_rate > 0.5); // Should show improvement
         assert!(simulated_rate <= 1.0);
     }
+
+    #[test]
+    fn fixtures_decision_outcome_deserializes() {
+        // Test that the example fixture format works
+        let json = r#"{
+            "decision_id": "d123",
+            "ts": "2026-01-04T12:00:00Z",
+            "policy_id": "remind-bandit-v1",
+            "action": "remind.morning",
+            "outcome": "failure",
+            "success": false,
+            "reward": 0.0
+        }"#;
+        
+        let outcome: DecisionOutcome = serde_json::from_str(json).unwrap();
+        assert_eq!(outcome.decision_id, "d123");
+        assert!(!outcome.success);
+        assert_eq!(outcome.outcome, OutcomeType::Failure);
+    }
+
+    #[test]
+    fn fixtures_weight_adjustment_deserializes() {
+        // Test that the example fixture format works
+        let json = r#"{
+            "version": "0.1.0",
+            "basis_policy": "remind-bandit-v1",
+            "ts": "2026-01-04T12:00:00Z",
+            "deltas": {
+                "epsilon": -0.05
+            },
+            "confidence": 0.68,
+            "evidence": {
+                "decisions_analyzed": 143,
+                "failure_rate_before": 0.42,
+                "failure_rate_after_sim": 0.31
+            },
+            "status": "proposed"
+        }"#;
+        
+        let proposal: WeightAdjustmentProposal = serde_json::from_str(json).unwrap();
+        assert_eq!(proposal.basis_policy, "remind-bandit-v1");
+        assert!((proposal.confidence - 0.68).abs() < 1e-6);
+        assert_eq!(proposal.evidence.decisions_analyzed, 143);
+        assert_eq!(proposal.status, ProposalStatus::Proposed);
+    }
 }
