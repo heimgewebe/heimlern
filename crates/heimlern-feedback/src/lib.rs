@@ -27,6 +27,24 @@ const CONFIDENCE_PATTERN_WEIGHT: f32 = 0.6;
 /// TODO: Replace with actual replay-based simulation
 const SIMULATION_ESTIMATED_IMPROVEMENT: f32 = 0.15;
 
+// Pattern detection thresholds
+/// Minimum number of decisions for a specific action before analyzing patterns
+const PATTERN_MIN_DECISIONS_PER_ACTION: usize = 5;
+/// Failure rate threshold (60%) above which a pattern is flagged
+const PATTERN_HIGH_FAILURE_THRESHOLD: f32 = 0.6;
+/// Overall failure rate threshold (50%) for system-wide issues
+const PATTERN_OVERALL_FAILURE_THRESHOLD: f32 = 0.5;
+
+// Adjustment thresholds
+/// Failure rate threshold (50%) that triggers exploration reduction
+const ADJUSTMENT_FAILURE_THRESHOLD: f32 = 0.5;
+/// Amount to reduce epsilon when failure rate is high
+const ADJUSTMENT_EPSILON_DELTA: f32 = -0.05;
+
+// Fallback constants
+/// Fallback timestamp when formatting fails
+const FALLBACK_TIMESTAMP: &str = "1970-01-01T00:00:00Z";
+
 /// Outcome of a policy decision, used for retrospective analysis.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DecisionOutcome {
@@ -242,7 +260,9 @@ impl FeedbackAnalyzer {
 
         // Pattern 1: Repeated failures for specific actions
         for (action, stats) in &by_action {
-            if stats.total >= 5 && stats.failure_rate() > 0.6 {
+            if stats.total >= PATTERN_MIN_DECISIONS_PER_ACTION
+                && stats.failure_rate() > PATTERN_HIGH_FAILURE_THRESHOLD
+            {
                 patterns.push(format!(
                     "High failure rate ({:.1}%) for action '{}'",
                     stats.failure_rate() * 100.0,
@@ -263,7 +283,9 @@ impl FeedbackAnalyzer {
             },
         );
 
-        if overall_stats.total >= self.min_decisions && overall_stats.failure_rate() > 0.5 {
+        if overall_stats.total >= self.min_decisions
+            && overall_stats.failure_rate() > PATTERN_OVERALL_FAILURE_THRESHOLD
+        {
             patterns.push(format!(
                 "Overall failure rate is high ({:.1}%)",
                 overall_stats.failure_rate() * 100.0
@@ -326,11 +348,8 @@ impl FeedbackAnalyzer {
         let mut reasoning = Vec::new();
 
         // If overall failure rate is high, suggest reducing exploration
-        if overall_stats.failure_rate() > 0.5 {
-            deltas.insert(
-                "epsilon".to_string(),
-                DeltaValue::Numeric(-0.05),
-            );
+        if overall_stats.failure_rate() > ADJUSTMENT_FAILURE_THRESHOLD {
+            deltas.insert("epsilon".to_string(), DeltaValue::Numeric(ADJUSTMENT_EPSILON_DELTA));
             reasoning.push("Reduce exploration due to high failure rate".to_string());
         }
 
@@ -384,7 +403,7 @@ impl FeedbackAnalyzer {
 fn iso8601_now() -> String {
     OffsetDateTime::now_utc()
         .format(&Rfc3339)
-        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string())
+        .unwrap_or_else(|_| FALLBACK_TIMESTAMP.to_string())
 }
 
 #[cfg(test)]
