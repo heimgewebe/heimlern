@@ -10,6 +10,23 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
+// Confidence calculation constants
+/// Sample size at which confidence plateaus (smaller = more generous)
+const CONFIDENCE_SAMPLE_SIZE_PLATEAU: f32 = 50.0;
+/// Confidence level when 2+ patterns detected (high confidence)
+const CONFIDENCE_HIGH_PATTERN: f32 = 0.7;
+/// Confidence level when <2 patterns detected (moderate confidence)
+const CONFIDENCE_LOW_PATTERN: f32 = 0.5;
+/// Weight for sample size component in confidence calculation
+const CONFIDENCE_SAMPLE_WEIGHT: f32 = 0.4;
+/// Weight for pattern count component in confidence calculation
+const CONFIDENCE_PATTERN_WEIGHT: f32 = 0.6;
+
+// Simulation constants
+/// Placeholder improvement estimate for simulations (15% improvement)
+/// TODO: Replace with actual replay-based simulation
+const SIMULATION_ESTIMATED_IMPROVEMENT: f32 = 0.15;
+
 /// Outcome of a policy decision, used for retrospective analysis.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DecisionOutcome {
@@ -289,9 +306,15 @@ impl FeedbackAnalyzer {
         // Calculate confidence based on sample size and consistency
         #[allow(clippy::cast_precision_loss)]
         let confidence = {
-            let sample_confidence = (outcomes.len() as f32 / 50.0).min(1.0);
-            let pattern_confidence = if patterns.len() >= 2 { 0.7 } else { 0.5 };
-            (sample_confidence * 0.4 + pattern_confidence * 0.6).clamp(0.0, 1.0)
+            let sample_confidence = (outcomes.len() as f32 / CONFIDENCE_SAMPLE_SIZE_PLATEAU).min(1.0);
+            let pattern_confidence = if patterns.len() >= 2 {
+                CONFIDENCE_HIGH_PATTERN
+            } else {
+                CONFIDENCE_LOW_PATTERN
+            };
+            (sample_confidence * CONFIDENCE_SAMPLE_WEIGHT
+                + pattern_confidence * CONFIDENCE_PATTERN_WEIGHT)
+                .clamp(0.0, 1.0)
         };
 
         if confidence < self.min_confidence {
@@ -312,8 +335,8 @@ impl FeedbackAnalyzer {
         }
 
         // Simulate improvement (placeholder - real simulation would replay decisions)
-        let simulated_improvement = 0.15; // 15% improvement estimate
-        let failure_rate_after_sim = (overall_stats.failure_rate() - simulated_improvement).max(0.0);
+        let failure_rate_after_sim =
+            (overall_stats.failure_rate() - SIMULATION_ESTIMATED_IMPROVEMENT).max(0.0);
 
         Some(WeightAdjustmentProposal {
             version: "0.1.0".to_string(),
@@ -352,10 +375,9 @@ impl FeedbackAnalyzer {
         #[allow(clippy::cast_precision_loss)]
         let baseline = successes as f32 / outcomes.len() as f32;
 
-        // Estimate improvement (in a real implementation, this would
-        // replay decisions with modified weights)
-        let estimated_improvement = 0.15;
-        (baseline + estimated_improvement).min(1.0)
+        // Estimate improvement using placeholder constant
+        // TODO: Replace with actual replay-based simulation
+        (baseline + SIMULATION_ESTIMATED_IMPROVEMENT).min(1.0)
     }
 }
 
