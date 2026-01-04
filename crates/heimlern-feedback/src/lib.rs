@@ -125,12 +125,16 @@ pub struct WeightAdjustmentProposal {
     pub status: ProposalStatus,
 }
 
-/// Value type for weight deltas (can be numeric or percentage string).
+/// Value type for weight deltas with explicit kind and unit.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(tag = "kind")]
 pub enum DeltaValue {
-    Numeric(f32),
-    Percentage(String),
+    /// Absolute numeric adjustment
+    #[serde(rename = "absolute")]
+    Absolute { value: f32 },
+    /// Relative percentage adjustment
+    #[serde(rename = "relative")]
+    Relative { value: f32, unit: String },
 }
 
 /// Status of a weight adjustment proposal.
@@ -352,7 +356,12 @@ impl FeedbackAnalyzer {
 
         // If overall failure rate is high, suggest reducing exploration
         if overall_stats.failure_rate() > ADJUSTMENT_FAILURE_THRESHOLD {
-            deltas.insert("epsilon".to_string(), DeltaValue::Numeric(ADJUSTMENT_EPSILON_DELTA));
+            deltas.insert(
+                "epsilon".to_string(),
+                DeltaValue::Absolute {
+                    value: ADJUSTMENT_EPSILON_DELTA,
+                },
+            );
             reasoning.push("Reduce exploration due to high failure rate".to_string());
         }
 
@@ -526,7 +535,10 @@ mod tests {
             ts: iso8601_now(),
             deltas: {
                 let mut map = HashMap::new();
-                map.insert("epsilon".to_string(), DeltaValue::Numeric(-0.1));
+                map.insert(
+                    "epsilon".to_string(),
+                    DeltaValue::Absolute { value: -0.1 },
+                );
                 map
             },
             confidence: 0.68,
@@ -608,7 +620,10 @@ mod tests {
             "basis_policy": "remind-bandit-v1",
             "ts": "2026-01-04T12:00:00Z",
             "deltas": {
-                "epsilon": -0.05
+                "epsilon": {
+                    "kind": "absolute",
+                    "value": -0.05
+                }
             },
             "confidence": 0.68,
             "evidence": {

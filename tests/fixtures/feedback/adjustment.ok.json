@@ -3,8 +3,15 @@
   "basis_policy": "remind-bandit-v1",
   "ts": "2026-01-04T12:00:00Z",
   "deltas": {
-    "epsilon": -0.05,
-    "recency.half_life": "-20%"
+    "epsilon": {
+      "kind": "absolute",
+      "value": -0.05
+    },
+    "recency.half_life": {
+      "kind": "relative",
+      "value": -20.0,
+      "unit": "percent"
+    }
   },
   "confidence": 0.68,
   "evidence": {
