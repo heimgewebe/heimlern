@@ -140,25 +140,24 @@ cargo run -p heimlern-feedback --example feedback_analysis
 
 ## Compliance
 
-Verträge (contracts/):
-- `decision.outcome.schema.json` (Input)
-- `policy.weight_adjustment.schema.json` (Output)
+**Verträge (Canonical Source: metarepo/contracts/):**
+- `decision.outcome.v1` (Input von hausKI/chronik)
+- `policy.weight_adjustment.v1` (Output an hausKI)
 
 JSON-Schema-Validierung in CI.
 
-**Hinweis zur Contract-Ownership:**
-Die Schemas sind aktuell im heimlern-Repo definiert (Payload-Strukturen).
-Idealerweise würden diese im metarepo als Single Source of Truth verwaltet,
-mit Synchronisierungsmechanismus zu konsumierenden Repos. Dies erlaubt:
-- Zentrale Versionskontrolle
-- Vermeidung von Schema-Divergenz
-- Klare Ownership-Struktur
+**Contract Ownership:**
+Die Schemas sind im **heimgewebe/metarepo/contracts/** als Single Source of Truth definiert.
+Heimlern konsumiert diese Contracts als Read-Only und implementiert die zugehörige Logik.
 
-Für die initiale Implementierung bleiben die Schemas hier, mit dem 
-Verständnis, dass eine spätere Migration ins metarepo sinnvoll sein kann.
+Vorteile dieser Architektur:
+- Zentrale Versionskontrolle
+- Vermeidung von Schema-Divergenz zwischen Repos
+- Klare Ownership-Struktur (metarepo = Owner, andere Repos = Consumer)
+- Synchronisierungsmechanismus für Schema-Updates
 
 Die Schemas definieren explizit **Payload-Strukturen**, nicht Event-Envelopes.
-Event-Transport über chronik/plexer erfordert separate Envelope-Spezifikation.
+Event-Transport über chronik/plexer erfordert separate Envelope-Spezifikation (ebenfalls im metarepo).
 
 ## Offene Fragen
 

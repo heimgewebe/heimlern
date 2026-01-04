@@ -124,9 +124,14 @@ Logs include:
 
 ## Contracts
 
-See [contracts/](../../contracts/) for JSON schemas:
-- `decision.outcome.schema.json`: Input format for outcomes
-- `policy.weight_adjustment.schema.json`: Output format for proposals
+**Canonical Source:** [heimgewebe/metarepo/contracts/](https://github.com/heimgewebe/metarepo/tree/main/contracts)
+
+JSON Schemas (Payload structures):
+- `decision.outcome.v1`: Input format for decision outcomes (from hausKI/chronik)
+- `policy.weight_adjustment.v1`: Output format for adjustment proposals (to hausKI)
+
+Heimlern consumes these contracts as read-only. The metarepo is the Single Source of Truth
+for all internal Heimgewebe contracts.
 
 ## Design Philosophy
 

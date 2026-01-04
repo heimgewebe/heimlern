@@ -42,7 +42,7 @@ Nach Ausführung der Entscheidung wird das Ergebnis dokumentiert:
 }
 ```
 
-Format: `decision.outcome.v1` (siehe `contracts/decision.outcome.schema.json`)
+Format: `decision.outcome.v1` (Contract im metarepo: `heimgewebe/metarepo/contracts/decision.outcome.v1.schema.json`)
 
 ### 3. Aggregation & Analyse (heimlern)
 
@@ -89,7 +89,7 @@ if let Some(proposal) = analyzer.propose_adjustment("remind-bandit-v1", &outcome
 }
 ```
 
-Format: `policy.weight_adjustment.proposed.v1` (siehe `contracts/policy.weight_adjustment.schema.json`)
+Format: `policy.weight_adjustment.proposed.v1` (Contract im metarepo: `heimgewebe/metarepo/contracts/policy.weight_adjustment.v1.schema.json`)
 
 ### 5. Simulation (heimlern)
 
