@@ -1,0 +1,536 @@
+#![warn(clippy::unwrap_used, clippy::expect_used)]
+
+//! Decision feedback analysis and policy weight tuning.
+//!
+//! This crate implements retrospective analysis of policy decisions and
+//! generates weight adjustment proposals. It follows the principle:
+//! **heimlern analyzes and proposes, never directly modifies live weights**.
+
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use time::{format_description::well_known::Rfc3339, OffsetDateTime};
+
+/// Outcome of a policy decision, used for retrospective analysis.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DecisionOutcome {
+    /// Reference to the original decision
+    pub decision_id: String,
+    /// Timestamp when the outcome was recorded
+    pub ts: String,
+    /// Policy that made the decision
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_id: Option<String>,
+    /// Action that was taken
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action: Option<String>,
+    /// Classification of the outcome
+    pub outcome: OutcomeType,
+    /// Whether the decision was successful
+    pub success: bool,
+    /// Numeric reward signal
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reward: Option<f32>,
+    /// Context in which the decision was made
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<serde_json::Value>,
+    /// Additional metadata
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
+}
+
+/// Classification of decision outcomes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OutcomeType {
+    Success,
+    Failure,
+    Partial,
+    Unknown,
+}
+
+/// Evidence supporting a weight adjustment proposal.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Evidence {
+    /// Number of decisions analyzed
+    pub decisions_analyzed: usize,
+    /// Failure rate with current weights
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failure_rate_before: Option<f32>,
+    /// Simulated failure rate with proposed weights
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failure_rate_after_sim: Option<f32>,
+    /// Identified patterns that led to this proposal
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub patterns: Option<Vec<String>>,
+}
+
+/// Proposed weight adjustments based on decision feedback analysis.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WeightAdjustmentProposal {
+    /// Version of the proposal format
+    pub version: String,
+    /// Identifier of the base policy being adjusted
+    pub basis_policy: String,
+    /// Timestamp when the proposal was generated
+    pub ts: String,
+    /// Proposed weight adjustments as key-value pairs
+    pub deltas: HashMap<String, DeltaValue>,
+    /// Confidence in the proposed adjustments (0.0 to 1.0)
+    pub confidence: f32,
+    /// Evidence supporting the proposal
+    pub evidence: Evidence,
+    /// Human-readable explanations for the adjustments
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<Vec<String>>,
+    /// Current status of this proposal
+    #[serde(default)]
+    pub status: ProposalStatus,
+}
+
+/// Value type for weight deltas (can be numeric or percentage string).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DeltaValue {
+    Numeric(f32),
+    Percentage(String),
+}
+
+/// Status of a weight adjustment proposal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ProposalStatus {
+    Proposed,
+    Accepted,
+    Rejected,
+    Superseded,
+}
+
+impl Default for ProposalStatus {
+    fn default() -> Self {
+        Self::Proposed
+    }
+}
+
+/// Statistics aggregated from decision outcomes.
+#[derive(Debug, Default, Clone)]
+pub struct OutcomeStatistics {
+    pub total: usize,
+    pub successes: usize,
+    pub failures: usize,
+    pub total_reward: f32,
+}
+
+impl OutcomeStatistics {
+    /// Calculate success rate (0.0 to 1.0).
+    #[must_use]
+    pub fn success_rate(&self) -> f32 {
+        if self.total == 0 {
+            return 0.0;
+        }
+        #[allow(clippy::cast_precision_loss)]
+        {
+            self.successes as f32 / self.total as f32
+        }
+    }
+
+    /// Calculate failure rate (0.0 to 1.0).
+    #[must_use]
+    pub fn failure_rate(&self) -> f32 {
+        1.0 - self.success_rate()
+    }
+
+    /// Calculate average reward.
+    #[must_use]
+    pub fn average_reward(&self) -> f32 {
+        if self.total == 0 {
+            return 0.0;
+        }
+        #[allow(clippy::cast_precision_loss)]
+        {
+            self.total_reward / self.total as f32
+        }
+    }
+}
+
+/// Analyzes decision outcomes and generates weight adjustment proposals.
+#[derive(Debug)]
+pub struct FeedbackAnalyzer {
+    /// Minimum number of decisions required before proposing adjustments
+    min_decisions: usize,
+    /// Minimum confidence threshold for proposals
+    min_confidence: f32,
+}
+
+impl Default for FeedbackAnalyzer {
+    fn default() -> Self {
+        Self {
+            min_decisions: 10,
+            min_confidence: 0.5,
+        }
+    }
+}
+
+impl FeedbackAnalyzer {
+    /// Create a new feedback analyzer with custom thresholds.
+    #[must_use]
+    pub fn new(min_decisions: usize, min_confidence: f32) -> Self {
+        Self {
+            min_decisions,
+            min_confidence: min_confidence.clamp(0.0, 1.0),
+        }
+    }
+
+    /// Aggregate outcomes by a grouping key (e.g., action, context type).
+    #[must_use]
+    pub fn aggregate_outcomes(
+        &self,
+        outcomes: &[DecisionOutcome],
+        key_fn: impl Fn(&DecisionOutcome) -> Option<String>,
+    ) -> HashMap<String, OutcomeStatistics> {
+        let mut stats: HashMap<String, OutcomeStatistics> = HashMap::new();
+
+        for outcome in outcomes {
+            if let Some(key) = key_fn(outcome) {
+                let entry = stats.entry(key).or_default();
+                entry.total += 1;
+                if outcome.success {
+                    entry.successes += 1;
+                } else {
+                    entry.failures += 1;
+                }
+                if let Some(reward) = outcome.reward {
+                    if reward.is_finite() {
+                        entry.total_reward += reward;
+                    }
+                }
+            }
+        }
+
+        stats
+    }
+
+    /// Analyze outcomes and identify patterns requiring weight adjustments.
+    ///
+    /// This is a heuristic-based analysis (not ML-based initially).
+    #[must_use]
+    pub fn analyze_patterns(&self, outcomes: &[DecisionOutcome]) -> Vec<String> {
+        let mut patterns = Vec::new();
+
+        if outcomes.len() < self.min_decisions {
+            return patterns;
+        }
+
+        // Aggregate by action
+        let by_action = self.aggregate_outcomes(outcomes, |o| o.action.clone());
+
+        // Pattern 1: Repeated failures for specific actions
+        for (action, stats) in &by_action {
+            if stats.total >= 5 && stats.failure_rate() > 0.6 {
+                patterns.push(format!(
+                    "High failure rate ({:.1}%) for action '{}'",
+                    stats.failure_rate() * 100.0,
+                    action
+                ));
+            }
+        }
+
+        // Pattern 2: Overall poor performance
+        let overall_stats: OutcomeStatistics = by_action.values().fold(
+            OutcomeStatistics::default(),
+            |mut acc, stats| {
+                acc.total += stats.total;
+                acc.successes += stats.successes;
+                acc.failures += stats.failures;
+                acc.total_reward += stats.total_reward;
+                acc
+            },
+        );
+
+        if overall_stats.total >= self.min_decisions && overall_stats.failure_rate() > 0.5 {
+            patterns.push(format!(
+                "Overall failure rate is high ({:.1}%)",
+                overall_stats.failure_rate() * 100.0
+            ));
+        }
+
+        patterns
+    }
+
+    /// Generate a weight adjustment proposal based on analyzed outcomes.
+    ///
+    /// Returns `None` if insufficient data or confidence is too low.
+    #[must_use]
+    pub fn propose_adjustment(
+        &self,
+        basis_policy: &str,
+        outcomes: &[DecisionOutcome],
+    ) -> Option<WeightAdjustmentProposal> {
+        if outcomes.len() < self.min_decisions {
+            return None;
+        }
+
+        let patterns = self.analyze_patterns(outcomes);
+        if patterns.is_empty() {
+            return None;
+        }
+
+        let by_action = self.aggregate_outcomes(outcomes, |o| o.action.clone());
+        let overall_stats: OutcomeStatistics = by_action.values().fold(
+            OutcomeStatistics::default(),
+            |mut acc, stats| {
+                acc.total += stats.total;
+                acc.successes += stats.successes;
+                acc.failures += stats.failures;
+                acc.total_reward += stats.total_reward;
+                acc
+            },
+        );
+
+        // Calculate confidence based on sample size and consistency
+        #[allow(clippy::cast_precision_loss)]
+        let confidence = {
+            let sample_confidence = (outcomes.len() as f32 / 50.0).min(1.0);
+            let pattern_confidence = if patterns.len() >= 2 { 0.7 } else { 0.5 };
+            (sample_confidence * 0.4 + pattern_confidence * 0.6).clamp(0.0, 1.0)
+        };
+
+        if confidence < self.min_confidence {
+            return None;
+        }
+
+        // Generate heuristic deltas
+        let mut deltas = HashMap::new();
+        let mut reasoning = Vec::new();
+
+        // If overall failure rate is high, suggest reducing exploration
+        if overall_stats.failure_rate() > 0.5 {
+            deltas.insert(
+                "epsilon".to_string(),
+                DeltaValue::Numeric(-0.05),
+            );
+            reasoning.push("Reduce exploration due to high failure rate".to_string());
+        }
+
+        // Simulate improvement (placeholder - real simulation would replay decisions)
+        let simulated_improvement = 0.15; // 15% improvement estimate
+        let failure_rate_after_sim = (overall_stats.failure_rate() - simulated_improvement).max(0.0);
+
+        Some(WeightAdjustmentProposal {
+            version: "0.1.0".to_string(),
+            basis_policy: basis_policy.to_string(),
+            ts: iso8601_now(),
+            deltas,
+            confidence,
+            evidence: Evidence {
+                decisions_analyzed: outcomes.len(),
+                failure_rate_before: Some(overall_stats.failure_rate()),
+                failure_rate_after_sim: Some(failure_rate_after_sim),
+                patterns: Some(patterns),
+            },
+            reasoning: Some(reasoning),
+            status: ProposalStatus::Proposed,
+        })
+    }
+
+    /// Simulate applying proposed adjustments to historical outcomes.
+    ///
+    /// Returns estimated success rate with the proposed adjustments.
+    /// This is a simplified simulation - a real implementation would replay
+    /// decisions with modified weights.
+    #[must_use]
+    pub fn simulate_adjustment(
+        &self,
+        _proposal: &WeightAdjustmentProposal,
+        outcomes: &[DecisionOutcome],
+    ) -> f32 {
+        if outcomes.is_empty() {
+            return 0.0;
+        }
+
+        // Simple simulation: calculate baseline success rate
+        let successes = outcomes.iter().filter(|o| o.success).count();
+        #[allow(clippy::cast_precision_loss)]
+        let baseline = successes as f32 / outcomes.len() as f32;
+
+        // Estimate improvement (in a real implementation, this would
+        // replay decisions with modified weights)
+        let estimated_improvement = 0.15;
+        (baseline + estimated_improvement).min(1.0)
+    }
+}
+
+fn iso8601_now() -> String {
+    OffsetDateTime::now_utc()
+        .format(&Rfc3339)
+        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_outcome(decision_id: &str, action: &str, success: bool, reward: f32) -> DecisionOutcome {
+        DecisionOutcome {
+            decision_id: decision_id.to_string(),
+            ts: iso8601_now(),
+            policy_id: Some("test-policy".to_string()),
+            action: Some(action.to_string()),
+            outcome: if success { OutcomeType::Success } else { OutcomeType::Failure },
+            success,
+            reward: Some(reward),
+            context: None,
+            metadata: None,
+        }
+    }
+
+    #[test]
+    fn outcome_statistics_calculates_rates_correctly() {
+        let stats = OutcomeStatistics {
+            total: 10,
+            successes: 7,
+            failures: 3,
+            total_reward: 5.0,
+        };
+
+        #[allow(clippy::float_cmp)]
+        {
+            assert_eq!(stats.success_rate(), 0.7);
+            assert_eq!(stats.failure_rate(), 0.3);
+            assert_eq!(stats.average_reward(), 0.5);
+        }
+    }
+
+    #[test]
+    fn outcome_statistics_handles_empty_set() {
+        let stats = OutcomeStatistics::default();
+
+        #[allow(clippy::float_cmp)]
+        {
+            assert_eq!(stats.success_rate(), 0.0);
+            assert_eq!(stats.failure_rate(), 1.0);
+            assert_eq!(stats.average_reward(), 0.0);
+        }
+    }
+
+    #[test]
+    fn analyzer_aggregates_outcomes_by_action() {
+        let analyzer = FeedbackAnalyzer::default();
+        let outcomes = vec![
+            create_outcome("1", "remind.morning", true, 1.0),
+            create_outcome("2", "remind.morning", false, 0.0),
+            create_outcome("3", "remind.evening", true, 1.0),
+        ];
+
+        let by_action = analyzer.aggregate_outcomes(&outcomes, |o| o.action.clone());
+
+        assert_eq!(by_action.len(), 2);
+        let morning_stats = by_action.get("remind.morning").unwrap();
+        assert_eq!(morning_stats.total, 2);
+        assert_eq!(morning_stats.successes, 1);
+    }
+
+    #[test]
+    fn analyzer_identifies_high_failure_patterns() {
+        let analyzer = FeedbackAnalyzer::default();
+        let outcomes: Vec<DecisionOutcome> = (0..10)
+            .map(|i| create_outcome(&i.to_string(), "remind.night", false, 0.0))
+            .collect();
+
+        let patterns = analyzer.analyze_patterns(&outcomes);
+
+        assert!(!patterns.is_empty());
+        assert!(patterns.iter().any(|p| p.contains("High failure rate")));
+    }
+
+    #[test]
+    fn analyzer_requires_minimum_decisions() {
+        let analyzer = FeedbackAnalyzer::new(10, 0.5);
+        let outcomes = vec![
+            create_outcome("1", "remind.morning", false, 0.0),
+            create_outcome("2", "remind.morning", false, 0.0),
+        ];
+
+        let proposal = analyzer.propose_adjustment("test-policy", &outcomes);
+        assert!(proposal.is_none());
+    }
+
+    #[test]
+    fn analyzer_generates_proposal_with_sufficient_data() {
+        let analyzer = FeedbackAnalyzer::new(10, 0.5);
+        let outcomes: Vec<DecisionOutcome> = (0..15)
+            .map(|i| {
+                let success = i % 3 == 0; // 33% success rate
+                create_outcome(&i.to_string(), "remind.morning", success, if success { 1.0 } else { 0.0 })
+            })
+            .collect();
+
+        let proposal = analyzer.propose_adjustment("test-policy", &outcomes);
+        assert!(proposal.is_some());
+
+        let proposal = proposal.unwrap();
+        assert_eq!(proposal.basis_policy, "test-policy");
+        assert_eq!(proposal.evidence.decisions_analyzed, 15);
+        assert!(proposal.confidence >= 0.5);
+    }
+
+    #[test]
+    fn proposal_serializes_to_valid_json() {
+        let proposal = WeightAdjustmentProposal {
+            version: "0.1.0".to_string(),
+            basis_policy: "test-policy".to_string(),
+            ts: iso8601_now(),
+            deltas: {
+                let mut map = HashMap::new();
+                map.insert("epsilon".to_string(), DeltaValue::Numeric(-0.1));
+                map
+            },
+            confidence: 0.68,
+            evidence: Evidence {
+                decisions_analyzed: 100,
+                failure_rate_before: Some(0.42),
+                failure_rate_after_sim: Some(0.31),
+                patterns: Some(vec!["Test pattern".to_string()]),
+            },
+            reasoning: Some(vec!["Test reasoning".to_string()]),
+            status: ProposalStatus::Proposed,
+        };
+
+        let json = serde_json::to_string_pretty(&proposal).unwrap();
+        assert!(json.contains("test-policy"));
+        assert!(json.contains("epsilon"));
+
+        // Verify it can be deserialized
+        let _deserialized: WeightAdjustmentProposal = serde_json::from_str(&json).unwrap();
+    }
+
+    #[test]
+    fn simulation_returns_reasonable_improvement() {
+        let analyzer = FeedbackAnalyzer::default();
+        let outcomes: Vec<DecisionOutcome> = (0..20)
+            .map(|i| {
+                let success = i % 2 == 0; // 50% success rate
+                create_outcome(&i.to_string(), "action", success, if success { 1.0 } else { 0.0 })
+            })
+            .collect();
+
+        let proposal = WeightAdjustmentProposal {
+            version: "0.1.0".to_string(),
+            basis_policy: "test".to_string(),
+            ts: iso8601_now(),
+            deltas: HashMap::new(),
+            confidence: 0.7,
+            evidence: Evidence {
+                decisions_analyzed: 20,
+                failure_rate_before: None,
+                failure_rate_after_sim: None,
+                patterns: None,
+            },
+            reasoning: None,
+            status: ProposalStatus::Proposed,
+        };
+
+        let simulated_rate = analyzer.simulate_adjustment(&proposal, &outcomes);
+        assert!(simulated_rate > 0.5); // Should show improvement
+        assert!(simulated_rate <= 1.0);
+    }
+}

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/heimlern-core","crates/heimlern-bandits"]
+members = ["crates/heimlern-core","crates/heimlern-bandits","crates/heimlern-feedback"]
 
 [profile.release]
 opt-level = "z"

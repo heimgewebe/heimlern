@@ -46,6 +46,7 @@ Die zentralen Entwurfsentscheidungen sind in den [Architecture Decision Records]
 | --- | --- |
 | [`heimlern-core`](crates/heimlern-core) | Definiert die Basistypen `Context`, `Decision` sowie das `Policy`-Trait und beschreibt das JSON-basierte Snapshot-Interface. |
 | [`heimlern-bandits`](crates/heimlern-bandits) | Enthält den Beispielagenten `RemindBandit`, der über ε-greedy Exploration Erinnerungs-Slots auswählt. |
+| [`heimlern-feedback`](crates/heimlern-feedback) | Retrospektive Feedback-Analyse und Weight-Tuning. Analysiert Entscheidungs-Outcomes und erzeugt auditierbare Gewichtsanpassungsvorschläge. |
 
 ## Beispiel ausführen
 

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.heimgewebe.org/contracts/decision.outcome.schema.json",
+  "title": "Decision Outcome Record",
+  "description": "Records the outcome of a policy decision for retrospective analysis",
+  "x-producers": ["hausKI", "chronik"],
+  "x-consumers": ["heimlern"],
+  "type": "object",
+  "required": ["decision_id", "ts", "outcome", "success"],
+  "properties": {
+    "decision_id": {
+      "type": "string",
+      "description": "Reference to the original decision snapshot"
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp when the outcome was recorded"
+    },
+    "policy_id": {
+      "type": "string",
+      "description": "Identifier of the policy that made the decision"
+    },
+    "action": {
+      "type": "string",
+      "description": "The action that was taken"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["success", "failure", "partial", "unknown"],
+      "description": "Classification of the outcome"
+    },
+    "success": {
+      "type": "boolean",
+      "description": "Whether the decision was considered successful"
+    },
+    "reward": {
+      "type": "number",
+      "description": "Numeric reward signal (typically -1.0 to 1.0)"
+    },
+    "context": {
+      "type": "object",
+      "description": "Context in which the decision was made"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata about the outcome"
+    }
+  },
+  "additionalProperties": false
+}
