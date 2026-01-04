@@ -32,7 +32,7 @@
     },
     "success": {
       "type": "boolean",
-      "description": "Whether the decision was considered successful"
+      "description": "Whether the decision was considered successful. Note: This should be consistent with 'outcome' field (success=true iff outcome='success')"
     },
     "reward": {
       "type": "number",

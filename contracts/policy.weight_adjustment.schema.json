@@ -58,6 +58,10 @@
           "maximum": 1.0,
           "description": "Simulated failure rate with proposed weights"
         },
+        "simulation_method": {
+          "type": "string",
+          "description": "Method used for simulation (e.g., 'placeholder_constant', 'replay', 'monte_carlo')"
+        },
         "patterns": {
           "type": "array",
           "items": { "type": "string" },

@@ -146,6 +146,20 @@ Verträge (contracts/):
 
 JSON-Schema-Validierung in CI.
 
+**Hinweis zur Contract-Ownership:**
+Die Schemas sind aktuell im heimlern-Repo definiert (Payload-Strukturen).
+Idealerweise würden diese im metarepo als Single Source of Truth verwaltet,
+mit Synchronisierungsmechanismus zu konsumierenden Repos. Dies erlaubt:
+- Zentrale Versionskontrolle
+- Vermeidung von Schema-Divergenz
+- Klare Ownership-Struktur
+
+Für die initiale Implementierung bleiben die Schemas hier, mit dem 
+Verständnis, dass eine spätere Migration ins metarepo sinnvoll sein kann.
+
+Die Schemas definieren explizit **Payload-Strukturen**, nicht Event-Envelopes.
+Event-Transport über chronik/plexer erfordert separate Envelope-Spezifikation.
+
 ## Offene Fragen
 
 1. **Meta-Learning:** Wann sollte heimlern NICHT lernen?

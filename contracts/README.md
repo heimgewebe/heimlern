@@ -12,6 +12,21 @@ Ziele:
 - Strikte Validierung (keine schleichende Schema-Drift)
 - Tool-agnostisch (Rust, Python, Shell …)
 
+## Payload vs. Event Envelope
+
+**Wichtig:** Diese Schemas definieren **Payload-Strukturen**, nicht Event-Envelopes.
+
+Wenn diese Daten über ein Event-System (z.B. chronik, plexer) transportiert werden, 
+werden sie in ein standardisiertes Envelope eingebettet mit Feldern wie:
+- `type`: Event-Typ
+- `source`: Quelle des Events
+- `payload`: Die hier definierten Strukturen
+- `ts`: Event-Zeitstempel
+- `id`: Event-ID
+
+Die Envelope-Spezifikation ist Teil der übergeordneten Event-Architektur und 
+wird separat definiert (idealerweise im metarepo).
+
 ## Quickstart
 ```sh
 just snapshot:example

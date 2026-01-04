@@ -94,6 +94,9 @@ pub struct Evidence {
     /// Simulated failure rate with proposed weights
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure_rate_after_sim: Option<f32>,
+    /// Method used for simulation (e.g., "placeholder", "replay", "monte_carlo")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub simulation_method: Option<String>,
     /// Identified patterns that led to this proposal
     #[serde(skip_serializing_if = "Option::is_none")]
     pub patterns: Option<Vec<String>>,
@@ -367,6 +370,7 @@ impl FeedbackAnalyzer {
                 decisions_analyzed: outcomes.len(),
                 failure_rate_before: Some(overall_stats.failure_rate()),
                 failure_rate_after_sim: Some(failure_rate_after_sim),
+                simulation_method: Some("placeholder_constant".to_string()),
                 patterns: Some(patterns),
             },
             reasoning: Some(reasoning),
@@ -530,6 +534,7 @@ mod tests {
                 decisions_analyzed: 100,
                 failure_rate_before: Some(0.42),
                 failure_rate_after_sim: Some(0.31),
+                simulation_method: None,
                 patterns: Some(vec!["Test pattern".to_string()]),
             },
             reasoning: Some(vec!["Test reasoning".to_string()]),
@@ -564,6 +569,7 @@ mod tests {
                 decisions_analyzed: 20,
                 failure_rate_before: None,
                 failure_rate_after_sim: None,
+                simulation_method: None,
                 patterns: None,
             },
             reasoning: None,
