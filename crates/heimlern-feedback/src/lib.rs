@@ -140,17 +140,13 @@ pub enum DeltaValue {
 /// Status of a weight adjustment proposal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum ProposalStatus {
+    #[default]
     Proposed,
     Accepted,
     Rejected,
     Superseded,
-}
-
-impl Default for ProposalStatus {
-    fn default() -> Self {
-        Self::Proposed
-    }
 }
 
 /// Statistics aggregated from decision outcomes.
@@ -421,6 +417,8 @@ fn iso8601_now() -> String {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
@@ -488,7 +486,9 @@ mod tests {
         let by_action = analyzer.aggregate_outcomes(&outcomes, |o| o.action.clone());
 
         assert_eq!(by_action.len(), 2);
-        let morning_stats = by_action.get("remind.morning").unwrap();
+        let morning_stats = by_action
+            .get("remind.morning")
+            .expect("morning stats should exist");
         assert_eq!(morning_stats.total, 2);
         assert_eq!(morning_stats.successes, 1);
     }
@@ -536,7 +536,7 @@ mod tests {
         let proposal = analyzer.propose_adjustment("test-policy", &outcomes);
         assert!(proposal.is_some());
 
-        let proposal = proposal.unwrap();
+        let proposal = proposal.expect("proposal should exist");
         assert_eq!(proposal.basis_policy, "test-policy");
         assert_eq!(proposal.evidence.decisions_analyzed, 15);
         assert!(proposal.confidence >= 0.5);
@@ -565,12 +565,13 @@ mod tests {
             status: ProposalStatus::Proposed,
         };
 
-        let json = serde_json::to_string_pretty(&proposal).unwrap();
+        let json = serde_json::to_string_pretty(&proposal).expect("should serialize");
         assert!(json.contains("test-policy"));
         assert!(json.contains("epsilon"));
 
         // Verify it can be deserialized
-        let _deserialized: WeightAdjustmentProposal = serde_json::from_str(&json).unwrap();
+        let _deserialized: WeightAdjustmentProposal =
+            serde_json::from_str(&json).expect("should deserialize");
     }
 
     #[test]
@@ -623,7 +624,8 @@ mod tests {
             "reward": 0.0
         }"#;
 
-        let outcome: DecisionOutcome = serde_json::from_str(json).unwrap();
+        let outcome: DecisionOutcome =
+            serde_json::from_str(json).expect("should deserialize outcome");
         assert_eq!(outcome.decision_id, "d123");
         assert!(!outcome.success);
         assert_eq!(outcome.outcome, OutcomeType::Failure);
@@ -656,7 +658,8 @@ mod tests {
             "status": "proposed"
         }"#;
 
-        let proposal: WeightAdjustmentProposal = serde_json::from_str(json).unwrap();
+        let proposal: WeightAdjustmentProposal =
+            serde_json::from_str(json).expect("should deserialize proposal");
         assert_eq!(proposal.basis_policy, "remind-bandit-v1");
         assert!((proposal.confidence - 0.68).abs() < 1e-6);
         assert_eq!(proposal.evidence.decisions_analyzed, 143);
@@ -682,15 +685,16 @@ mod tests {
     fn fixtures_full_adjustment_file_deserializes() {
         // Test that the actual fixture file deserializes correctly
         let json = include_str!("../../../tests/fixtures/feedback/adjustment.ok.json");
-        let proposal: WeightAdjustmentProposal = serde_json::from_str(json).unwrap();
+        let proposal: WeightAdjustmentProposal =
+            serde_json::from_str(json).expect("should deserialize fixture");
 
         assert_eq!(proposal.basis_policy, "remind-bandit-v1");
         assert_eq!(proposal.deltas.len(), 2);
-        assert!(proposal.reasoning.as_ref().map_or(false, |r| r.len() >= 2));
+        assert!(proposal.reasoning.as_ref().is_some_and(|r| r.len() >= 2));
         assert!(proposal
             .evidence
             .patterns
             .as_ref()
-            .map_or(false, |p| p.len() >= 2));
+            .is_some_and(|p| p.len() >= 2));
     }
 }
