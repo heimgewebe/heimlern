@@ -5,9 +5,7 @@
 //!
 //! Run with: cargo run -p heimlern-feedback --example feedback_analysis
 
-use heimlern_feedback::{
-    DecisionOutcome, FeedbackAnalyzer, OutcomeType,
-};
+use heimlern_feedback::{DecisionOutcome, FeedbackAnalyzer, OutcomeType};
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -80,7 +78,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 println!("    {}: {:?}", key, value);
             }
             println!("\n  Evidence:");
-            println!("    Decisions analyzed: {}", proposal.evidence.decisions_analyzed);
+            println!(
+                "    Decisions analyzed: {}",
+                proposal.evidence.decisions_analyzed
+            );
             if let Some(rate) = proposal.evidence.failure_rate_before {
                 println!("    Failure rate (before): {:.1}%", rate * 100.0);
             }
@@ -108,7 +109,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             // Simulate the adjustment
             println!("\n🔬 Simulating adjustment on historical data...");
             let simulated_success = analyzer.simulate_adjustment(&proposal, &outcomes);
-            println!("  Estimated success rate with adjustments: {:.1}%", simulated_success * 100.0);
+            println!(
+                "  Estimated success rate with adjustments: {:.1}%",
+                simulated_success * 100.0
+            );
         }
         None => {
             println!("\n⚠️  Insufficient data or confidence for proposal");

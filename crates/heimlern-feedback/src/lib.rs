@@ -279,16 +279,16 @@ impl FeedbackAnalyzer {
         }
 
         // Pattern 2: Overall poor performance
-        let overall_stats: OutcomeStatistics = by_action.values().fold(
-            OutcomeStatistics::default(),
-            |mut acc, stats| {
-                acc.total += stats.total;
-                acc.successes += stats.successes;
-                acc.failures += stats.failures;
-                acc.total_reward += stats.total_reward;
-                acc
-            },
-        );
+        let overall_stats: OutcomeStatistics =
+            by_action
+                .values()
+                .fold(OutcomeStatistics::default(), |mut acc, stats| {
+                    acc.total += stats.total;
+                    acc.successes += stats.successes;
+                    acc.failures += stats.failures;
+                    acc.total_reward += stats.total_reward;
+                    acc
+                });
 
         if overall_stats.total >= self.min_decisions
             && overall_stats.failure_rate() > PATTERN_OVERALL_FAILURE_THRESHOLD
@@ -321,21 +321,22 @@ impl FeedbackAnalyzer {
         }
 
         let by_action = self.aggregate_outcomes(outcomes, |o| o.action.clone());
-        let overall_stats: OutcomeStatistics = by_action.values().fold(
-            OutcomeStatistics::default(),
-            |mut acc, stats| {
-                acc.total += stats.total;
-                acc.successes += stats.successes;
-                acc.failures += stats.failures;
-                acc.total_reward += stats.total_reward;
-                acc
-            },
-        );
+        let overall_stats: OutcomeStatistics =
+            by_action
+                .values()
+                .fold(OutcomeStatistics::default(), |mut acc, stats| {
+                    acc.total += stats.total;
+                    acc.successes += stats.successes;
+                    acc.failures += stats.failures;
+                    acc.total_reward += stats.total_reward;
+                    acc
+                });
 
         // Calculate confidence based on sample size and consistency
         #[allow(clippy::cast_precision_loss)]
         let confidence = {
-            let sample_confidence = (outcomes.len() as f32 / CONFIDENCE_SAMPLE_SIZE_PLATEAU).min(1.0);
+            let sample_confidence =
+                (outcomes.len() as f32 / CONFIDENCE_SAMPLE_SIZE_PLATEAU).min(1.0);
             let pattern_confidence = if patterns.len() >= 2 {
                 CONFIDENCE_HIGH_PATTERN
             } else {
@@ -423,13 +424,22 @@ fn iso8601_now() -> String {
 mod tests {
     use super::*;
 
-    fn create_outcome(decision_id: &str, action: &str, success: bool, reward: f32) -> DecisionOutcome {
+    fn create_outcome(
+        decision_id: &str,
+        action: &str,
+        success: bool,
+        reward: f32,
+    ) -> DecisionOutcome {
         DecisionOutcome {
             decision_id: decision_id.to_string(),
             ts: iso8601_now(),
             policy_id: Some("test-policy".to_string()),
             action: Some(action.to_string()),
-            outcome: if success { OutcomeType::Success } else { OutcomeType::Failure },
+            outcome: if success {
+                OutcomeType::Success
+            } else {
+                OutcomeType::Failure
+            },
             success,
             reward: Some(reward),
             context: None,
@@ -514,7 +524,12 @@ mod tests {
         let outcomes: Vec<DecisionOutcome> = (0..15)
             .map(|i| {
                 let success = i % 3 == 0; // 33% success rate
-                create_outcome(&i.to_string(), "remind.morning", success, if success { 1.0 } else { 0.0 })
+                create_outcome(
+                    &i.to_string(),
+                    "remind.morning",
+                    success,
+                    if success { 1.0 } else { 0.0 },
+                )
             })
             .collect();
 
@@ -535,10 +550,7 @@ mod tests {
             ts: iso8601_now(),
             deltas: {
                 let mut map = HashMap::new();
-                map.insert(
-                    "epsilon".to_string(),
-                    DeltaValue::Absolute { value: -0.1 },
-                );
+                map.insert("epsilon".to_string(), DeltaValue::Absolute { value: -0.1 });
                 map
             },
             confidence: 0.68,
@@ -567,7 +579,12 @@ mod tests {
         let outcomes: Vec<DecisionOutcome> = (0..20)
             .map(|i| {
                 let success = i % 2 == 0; // 50% success rate
-                create_outcome(&i.to_string(), "action", success, if success { 1.0 } else { 0.0 })
+                create_outcome(
+                    &i.to_string(),
+                    "action",
+                    success,
+                    if success { 1.0 } else { 0.0 },
+                )
             })
             .collect();
 
@@ -605,7 +622,7 @@ mod tests {
             "success": false,
             "reward": 0.0
         }"#;
-        
+
         let outcome: DecisionOutcome = serde_json::from_str(json).unwrap();
         assert_eq!(outcome.decision_id, "d123");
         assert!(!outcome.success);
@@ -638,13 +655,13 @@ mod tests {
             },
             "status": "proposed"
         }"#;
-        
+
         let proposal: WeightAdjustmentProposal = serde_json::from_str(json).unwrap();
         assert_eq!(proposal.basis_policy, "remind-bandit-v1");
         assert!((proposal.confidence - 0.68).abs() < 1e-6);
         assert_eq!(proposal.evidence.decisions_analyzed, 143);
         assert_eq!(proposal.status, ProposalStatus::Proposed);
-        
+
         // Verify both delta types deserialize correctly
         assert_eq!(proposal.deltas.len(), 2);
         if let Some(DeltaValue::Absolute { value }) = proposal.deltas.get("epsilon") {
@@ -652,23 +669,28 @@ mod tests {
         } else {
             panic!("Expected Absolute delta for epsilon");
         }
-        if let Some(DeltaValue::Relative { value, unit }) = proposal.deltas.get("recency.half_life") {
+        if let Some(DeltaValue::Relative { value, unit }) = proposal.deltas.get("recency.half_life")
+        {
             assert!((value + 20.0).abs() < 1e-6);
             assert_eq!(unit, "percent");
         } else {
             panic!("Expected Relative delta for recency.half_life");
         }
     }
-    
+
     #[test]
     fn fixtures_full_adjustment_file_deserializes() {
         // Test that the actual fixture file deserializes correctly
         let json = include_str!("../../../tests/fixtures/feedback/adjustment.ok.json");
         let proposal: WeightAdjustmentProposal = serde_json::from_str(json).unwrap();
-        
+
         assert_eq!(proposal.basis_policy, "remind-bandit-v1");
         assert_eq!(proposal.deltas.len(), 2);
         assert!(proposal.reasoning.as_ref().map_or(false, |r| r.len() >= 2));
-        assert!(proposal.evidence.patterns.as_ref().map_or(false, |p| p.len() >= 2));
+        assert!(proposal
+            .evidence
+            .patterns
+            .as_ref()
+            .map_or(false, |p| p.len() >= 2));
     }
 }
