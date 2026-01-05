@@ -1,0 +1,31 @@
+{
+  "version": "0.1.0",
+  "basis_policy": "remind-bandit-v1",
+  "ts": "2026-01-04T12:00:00Z",
+  "deltas": {
+    "epsilon": {
+      "kind": "absolute",
+      "value": -0.05
+    },
+    "recency.half_life": {
+      "kind": "relative",
+      "value": -20.0,
+      "unit": "percent"
+    }
+  },
+  "confidence": 0.68,
+  "evidence": {
+    "decisions_analyzed": 143,
+    "failure_rate_before": 0.42,
+    "failure_rate_after_sim": 0.31,
+    "patterns": [
+      "High failure rate for remind.morning",
+      "Trust level low shows systematic errors"
+    ]
+  },
+  "reasoning": [
+    "Reduce exploration due to high failure rate",
+    "Adjust recency bias based on temporal patterns"
+  ],
+  "status": "proposed"
+}
