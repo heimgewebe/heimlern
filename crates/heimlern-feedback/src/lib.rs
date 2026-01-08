@@ -152,6 +152,7 @@ pub enum ProposalStatus {
 /// Statistics aggregated from decision outcomes.
 #[derive(Debug, Default, Clone)]
 pub struct OutcomeStatistics {
+    /// Total number of outcomes (successes + failures).
     pub total: usize,
     pub successes: usize,
     pub failures: usize,
@@ -174,6 +175,13 @@ impl OutcomeStatistics {
     /// Calculate failure rate (0.0 to 1.0).
     #[must_use]
     pub fn failure_rate(&self) -> f32 {
+        debug_assert!(
+            self.successes + self.failures == self.total,
+            "OutcomeStatistics totals are inconsistent"
+        );
+        if self.total == 0 {
+            return 0.0;
+        }
         1.0 - self.success_rate()
     }
 
@@ -469,7 +477,7 @@ mod tests {
         #[allow(clippy::float_cmp)]
         {
             assert_eq!(stats.success_rate(), 0.0);
-            assert_eq!(stats.failure_rate(), 1.0);
+            assert_eq!(stats.failure_rate(), 0.0);
             assert_eq!(stats.average_reward(), 0.0);
         }
     }
