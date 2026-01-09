@@ -60,7 +60,11 @@ pub struct DecisionOutcome {
     pub action: Option<String>,
     /// Classification of the outcome
     pub outcome: OutcomeType,
-    /// Whether the decision was successful
+    /// Whether the decision was successful.
+    ///
+    /// For [`OutcomeType::Success`] and [`OutcomeType::Failure`], this should be
+    /// consistent with `outcome`. For [`OutcomeType::Partial`] and
+    /// [`OutcomeType::Unknown`], this flag drives success classification.
     pub success: bool,
     /// Numeric reward signal
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -239,7 +243,7 @@ impl FeedbackAnalyzer {
             if let Some(key) = key_fn(outcome) {
                 let entry = stats.entry(key).or_default();
                 entry.total += 1;
-                if outcome.success {
+                if outcome_is_success(outcome) {
                     entry.successes += 1;
                 } else {
                     entry.failures += 1;
@@ -248,6 +252,26 @@ impl FeedbackAnalyzer {
                     if reward.is_finite() {
                         entry.total_reward += reward;
                     }
+                }
+            }
+        }
+
+        stats
+    }
+
+    fn summarize_outcomes(&self, outcomes: &[DecisionOutcome]) -> OutcomeStatistics {
+        let mut stats = OutcomeStatistics::default();
+
+        for outcome in outcomes {
+            stats.total += 1;
+            if outcome_is_success(outcome) {
+                stats.successes += 1;
+            } else {
+                stats.failures += 1;
+            }
+            if let Some(reward) = outcome.reward {
+                if reward.is_finite() {
+                    stats.total_reward += reward;
                 }
             }
         }
@@ -283,16 +307,7 @@ impl FeedbackAnalyzer {
         }
 
         // Pattern 2: Overall poor performance
-        let overall_stats: OutcomeStatistics =
-            by_action
-                .values()
-                .fold(OutcomeStatistics::default(), |mut acc, stats| {
-                    acc.total += stats.total;
-                    acc.successes += stats.successes;
-                    acc.failures += stats.failures;
-                    acc.total_reward += stats.total_reward;
-                    acc
-                });
+        let overall_stats = self.summarize_outcomes(outcomes);
 
         if overall_stats.total >= self.min_decisions
             && overall_stats.failure_rate() > PATTERN_OVERALL_FAILURE_THRESHOLD
@@ -324,17 +339,7 @@ impl FeedbackAnalyzer {
             return None;
         }
 
-        let by_action = self.aggregate_outcomes(outcomes, |o| o.action.clone());
-        let overall_stats: OutcomeStatistics =
-            by_action
-                .values()
-                .fold(OutcomeStatistics::default(), |mut acc, stats| {
-                    acc.total += stats.total;
-                    acc.successes += stats.successes;
-                    acc.failures += stats.failures;
-                    acc.total_reward += stats.total_reward;
-                    acc
-                });
+        let overall_stats = self.summarize_outcomes(outcomes);
 
         // Calculate confidence based on sample size and consistency
         #[allow(clippy::cast_precision_loss)]
@@ -408,13 +413,27 @@ impl FeedbackAnalyzer {
         }
 
         // Simple simulation: calculate baseline success rate
-        let successes = outcomes.iter().filter(|o| o.success).count();
+        let successes = outcomes.iter().filter(|o| outcome_is_success(o)).count();
         #[allow(clippy::cast_precision_loss)]
         let baseline = successes as f32 / outcomes.len() as f32;
 
         // Estimate improvement using placeholder constant
         // TODO: Replace with actual replay-based simulation
         (baseline + SIMULATION_ESTIMATED_IMPROVEMENT).min(1.0)
+    }
+}
+
+fn outcome_is_success(outcome: &DecisionOutcome) -> bool {
+    match outcome.outcome {
+        OutcomeType::Success => {
+            debug_assert!(outcome.success, "Success outcome marked as unsuccessful");
+            true
+        }
+        OutcomeType::Failure => {
+            debug_assert!(!outcome.success, "Failure outcome marked as successful");
+            false
+        }
+        OutcomeType::Partial | OutcomeType::Unknown => outcome.success,
     }
 }
 
@@ -512,6 +531,32 @@ mod tests {
 
         assert!(!patterns.is_empty());
         assert!(patterns.iter().any(|p| p.contains("High failure rate")));
+    }
+
+    #[test]
+    fn analyzer_uses_outcomes_without_action_for_overall_stats() {
+        let analyzer = FeedbackAnalyzer::default();
+        let mut outcomes: Vec<DecisionOutcome> = (0..9)
+            .map(|i| DecisionOutcome {
+                decision_id: i.to_string(),
+                ts: iso8601_now(),
+                policy_id: Some("test-policy".to_string()),
+                action: None,
+                outcome: OutcomeType::Failure,
+                success: false,
+                reward: None,
+                context: None,
+                metadata: None,
+            })
+            .collect();
+
+        outcomes.push(create_outcome("10", "remind.morning", true, 1.0));
+
+        let patterns = analyzer.analyze_patterns(&outcomes);
+
+        assert!(patterns
+            .iter()
+            .any(|p| p.contains("Overall failure rate is high")));
     }
 
     #[test]
