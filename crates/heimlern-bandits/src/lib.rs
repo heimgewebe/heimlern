@@ -746,11 +746,13 @@ mod tests {
             slots: vec!["high_precision".into()],
             values: HashMap::new(),
         };
-        // Ein Wert, der in f32 Präzision verlieren würde.
-        // 123456789.123456789 (f64) vs f32
-        let precise_val: f64 = 123456789.123456789;
+        // Ein Wert mit vielen Dezimalstellen, der in f32 nicht exakt darstellbar ist.
+        // 123456.789012345 hat 15 signifikante Stellen (f64 kann ~15-17, f32 nur ~7).
+        let precise_val: f64 = 123_456.789_012_345;
         let count = 1;
-        bandit.values.insert("high_precision".into(), (count, precise_val));
+        bandit
+            .values
+            .insert("high_precision".into(), (count, precise_val));
 
         let snap = bandit.snapshot();
 
@@ -758,10 +760,27 @@ mod tests {
         let mut restored = RemindBandit::default();
         restored.load(snap);
 
-        let (_, restored_sum) = restored.values.get("high_precision").expect("slot missing");
+        let (_, restored_sum) = restored
+            .values
+            .get("high_precision")
+            .expect("slot missing");
 
-        // Prüfe, dass wir näher am Original sind als f32 es erlauben würde.
+        // 1. Absolute Genauigkeit: Muss in f64-Nähe sein (sehr kleine Toleranz).
         let diff = (restored_sum - precise_val).abs();
-        assert!(diff < 1e-9, "Präzision ging verloren: diff={diff}");
+        assert!(
+            diff < 1e-10,
+            "f64-Präzision ging verloren: diff={diff:.15}"
+        );
+
+        // 2. Vergleich gegen f32:
+        // Beweist, dass wir tatsächlich besser sind als eine f32-Speicherung gewesen wäre.
+        #[allow(clippy::cast_possible_truncation)]
+        let f32_representation = precise_val as f32;
+        let f32_loss = (f64::from(f32_representation) - precise_val).abs();
+
+        assert!(
+            diff < f32_loss,
+            "Snapshot ist nicht präziser als f32! diff={diff:.15}, f32_loss={f32_loss:.15}"
+        );
     }
 }
