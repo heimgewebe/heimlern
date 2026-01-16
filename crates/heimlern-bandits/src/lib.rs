@@ -783,4 +783,58 @@ mod tests {
             "Snapshot ist nicht präziser als f32! diff={diff:.15}, f32_loss={f32_loss:.15}"
         );
     }
+
+    #[test]
+    fn snapshot_large_count_reconstruction_precision() {
+        // Testet den Pfad: total (start) -> avg (snapshot) -> total (load)
+        // mit großen Zahlen und Divisionen, um Rundungsfehler zu provozieren.
+        let mut bandit = RemindBandit {
+            epsilon: 0.1,
+            slots: vec!["heavy_usage".into()],
+            values: HashMap::new(),
+        };
+
+        // 30 Mio Pulls. Total enthält Nachkommastellen, die bei 10^7 in f32 nicht darstellbar sind.
+        // Bei 10^7 ist die Schrittweite von f32 bereits 1.0, d.h. .125 würde abgeschnitten.
+        let count = 30_000_000;
+        let total_reward: f64 = 10_000_000.125;
+        bandit
+            .values
+            .insert("heavy_usage".into(), (count, total_reward));
+
+        let snap = bandit.snapshot();
+
+        // Roundtrip
+        let mut restored = RemindBandit::default();
+        restored.load(snap);
+
+        let (_, restored_total) = restored
+            .values
+            .get("heavy_usage")
+            .expect("slot missing");
+
+        // 1. Check f64 precision
+        let diff = (restored_total - total_reward).abs();
+        // Erwarte extrem kleine Abweichung (f64 precision bei 10^7 ist ca 1e-9)
+        assert!(
+            diff < 1e-8,
+            "Reconstruction error too high for f64: {diff}"
+        );
+
+        // 2. Compare with f32 hypothetical loss
+        // Wenn wir das in f32 gemacht hätten:
+        #[allow(clippy::cast_possible_truncation)]
+        let f32_total = total_reward as f32;
+        #[allow(clippy::cast_possible_truncation)]
+        let f32_count = count as f32;
+        let f32_avg = f32_total / f32_count;
+        let f32_reconstructed = f32_avg * f32_count;
+        let f32_loss = (f64::from(f32_reconstructed) - total_reward).abs();
+
+        // Der f64-Fehler muss signifikant kleiner sein als der f32-Fehler.
+        assert!(
+            diff < f32_loss,
+            "f64 roundtrip ({diff}) not better than f32 ({f32_loss})"
+        );
+    }
 }
