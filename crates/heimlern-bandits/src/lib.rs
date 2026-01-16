@@ -52,7 +52,11 @@ struct ContractSnapshot {
     policy_id: String,
     ts: String,
     arms: Vec<String>,
+    /// Anzahl der Feedbacks (Pulls) pro Arm.
     counts: Vec<u32>,
+    /// Durchschnittlicher Reward pro Arm (Average Reward).
+    /// ACHTUNG: Semantik ist "average", nicht "sum". Beim Laden muss
+    /// `total = avg * count` berechnet werden.
     values: Vec<f64>,
     epsilon: f32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -733,5 +737,31 @@ mod tests {
         assert_eq!(bandit.slots, vec!["a".to_string(), "b".to_string()]);
         assert_eq!(bandit.values.get("a"), Some(&(2, 1.0)));
         assert_eq!(bandit.values.get("b"), Some(&(1, 0.2)));
+    }
+
+    #[test]
+    fn snapshot_maintains_f64_precision() {
+        let mut bandit = RemindBandit {
+            epsilon: 0.1,
+            slots: vec!["high_precision".into()],
+            values: HashMap::new(),
+        };
+        // Ein Wert, der in f32 Präzision verlieren würde.
+        // 123456789.123456789 (f64) vs f32
+        let precise_val: f64 = 123456789.123456789;
+        let count = 1;
+        bandit.values.insert("high_precision".into(), (count, precise_val));
+
+        let snap = bandit.snapshot();
+
+        // Roundtrip
+        let mut restored = RemindBandit::default();
+        restored.load(snap);
+
+        let (_, restored_sum) = restored.values.get("high_precision").expect("slot missing");
+
+        // Prüfe, dass wir näher am Original sind als f32 es erlauben würde.
+        let diff = (restored_sum - precise_val).abs();
+        assert!(diff < 1e-9, "Präzision ging verloren: diff={diff}");
     }
 }
