@@ -42,7 +42,7 @@ pub struct RemindBandit {
     /// Verfügbare Zeit-Slots (Arme).
     pub slots: Vec<String>,
     /// Statistiken je Slot: (Anzahl Ziehungen, summierte Rewards).
-    values: HashMap<String, (u32, f32)>,
+    values: HashMap<String, (u32, f64)>,
 }
 
 // ---- Contract-Snapshot (gemäß contracts/policy.snapshot.schema.json) ----
@@ -53,7 +53,7 @@ struct ContractSnapshot {
     ts: String,
     arms: Vec<String>,
     counts: Vec<u32>,
-    values: Vec<f32>,
+    values: Vec<f64>,
     epsilon: f32,
     #[serde(skip_serializing_if = "Option::is_none")]
     seed: Option<u64>,
@@ -92,9 +92,13 @@ impl RemindBandit {
     fn get_average_reward(&self, slot: &str) -> f32 {
         #[allow(clippy::cast_precision_loss)]
         {
-            self.values
-                .get(slot)
-                .map_or(0.0, |(n, v)| if *n > 0 { v / *n as f32 } else { 0.0 })
+            self.values.get(slot).map_or(0.0, |(n, v)| {
+                if *n > 0 {
+                    (v / f64::from(*n)) as f32
+                } else {
+                    0.0
+                }
+            })
         }
     }
 
@@ -184,7 +188,7 @@ impl Policy for RemindBandit {
             }
             let entry = self.values.entry(slot_name).or_insert((0, 0.0));
             entry.0 += 1; // pulls
-            entry.1 += reward; // total reward
+            entry.1 += f64::from(reward); // total reward
         } else {
             // Klare Rückmeldung statt stillem Ignorieren.
             log_warn(&format!(
@@ -242,7 +246,7 @@ impl Policy for RemindBandit {
             for (arm, (n, avg)) in arms.iter().zip(counts.iter().zip(values.iter())) {
                 #[allow(clippy::cast_precision_loss)]
                 let total = if *n > 0 && avg.is_finite() {
-                    avg * *n as f32
+                    avg * f64::from(*n)
                 } else {
                     0.0
                 };
@@ -302,7 +306,11 @@ impl RemindBandit {
             let sanitized_sum = if sum.is_finite() { sum } else { 0.0 };
             counts.push(n);
             #[allow(clippy::cast_precision_loss)]
-            let avg = if n > 0 { sanitized_sum / n as f32 } else { 0.0 };
+            let avg = if n > 0 {
+                sanitized_sum / f64::from(n)
+            } else {
+                0.0
+            };
             values.push(avg);
         }
         let snap = ContractSnapshot {
@@ -388,7 +396,7 @@ mod tests {
             slots: vec!["a".into()],
             values: HashMap::new(),
         };
-        bandit.values.insert("a".into(), (1, f32::INFINITY));
+        bandit.values.insert("a".into(), (1, f64::INFINITY));
 
         let snapshot = bandit.snapshot();
 
@@ -440,8 +448,8 @@ mod tests {
             slots: vec![],
             values: HashMap::new(),
         };
-        bandit.values.insert("a".into(), (2, f32::NAN));
-        bandit.values.insert("b".into(), (3, f32::INFINITY));
+        bandit.values.insert("a".into(), (2, f64::NAN));
+        bandit.values.insert("b".into(), (3, f64::INFINITY));
 
         bandit.sanitize();
 
@@ -462,7 +470,7 @@ mod tests {
             features: serde_json::json!({}),
         };
         bandit.feedback(&ctx, "remind.b", 0.5);
-        bandit.values.insert("a".into(), (0, f32::NAN));
+        bandit.values.insert("a".into(), (0, f64::NAN));
 
         let decision = bandit.decide(&ctx);
         #[allow(clippy::case_sensitive_file_extension_comparisons)]

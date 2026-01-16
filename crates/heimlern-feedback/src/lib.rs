@@ -160,7 +160,7 @@ pub struct OutcomeStatistics {
     pub total: usize,
     pub successes: usize,
     pub failures: usize,
-    pub total_reward: f32,
+    pub total_reward: f64,
 }
 
 impl OutcomeStatistics {
@@ -197,7 +197,7 @@ impl OutcomeStatistics {
         }
         #[allow(clippy::cast_precision_loss)]
         {
-            self.total_reward / self.total as f32
+            (self.total_reward / self.total as f64) as f32
         }
     }
 }
@@ -250,7 +250,7 @@ impl FeedbackAnalyzer {
                 }
                 if let Some(reward) = outcome.reward {
                     if reward.is_finite() {
-                        entry.total_reward += reward;
+                        entry.total_reward += f64::from(reward);
                     }
                 }
             }
@@ -271,7 +271,7 @@ impl FeedbackAnalyzer {
             }
             if let Some(reward) = outcome.reward {
                 if reward.is_finite() {
-                    stats.total_reward += reward;
+                    stats.total_reward += f64::from(reward);
                 }
             }
         }
