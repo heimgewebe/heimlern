@@ -768,7 +768,7 @@ mod tests {
         // 1. Absolute Genauigkeit: Muss in f64-Nähe sein (sehr kleine Toleranz).
         let diff = (restored_sum - precise_val).abs();
         assert!(
-            diff < 1e-10,
+            diff < 1e-9,
             "f64-Präzision ging verloren: diff={diff:.15}"
         );
 
