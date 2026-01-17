@@ -760,7 +760,9 @@ mod tests {
         let mut restored = RemindBandit::default();
         restored.load(snap);
 
-        let (_, restored_sum) = restored.values.get("high_precision").expect("slot missing");
+        let Some((_, restored_sum)) = restored.values.get("high_precision") else {
+            panic!("slot missing");
+        };
 
         // 1. Absolute Genauigkeit: Muss in f64-Nähe sein (sehr kleine Toleranz).
         let diff = (restored_sum - precise_val).abs();
@@ -802,7 +804,9 @@ mod tests {
         let mut restored = RemindBandit::default();
         restored.load(snap);
 
-        let (_, restored_total) = restored.values.get("heavy_usage").expect("slot missing");
+        let Some((_, restored_total)) = restored.values.get("heavy_usage") else {
+            panic!("slot missing");
+        };
 
         // 1. Check f64 precision
         let diff = (restored_total - total_reward).abs();
