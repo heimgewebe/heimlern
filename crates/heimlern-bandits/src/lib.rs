@@ -761,7 +761,7 @@ mod tests {
         restored.load(snap);
 
         let Some((_, restored_sum)) = restored.values.get("high_precision") else {
-            panic!("slot missing");
+            panic!("slot missing: high_precision");
         };
 
         // 1. Absolute Genauigkeit: Muss in f64-Nähe sein (sehr kleine Toleranz).
@@ -805,7 +805,7 @@ mod tests {
         restored.load(snap);
 
         let Some((_, restored_total)) = restored.values.get("heavy_usage") else {
-            panic!("slot missing");
+            panic!("slot missing: heavy_usage");
         };
 
         // 1. Check f64 precision
