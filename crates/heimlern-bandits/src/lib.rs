@@ -42,7 +42,7 @@ pub struct RemindBandit {
     /// Verfügbare Zeit-Slots (Arme).
     pub slots: Vec<String>,
     /// Statistiken je Slot: (Anzahl Ziehungen, summierte Rewards).
-    values: HashMap<String, (u32, f32)>,
+    values: HashMap<String, (u32, f64)>,
 }
 
 // ---- Contract-Snapshot (gemäß contracts/policy.snapshot.schema.json) ----
@@ -52,8 +52,12 @@ struct ContractSnapshot {
     policy_id: String,
     ts: String,
     arms: Vec<String>,
+    /// Anzahl der Feedbacks (Pulls) pro Arm.
     counts: Vec<u32>,
-    values: Vec<f32>,
+    /// Durchschnittlicher Reward pro Arm (Average Reward).
+    /// ACHTUNG: Semantik ist "average", nicht "sum". Beim Laden muss
+    /// `total = avg * count` berechnet werden.
+    values: Vec<f64>,
     epsilon: f32,
     #[serde(skip_serializing_if = "Option::is_none")]
     seed: Option<u64>,
@@ -92,9 +96,13 @@ impl RemindBandit {
     fn get_average_reward(&self, slot: &str) -> f32 {
         #[allow(clippy::cast_precision_loss)]
         {
-            self.values
-                .get(slot)
-                .map_or(0.0, |(n, v)| if *n > 0 { v / *n as f32 } else { 0.0 })
+            self.values.get(slot).map_or(0.0, |(n, v)| {
+                if *n > 0 {
+                    (v / f64::from(*n)) as f32
+                } else {
+                    0.0
+                }
+            })
         }
     }
 
@@ -184,7 +192,7 @@ impl Policy for RemindBandit {
             }
             let entry = self.values.entry(slot_name).or_insert((0, 0.0));
             entry.0 += 1; // pulls
-            entry.1 += reward; // total reward
+            entry.1 += f64::from(reward); // total reward
         } else {
             // Klare Rückmeldung statt stillem Ignorieren.
             log_warn(&format!(
@@ -242,7 +250,7 @@ impl Policy for RemindBandit {
             for (arm, (n, avg)) in arms.iter().zip(counts.iter().zip(values.iter())) {
                 #[allow(clippy::cast_precision_loss)]
                 let total = if *n > 0 && avg.is_finite() {
-                    avg * *n as f32
+                    avg * f64::from(*n)
                 } else {
                     0.0
                 };
@@ -302,7 +310,11 @@ impl RemindBandit {
             let sanitized_sum = if sum.is_finite() { sum } else { 0.0 };
             counts.push(n);
             #[allow(clippy::cast_precision_loss)]
-            let avg = if n > 0 { sanitized_sum / n as f32 } else { 0.0 };
+            let avg = if n > 0 {
+                sanitized_sum / f64::from(n)
+            } else {
+                0.0
+            };
             values.push(avg);
         }
         let snap = ContractSnapshot {
@@ -388,7 +400,7 @@ mod tests {
             slots: vec!["a".into()],
             values: HashMap::new(),
         };
-        bandit.values.insert("a".into(), (1, f32::INFINITY));
+        bandit.values.insert("a".into(), (1, f64::INFINITY));
 
         let snapshot = bandit.snapshot();
 
@@ -440,8 +452,8 @@ mod tests {
             slots: vec![],
             values: HashMap::new(),
         };
-        bandit.values.insert("a".into(), (2, f32::NAN));
-        bandit.values.insert("b".into(), (3, f32::INFINITY));
+        bandit.values.insert("a".into(), (2, f64::NAN));
+        bandit.values.insert("b".into(), (3, f64::INFINITY));
 
         bandit.sanitize();
 
@@ -462,7 +474,7 @@ mod tests {
             features: serde_json::json!({}),
         };
         bandit.feedback(&ctx, "remind.b", 0.5);
-        bandit.values.insert("a".into(), (0, f32::NAN));
+        bandit.values.insert("a".into(), (0, f64::NAN));
 
         let decision = bandit.decide(&ctx);
         #[allow(clippy::case_sensitive_file_extension_comparisons)]
@@ -725,5 +737,96 @@ mod tests {
         assert_eq!(bandit.slots, vec!["a".to_string(), "b".to_string()]);
         assert_eq!(bandit.values.get("a"), Some(&(2, 1.0)));
         assert_eq!(bandit.values.get("b"), Some(&(1, 0.2)));
+    }
+
+    #[test]
+    fn snapshot_maintains_f64_precision() {
+        let mut bandit = RemindBandit {
+            epsilon: 0.1,
+            slots: vec!["high_precision".into()],
+            values: HashMap::new(),
+        };
+        // Ein Wert mit vielen Dezimalstellen, der in f32 nicht exakt darstellbar ist.
+        // 123456.789012345 hat 15 signifikante Stellen (f64 kann ~15-17, f32 nur ~7).
+        let precise_val: f64 = 123_456.789_012_345;
+        let count = 1;
+        bandit
+            .values
+            .insert("high_precision".into(), (count, precise_val));
+
+        let snap = bandit.snapshot();
+
+        // Roundtrip
+        let mut restored = RemindBandit::default();
+        restored.load(snap);
+
+        let Some((_, restored_sum)) = restored.values.get("high_precision") else {
+            panic!("slot missing: high_precision");
+        };
+
+        // 1. Absolute Genauigkeit: Muss in f64-Nähe sein (sehr kleine Toleranz).
+        let diff = (restored_sum - precise_val).abs();
+        assert!(diff < 1e-9, "f64-Präzision ging verloren: diff={diff:.15}");
+
+        // 2. Vergleich gegen f32:
+        // Beweist, dass wir tatsächlich besser sind als eine f32-Speicherung gewesen wäre.
+        #[allow(clippy::cast_possible_truncation)]
+        let f32_representation = precise_val as f32;
+        let f32_loss = (f64::from(f32_representation) - precise_val).abs();
+
+        assert!(
+            diff < f32_loss,
+            "Snapshot ist nicht präziser als f32! diff={diff:.15}, f32_loss={f32_loss:.15}"
+        );
+    }
+
+    #[test]
+    fn snapshot_large_count_reconstruction_precision() {
+        // Testet den Pfad: total (start) -> avg (snapshot) -> total (load)
+        // mit großen Zahlen und Divisionen, um Rundungsfehler zu provozieren.
+        let mut bandit = RemindBandit {
+            epsilon: 0.1,
+            slots: vec!["heavy_usage".into()],
+            values: HashMap::new(),
+        };
+
+        // 30 Mio Pulls. Total enthält Nachkommastellen, die bei 10^7 in f32 nicht darstellbar sind.
+        // Bei 10^7 ist die Schrittweite von f32 bereits 1.0, d.h. .125 würde abgeschnitten.
+        let count = 30_000_000;
+        let total_reward: f64 = 10_000_000.125;
+        bandit
+            .values
+            .insert("heavy_usage".into(), (count, total_reward));
+
+        let snap = bandit.snapshot();
+
+        // Roundtrip
+        let mut restored = RemindBandit::default();
+        restored.load(snap);
+
+        let Some((_, restored_total)) = restored.values.get("heavy_usage") else {
+            panic!("slot missing: heavy_usage");
+        };
+
+        // 1. Check f64 precision
+        let diff = (restored_total - total_reward).abs();
+        // Erwarte extrem kleine Abweichung (f64 precision bei 10^7 ist ca 1e-9)
+        assert!(diff < 1e-8, "Reconstruction error too high for f64: {diff}");
+
+        // 2. Compare with f32 hypothetical loss
+        // Wenn wir das in f32 gemacht hätten:
+        #[allow(clippy::cast_possible_truncation)]
+        let f32_total = total_reward as f32;
+        #[allow(clippy::cast_possible_truncation)]
+        let f32_count = count as f32;
+        let f32_avg = f32_total / f32_count;
+        let f32_reconstructed = f32_avg * f32_count;
+        let f32_loss = (f64::from(f32_reconstructed) - total_reward).abs();
+
+        // Der f64-Fehler muss signifikant kleiner sein als der f32-Fehler.
+        assert!(
+            diff < f32_loss,
+            "f64 roundtrip ({diff}) not better than f32 ({f32_loss})"
+        );
     }
 }
