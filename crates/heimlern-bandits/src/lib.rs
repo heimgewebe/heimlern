@@ -760,17 +760,11 @@ mod tests {
         let mut restored = RemindBandit::default();
         restored.load(snap);
 
-        let (_, restored_sum) = restored
-            .values
-            .get("high_precision")
-            .expect("slot missing");
+        let (_, restored_sum) = restored.values.get("high_precision").expect("slot missing");
 
         // 1. Absolute Genauigkeit: Muss in f64-Nähe sein (sehr kleine Toleranz).
         let diff = (restored_sum - precise_val).abs();
-        assert!(
-            diff < 1e-9,
-            "f64-Präzision ging verloren: diff={diff:.15}"
-        );
+        assert!(diff < 1e-9, "f64-Präzision ging verloren: diff={diff:.15}");
 
         // 2. Vergleich gegen f32:
         // Beweist, dass wir tatsächlich besser sind als eine f32-Speicherung gewesen wäre.
@@ -808,18 +802,12 @@ mod tests {
         let mut restored = RemindBandit::default();
         restored.load(snap);
 
-        let (_, restored_total) = restored
-            .values
-            .get("heavy_usage")
-            .expect("slot missing");
+        let (_, restored_total) = restored.values.get("heavy_usage").expect("slot missing");
 
         // 1. Check f64 precision
         let diff = (restored_total - total_reward).abs();
         // Erwarte extrem kleine Abweichung (f64 precision bei 10^7 ist ca 1e-9)
-        assert!(
-            diff < 1e-8,
-            "Reconstruction error too high for f64: {diff}"
-        );
+        assert!(diff < 1e-8, "Reconstruction error too high for f64: {diff}");
 
         // 2. Compare with f32 hypothetical loss
         // Wenn wir das in f32 gemacht hätten:
