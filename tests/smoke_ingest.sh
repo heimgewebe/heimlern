@@ -10,23 +10,21 @@ TEST_DIR=$(mktemp -d)
 trap 'rm -rf "$TEST_DIR"' EXIT
 
 EVENTS_FILE="$TEST_DIR/events.jsonl"
-STATE_FILE="$TEST_DIR/heimlern.ingest.state.json"
+STATE_FILE="$TEST_DIR/heimlern.ingest.file.state.json"
 STATS_FILE="$TEST_DIR/heimlern.stats.json"
 
-# Create sample events (Raw AussenEvents for file mode)
-# TS 1 and 2
+# Create sample events
 cat <<EOF > "$EVENTS_FILE"
 {"type": "test", "source": "smoke", "ts": "2023-01-01T10:00:00Z", "id": "1"}
 {"type": "test", "source": "smoke", "ts": "2023-01-01T10:01:00Z", "id": "2"}
 EOF
 
-# Run ingest - pass 1 (bootstrap simulation)
+# Run ingest - pass 1
 echo "Running ingest pass 1..."
-./target/debug/heimlern ingest chronik \
-    --file "$EVENTS_FILE" \
+./target/debug/heimlern ingest file \
+    --path "$EVENTS_FILE" \
     --state-file "$STATE_FILE" \
-    --stats-file "$STATS_FILE" \
-    --max-batches 1
+    --stats-file "$STATS_FILE"
 
 # Verify state created
 if [ ! -f "$STATE_FILE" ]; then
@@ -34,9 +32,12 @@ if [ ! -f "$STATE_FILE" ]; then
     exit 1
 fi
 
-# Verify cursor (should be last TS in file mode)
-CURSOR=$(grep -o '"cursor": *"[^"]*"' "$STATE_FILE" | cut -d'"' -f4)
-if [ "$CURSOR" != "2023-01-01T10:01:00Z" ]; then
+# Validate state JSON structure
+python3 tests/validate_state.py "$STATE_FILE"
+
+# Verify cursor (should be line count = 2)
+CURSOR=$(grep -o '"cursor": *[0-9]*' "$STATE_FILE" | head -n1 | awk -F': ' '{print $2}')
+if [ "$CURSOR" != "2" ]; then
     echo "Error: Unexpected cursor value: $CURSOR"
     cat "$STATE_FILE"
     exit 1
@@ -47,15 +48,14 @@ echo '{"type": "test", "source": "smoke", "ts": "2023-01-01T10:02:00Z", "id": "3
 
 # Run ingest - pass 2 (resume)
 echo "Running ingest pass 2..."
-./target/debug/heimlern ingest chronik \
-    --file "$EVENTS_FILE" \
+./target/debug/heimlern ingest file \
+    --path "$EVENTS_FILE" \
     --state-file "$STATE_FILE" \
-    --stats-file "$STATS_FILE" \
-    --max-batches 1
+    --stats-file "$STATS_FILE"
 
-# Verify cursor updated
-CURSOR=$(grep -o '"cursor": *"[^"]*"' "$STATE_FILE" | cut -d'"' -f4)
-if [ "$CURSOR" != "2023-01-01T10:02:00Z" ]; then
+# Verify cursor updated to 3
+CURSOR=$(grep -o '"cursor": *[0-9]*' "$STATE_FILE" | head -n1 | awk -F': ' '{print $2}')
+if [ "$CURSOR" != "3" ]; then
     echo "Error: Unexpected cursor value pass 2: $CURSOR"
     cat "$STATE_FILE"
     exit 1

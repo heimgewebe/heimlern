@@ -7,6 +7,7 @@ use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use time::OffsetDateTime;
 
 #[derive(Parser)]
@@ -27,15 +28,11 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum IngestSource {
-    /// Ingest from Chronik
+    /// Ingest from Chronik (via HTTP)
     Chronik {
-        /// Explicit cursor override (opaque string)
+        /// Explicit cursor start (byte offset) - overrides state
         #[arg(long)]
-        cursor: Option<String>,
-
-        /// Bootstrap timestamp (ISO 8601) - used only if no cursor exists
-        #[arg(long)]
-        since: Option<String>,
+        cursor: Option<u64>,
 
         /// Domain to fetch (default: aussen)
         #[arg(long, default_value = "aussen")]
@@ -49,12 +46,26 @@ enum IngestSource {
         #[arg(long, default_value = "10")]
         max_batches: u32,
 
-        /// Input file path (simulation mode)
-        #[arg(long)]
-        file: Option<PathBuf>,
-
         /// Path to the state file
         #[arg(long, default_value = "data/heimlern.ingest.state.json")]
+        state_file: PathBuf,
+
+        /// Path to the stats file
+        #[arg(long, default_value = "data/heimlern.stats.json")]
+        stats_file: PathBuf,
+    },
+    /// Ingest from local file (Simulation mode)
+    File {
+        /// Input file path
+        #[arg(long)]
+        path: PathBuf,
+
+        /// Start from line number (0-based)
+        #[arg(long)]
+        line_offset: Option<u64>,
+
+        /// Path to the state file
+        #[arg(long, default_value = "data/heimlern.ingest.file.state.json")]
         state_file: PathBuf,
 
         /// Path to the stats file
@@ -65,7 +76,7 @@ enum IngestSource {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct IngestState {
-    cursor: String,
+    cursor: u64, // Strictly u64 (byte offset or line number)
     #[serde(with = "time::serde::iso8601")]
     last_ok: OffsetDateTime,
     last_error: Option<String>,
@@ -138,6 +149,8 @@ impl EventStats {
     }
 }
 
+// Assuming Chronik returns a wrapper. If strictly list, we'd change this.
+// "events": [ { "payload": ... }, ... ]
 #[derive(Deserialize, Debug)]
 struct ChronikEnvelope {
     payload: AussenEvent,
@@ -146,94 +159,58 @@ struct ChronikEnvelope {
 #[derive(Deserialize, Debug)]
 struct ChronikEventsResponse {
     events: Vec<ChronikEnvelope>,
-    next_cursor: String,
+    next_cursor: u64, // Int based cursor
     has_more: bool,
 }
 
 struct FetchResult {
     events: Vec<AussenEvent>,
-    next_cursor: String,
+    next_cursor: u64,
     has_more: bool,
 }
 
-fn fetch_events(
-    file: Option<&PathBuf>,
-    cursor: Option<&String>,
-    since: Option<&String>,
-    domain: &str,
-    limit: u32,
-) -> Result<FetchResult> {
-    if let Some(path) = file {
-        let f = File::open(path).context("Failed to open input file")?;
-        let reader = BufReader::new(f);
-        let mut events = Vec::new();
-        let mut last_ts = String::new();
-
-        // File mode simulation: simplistic read-all or filter by TS
-        for line in reader.lines() {
-            let line = line?;
-            if line.trim().is_empty() {
-                continue;
-            }
-            let event: AussenEvent = serde_json::from_str(&line)?;
-
-            // Simulation: treating cursor as a timestamp for file mode
-            if let Some(c) = cursor {
-                if let Some(ts) = &event.ts {
-                    if ts <= c {
-                        continue;
-                    }
-                }
-            } else if let Some(s) = since {
-                if let Some(ts) = &event.ts {
-                    if ts <= s {
-                        continue;
-                    }
-                }
-            }
-
-            if let Some(ts) = &event.ts {
-                last_ts = ts.clone();
-            }
-            events.push(event);
-        }
-
-        let next_cursor = if !last_ts.is_empty() {
-            last_ts
-        } else {
-            cursor.cloned().unwrap_or_else(|| "unknown".to_string())
-        };
-
-        return Ok(FetchResult {
-            events,
-            next_cursor,
-            has_more: false, // Single pass for file mode
-        });
-    }
-
-    // Chronik API Mode
+fn fetch_chronik(cursor: Option<u64>, domain: &str, limit: u32) -> Result<FetchResult> {
     let base_url =
         env::var("CHRONIK_API_URL").unwrap_or_else(|_| "http://localhost:8080".to_string());
-    let base = reqwest::Url::parse(&base_url).context("Invalid CHRONIK_API_URL")?;
-    let events_url = base.join("v1/events").context("Failed to join URL path")?;
 
-    let mut target_url = events_url;
+    // URL Normalization
+    let mut target_url = reqwest::Url::parse(&base_url).context("Invalid CHRONIK_API_URL")?;
+    if !target_url.path().ends_with("/v1/events") {
+        target_url = target_url
+            .join("v1/events")
+            .context("Failed to join URL path")?;
+    }
+
     target_url
         .query_pairs_mut()
         .append_pair("domain", domain)
         .append_pair("limit", &limit.to_string());
 
-    // Priority: Cursor > Since > Nothing (start from beginning)
     if let Some(c) = cursor {
-        target_url.query_pairs_mut().append_pair("cursor", c);
-    } else if let Some(s) = since {
-        target_url.query_pairs_mut().append_pair("since", s);
+        target_url
+            .query_pairs_mut()
+            .append_pair("cursor", &c.to_string());
     }
 
-    let resp = reqwest::blocking::get(target_url.clone())
+    // Auth & Client
+    let token = env::var("CHRONIK_TOKEN").context("CHRONIK_TOKEN env var is required")?;
+
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()?;
+
+    let resp = client
+        .get(target_url.clone())
+        .header("X-Auth", token)
+        .send()
         .with_context(|| format!("Failed to fetch from {}", target_url))?;
 
     if !resp.status().is_success() {
+        if resp.status() == reqwest::StatusCode::UNAUTHORIZED
+            || resp.status() == reqwest::StatusCode::FORBIDDEN
+        {
+            anyhow::bail!("Access denied: {}", resp.status());
+        }
         anyhow::bail!("Chronik request failed: {}", resp.status());
     }
 
@@ -252,41 +229,114 @@ fn fetch_events(
     })
 }
 
+fn fetch_file(path: &PathBuf, offset: u64) -> Result<FetchResult> {
+    let f = File::open(path).context("Failed to open input file")?;
+    let reader = BufReader::new(f);
+    let mut events = Vec::new();
+    let mut lines_read = 0;
+
+    for (idx, line) in reader.lines().enumerate() {
+        if (idx as u64) < offset {
+            continue;
+        }
+        let line = line?;
+        if line.trim().is_empty() {
+            lines_read += 1;
+            continue;
+        }
+        let event: AussenEvent = serde_json::from_str(&line)?;
+        events.push(event);
+        lines_read += 1;
+    }
+
+    let next_offset = offset + lines_read; // next line number
+
+    Ok(FetchResult {
+        events,
+        next_cursor: next_offset,
+        has_more: false,
+    })
+}
+
+fn process_ingest(
+    source_result: Result<FetchResult>,
+    state_file: &PathBuf,
+    stats_file: &PathBuf,
+    current_cursor: &mut Option<u64>,
+) -> Result<bool> {
+    match source_result {
+        Ok(fetch_result) => {
+            let mut stats = EventStats::load(stats_file).unwrap_or_default();
+            let count = fetch_result.events.len();
+
+            for event in fetch_result.events {
+                stats.update(&event);
+            }
+
+            if count > 0 {
+                println!("Processed {} events.", count);
+                stats.save(stats_file).context("Failed to save stats")?;
+            } else {
+                println!("No new events.");
+            }
+
+            // Update state logic
+            // Only update if cursor advanced
+            let new_cursor = fetch_result.next_cursor;
+
+            // For file mode, new_cursor is offset + lines_read. If lines_read > 0, we advanced.
+            // For API, next_cursor is returned.
+            if Some(new_cursor) != *current_cursor {
+                let state = IngestState {
+                    cursor: new_cursor,
+                    last_ok: OffsetDateTime::now_utc(),
+                    last_error: None,
+                };
+                state.save(state_file).context("Failed to save state")?;
+                *current_cursor = Some(new_cursor);
+                println!("State updated to cursor: {}", new_cursor);
+            }
+
+            Ok(fetch_result.has_more)
+        }
+        Err(e) => {
+            let err_msg = format!("{:?}", e);
+            eprintln!("Ingest failed: {}", err_msg);
+
+            // Try to update last_error in state
+            let existing_cursor = current_cursor.unwrap_or(0);
+            let state = IngestState {
+                cursor: existing_cursor,
+                last_ok: OffsetDateTime::now_utc(),
+                last_error: Some(err_msg),
+            };
+            let _ = state.save(state_file);
+            std::process::exit(1);
+        }
+    }
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
         Commands::Ingest { source } => match source {
             IngestSource::Chronik {
-                cursor: cursor_arg,
-                since,
+                cursor,
                 domain,
                 limit,
                 max_batches,
-                file,
                 state_file,
                 stats_file,
             } => {
                 let mut batches_processed = 0;
-                let mut current_cursor = cursor_arg.clone();
+                let mut current_cursor = cursor;
 
-                // Load existing state if no explicit cursor arg
                 if current_cursor.is_none() {
                     if let Ok(Some(state)) = IngestState::load(&state_file) {
                         current_cursor = Some(state.cursor);
-                        println!(
-                            "Resuming from state cursor: {}",
-                            current_cursor.as_ref().unwrap()
-                        );
+                        println!("Resuming from state cursor: {}", state.cursor);
                     }
-                }
-
-                // Initial bootstrap logging
-                if current_cursor.is_none() && since.is_some() {
-                    println!(
-                        "Bootstrapping ingest from timestamp: {}",
-                        since.as_ref().unwrap()
-                    );
                 }
 
                 loop {
@@ -295,72 +345,40 @@ fn main() -> Result<()> {
                         break;
                     }
 
-                    match fetch_events(
-                        file.as_ref(),
-                        current_cursor.as_ref(),
-                        since.as_ref(),
-                        &domain,
-                        limit,
-                    ) {
-                        Ok(fetch_result) => {
-                            let mut stats = EventStats::load(&stats_file).unwrap_or_default();
-                            let count = fetch_result.events.len();
+                    let has_more = process_ingest(
+                        fetch_chronik(current_cursor, &domain, limit),
+                        &state_file,
+                        &stats_file,
+                        &mut current_cursor,
+                    )?;
 
-                            for event in fetch_result.events {
-                                stats.update(&event);
-                            }
-
-                            println!(
-                                "Batch {}: Processed {} events.",
-                                batches_processed + 1,
-                                count
-                            );
-
-                            if count > 0 {
-                                stats.save(&stats_file).context("Failed to save stats")?;
-                            }
-
-                            // Update state logic
-                            let new_cursor = fetch_result.next_cursor.clone();
-                            let cursor_advanced = if let Some(curr) = &current_cursor {
-                                *curr != new_cursor
-                            } else {
-                                !new_cursor.is_empty()
-                            };
-
-                            if cursor_advanced {
-                                let state = IngestState {
-                                    cursor: new_cursor.clone(),
-                                    last_ok: OffsetDateTime::now_utc(),
-                                    last_error: None,
-                                };
-                                state.save(&state_file).context("Failed to save state")?;
-                                current_cursor = Some(new_cursor);
-                            }
-
-                            batches_processed += 1;
-
-                            if !fetch_result.has_more {
-                                println!("No more events available. Stopping.");
-                                break;
-                            }
-                        }
-                        Err(e) => {
-                            let err_msg = format!("{:?}", e);
-                            eprintln!("Ingest failed: {}", err_msg);
-
-                            // Try to update last_error in state
-                            let existing_cursor = current_cursor.unwrap_or_else(|| "".to_string());
-                            let state = IngestState {
-                                cursor: existing_cursor,
-                                last_ok: OffsetDateTime::now_utc(),
-                                last_error: Some(err_msg),
-                            };
-                            let _ = state.save(&state_file);
-                            std::process::exit(1);
-                        }
+                    batches_processed += 1;
+                    if !has_more {
+                        break;
                     }
                 }
+            }
+            IngestSource::File {
+                path,
+                line_offset,
+                state_file,
+                stats_file,
+            } => {
+                let mut current_cursor = line_offset;
+                if current_cursor.is_none() {
+                    if let Ok(Some(state)) = IngestState::load(&state_file) {
+                        current_cursor = Some(state.cursor);
+                        println!("Resuming from file offset: {}", state.cursor);
+                    }
+                }
+
+                // File mode is single pass
+                process_ingest(
+                    fetch_file(&path, current_cursor.unwrap_or(0)),
+                    &state_file,
+                    &stats_file,
+                    &mut current_cursor,
+                )?;
             }
         },
     }
