@@ -36,12 +36,20 @@ enum IngestSource {
         #[arg(long)]
         url: Option<String>,
 
+        /// Domain to fetch (default: aussen)
+        #[arg(long, default_value = "aussen")]
+        domain: String,
+
+        /// Limit of events to fetch (default: 100)
+        #[arg(long, default_value = "100")]
+        limit: u32,
+
         /// Input file path (for testing/file-based ingest)
         #[arg(long)]
         file: Option<PathBuf>,
 
         /// Path to the state file
-        #[arg(long, default_value = "data/heimlern.cursor")]
+        #[arg(long, default_value = "data/heimlern.ingest.state.json")]
         state_file: PathBuf,
 
         /// Path to the stats file
@@ -125,19 +133,62 @@ impl EventStats {
     }
 }
 
-fn get_reader(
+#[derive(Deserialize, Debug)]
+struct ChronikEnvelope {
+    // domain: String,
+    received_at: String,
+    payload: AussenEvent,
+}
+
+struct FetchedEvent {
+    event: AussenEvent,
+    cursor: String,
+}
+
+fn fetch_events(
     url: Option<&String>,
     file: Option<&PathBuf>,
     since: Option<&String>,
-) -> Result<Box<dyn BufRead>> {
+    domain: &str,
+    limit: u32,
+) -> Result<Vec<FetchedEvent>> {
     if let Some(path) = file {
         let f = File::open(path).context("Failed to open input file")?;
-        return Ok(Box::new(BufReader::new(f)));
+        let reader = BufReader::new(f);
+        let mut results = Vec::new();
+
+        for line in reader.lines() {
+            let line = line?;
+            if line.trim().is_empty() {
+                continue;
+            }
+            // In file mode, we assume raw AussenEvents for simplicity/legacy support
+            let event: AussenEvent = serde_json::from_str(&line)?;
+
+            // Derive cursor from TS
+            let cursor = event
+                .ts
+                .clone()
+                .or_else(|| event.id.clone())
+                .unwrap_or_else(|| "unknown".to_string());
+
+            results.push(FetchedEvent { event, cursor });
+        }
+        return Ok(results);
     }
 
     if let Some(u) = url {
-        // Build URL with query params
-        let mut target_url = reqwest::Url::parse(u).context("Invalid URL")?;
+        // Construct /v1/tail URL
+        // Base URL + /v1/tail
+        let base = reqwest::Url::parse(u).context("Invalid base URL")?;
+        let tail_url = base.join("v1/tail").context("Failed to join URL path")?;
+
+        let mut target_url = tail_url;
+        target_url
+            .query_pairs_mut()
+            .append_pair("domain", domain)
+            .append_pair("limit", &limit.to_string());
+
         if let Some(s) = since {
             target_url.query_pairs_mut().append_pair("since", s);
         }
@@ -145,18 +196,36 @@ fn get_reader(
         let resp = reqwest::blocking::get(target_url.clone())
             .with_context(|| format!("Failed to fetch from {}", target_url))?;
 
-        // Ensure success
         if !resp.status().is_success() {
-            anyhow::bail!("Request failed: {}", resp.status());
+            anyhow::bail!("Chronik request failed: {}", resp.status());
         }
 
-        // We assume the response is the JSONL stream directly
-        let reader = BufReader::new(resp);
-        return Ok(Box::new(reader));
+        let envelopes: Vec<ChronikEnvelope> = resp.json()?;
+        let results = envelopes
+            .into_iter()
+            .map(|env| FetchedEvent {
+                event: env.payload,
+                cursor: env.received_at,
+            })
+            .collect();
+
+        return Ok(results);
     }
 
+    // Stdin fallback - similar to file mode
     println!("Reading from stdin...");
-    Ok(Box::new(BufReader::new(std::io::stdin())))
+    let reader = BufReader::new(std::io::stdin());
+    let mut results = Vec::new();
+    for line in reader.lines() {
+        let line = line?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        let event: AussenEvent = serde_json::from_str(&line)?;
+        let cursor = event.ts.clone().unwrap_or_else(|| "unknown".to_string());
+        results.push(FetchedEvent { event, cursor });
+    }
+    Ok(results)
 }
 
 fn main() -> Result<()> {
@@ -167,6 +236,8 @@ fn main() -> Result<()> {
             IngestSource::Chronik {
                 since,
                 url,
+                domain,
+                limit,
                 file,
                 state_file,
                 stats_file,
@@ -181,61 +252,70 @@ fn main() -> Result<()> {
                     }
                 }
 
-                // Determine input source
-                let reader = get_reader(url.as_ref(), file.as_ref(), current_cursor.as_ref())?;
+                // Fetch events
+                match fetch_events(
+                    url.as_ref(),
+                    file.as_ref(),
+                    current_cursor.as_ref(),
+                    &domain,
+                    limit,
+                ) {
+                    Ok(fetched_events) => {
+                        let mut count = 0;
+                        let mut last_processed_cursor = String::new();
+                        let mut stats = EventStats::load(&stats_file).unwrap_or_default();
 
-                let mut count = 0;
-                let mut last_ts = String::new();
-                let mut stats = EventStats::load(&stats_file).unwrap_or_default();
+                        for item in fetched_events {
+                            let event = item.event;
+                            let cursor = item.cursor;
 
-                for line in reader.lines() {
-                    let line = line?;
-                    if line.trim().is_empty() {
-                        continue;
-                    }
-
-                    match serde_json::from_str::<AussenEvent>(&line) {
-                        Ok(event) => {
-                            // Filter by cursor if needed (simple string comparison for ISO TS)
-                            if let (Some(cursor), Some(ts)) = (&current_cursor, &event.ts) {
-                                if ts <= cursor {
-                                    continue; // Skip already processed
+                            // Filter by cursor (double check, though API should handle it)
+                            if let Some(current) = &current_cursor {
+                                if cursor <= *current {
+                                    continue;
                                 }
                             }
 
-                            // Process event: Update statistics
+                            // Process
                             stats.update(&event);
-
-                            if let Some(ts) = event.ts {
-                                last_ts = ts;
-                            } else if let Some(id) = event.id {
-                                last_ts = id; // Fallback to ID as cursor
-                            }
+                            last_processed_cursor = cursor;
                             count += 1;
                         }
-                        Err(e) => {
-                            eprintln!("Skipping invalid event: {}", e);
+
+                        println!("Processed {} new events.", count);
+
+                        if count > 0 {
+                            stats.save(&stats_file).context("Failed to save stats")?;
+                            println!("Stats updated.");
+                        }
+
+                        if !last_processed_cursor.is_empty() {
+                            let state = IngestState {
+                                cursor: last_processed_cursor,
+                                last_ok: OffsetDateTime::now_utc(),
+                                last_error: None,
+                            };
+                            state.save(&state_file).context("Failed to save state")?;
+                            println!("State updated.");
+                        } else {
+                            println!("No new events found to update state.");
                         }
                     }
-                }
+                    Err(e) => {
+                        let err_msg = format!("{:?}", e);
+                        eprintln!("Ingest failed: {}", err_msg);
 
-                println!("Processed {} new events.", count);
-
-                if count > 0 {
-                    stats.save(&stats_file).context("Failed to save stats")?;
-                    println!("Stats updated.");
-                }
-
-                if !last_ts.is_empty() {
-                    let state = IngestState {
-                        cursor: last_ts,
-                        last_ok: OffsetDateTime::now_utc(),
-                        last_error: None,
-                    };
-                    state.save(&state_file).context("Failed to save state")?;
-                    println!("State updated.");
-                } else {
-                    println!("No new events with timestamps found to update state.");
+                        // Try to update last_error in state, preserving cursor
+                        let existing_cursor =
+                            current_cursor.unwrap_or_else(|| "1970-01-01T00:00:00Z".to_string());
+                        let state = IngestState {
+                            cursor: existing_cursor,
+                            last_ok: OffsetDateTime::now_utc(), // We update TS to indicate when we tried
+                            last_error: Some(err_msg),
+                        };
+                        let _ = state.save(&state_file); // Ignore save error during error handling
+                        std::process::exit(1);
+                    }
                 }
             }
         },

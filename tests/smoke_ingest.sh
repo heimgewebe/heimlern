@@ -10,10 +10,10 @@ TEST_DIR=$(mktemp -d)
 trap 'rm -rf "$TEST_DIR"' EXIT
 
 EVENTS_FILE="$TEST_DIR/events.jsonl"
-STATE_FILE="$TEST_DIR/heimlern.cursor"
+STATE_FILE="$TEST_DIR/heimlern.ingest.state.json"
 STATS_FILE="$TEST_DIR/heimlern.stats.json"
 
-# Create sample events
+# Create sample events (Raw AussenEvents for file mode)
 cat <<EOF > "$EVENTS_FILE"
 {"type": "test", "source": "smoke", "ts": "2023-01-01T10:00:00Z", "id": "1"}
 {"type": "test", "source": "smoke", "ts": "2023-01-01T10:01:00Z", "id": "2"}
@@ -21,7 +21,10 @@ EOF
 
 # Run ingest
 echo "Running ingest..."
-./target/debug/heimlern ingest chronik --file "$EVENTS_FILE" --state-file "$STATE_FILE" --stats-file "$STATS_FILE"
+./target/debug/heimlern ingest chronik \
+    --file "$EVENTS_FILE" \
+    --state-file "$STATE_FILE" \
+    --stats-file "$STATS_FILE"
 
 # Verify state file exists
 if [ ! -f "$STATE_FILE" ]; then
