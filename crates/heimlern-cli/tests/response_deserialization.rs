@@ -39,7 +39,8 @@ fn test_chronik_response_deserialization() {
     }
     "#;
 
-    let response: ChronikEventsResponse = serde_json::from_str(json).expect("Failed to deserialize response");
+    let response: ChronikEventsResponse =
+        serde_json::from_str(json).expect("Failed to deserialize response");
 
     assert_eq!(response.events.len(), 2);
     assert_eq!(response.events[0].payload.r#type, "test");

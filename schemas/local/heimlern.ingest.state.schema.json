@@ -5,8 +5,8 @@
   "type": "object",
   "properties": {
     "cursor": {
-      "type": ["integer", "string"],
-      "description": "The identifier (byte offset or opaque token) of the last successfully processed event."
+      "type": "integer",
+      "description": "The identifier (byte offset) of the last successfully processed event."
     },
     "last_ok": {
       "type": "string",
