@@ -3,6 +3,7 @@ use clap::{Parser, Subcommand};
 use heimlern_core::event::AussenEvent;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -28,13 +29,9 @@ enum Commands {
 enum IngestSource {
     /// Ingest from Chronik
     Chronik {
-        /// Start ingesting from this cursor (timestamp/ID)
+        /// Start ingesting from this cursor (opaque string / byte offset)
         #[arg(long)]
-        since: Option<String>,
-
-        /// Chronik API URL
-        #[arg(long)]
-        url: Option<String>,
+        cursor: Option<String>,
 
         /// Domain to fetch (default: aussen)
         #[arg(long, default_value = "aussen")]
@@ -136,26 +133,33 @@ impl EventStats {
 #[derive(Deserialize, Debug)]
 struct ChronikEnvelope {
     // domain: String,
-    received_at: String,
+    // received_at: String, // Used for logical timestamp, not cursor in v1/events
     payload: AussenEvent,
 }
 
-struct FetchedEvent {
-    event: AussenEvent,
-    cursor: String,
+#[derive(Deserialize, Debug)]
+struct ChronikEventsResponse {
+    events: Vec<ChronikEnvelope>,
+    next_cursor: String,
+    // has_more: bool, // Not currently used by logic, but available
+}
+
+struct FetchResult {
+    events: Vec<AussenEvent>,
+    next_cursor: String,
 }
 
 fn fetch_events(
-    url: Option<&String>,
     file: Option<&PathBuf>,
-    since: Option<&String>,
+    cursor: Option<&String>,
     domain: &str,
     limit: u32,
-) -> Result<Vec<FetchedEvent>> {
+) -> Result<FetchResult> {
     if let Some(path) = file {
         let f = File::open(path).context("Failed to open input file")?;
         let reader = BufReader::new(f);
-        let mut results = Vec::new();
+        let mut events = Vec::new();
+        let mut last_ts = String::new();
 
         for line in reader.lines() {
             let line = line?;
@@ -165,67 +169,70 @@ fn fetch_events(
             // In file mode, we assume raw AussenEvents for simplicity/legacy support
             let event: AussenEvent = serde_json::from_str(&line)?;
 
-            // Derive cursor from TS
-            let cursor = event
-                .ts
-                .clone()
-                .or_else(|| event.id.clone())
-                .unwrap_or_else(|| "unknown".to_string());
+            // File mode simulation:
+            // If a cursor (TS) is provided, skip events <= cursor
+            if let Some(c) = cursor {
+                if let Some(ts) = &event.ts {
+                    if ts <= c {
+                        continue;
+                    }
+                }
+            }
 
-            results.push(FetchedEvent { event, cursor });
+            if let Some(ts) = &event.ts {
+                last_ts = ts.clone();
+            }
+            events.push(event);
         }
-        return Ok(results);
+
+        let next_cursor = if !last_ts.is_empty() {
+            last_ts
+        } else {
+            cursor.cloned().unwrap_or_else(|| "unknown".to_string())
+        };
+
+        return Ok(FetchResult {
+            events,
+            next_cursor,
+        });
     }
 
-    if let Some(u) = url {
-        // Construct /v1/tail URL
-        // Base URL + /v1/tail
-        let base = reqwest::Url::parse(u).context("Invalid base URL")?;
-        let tail_url = base.join("v1/tail").context("Failed to join URL path")?;
+    // Chronik API Mode
+    let base_url =
+        env::var("CHRONIK_API_URL").unwrap_or_else(|_| "http://localhost:8080".to_string());
+    let base = reqwest::Url::parse(&base_url).context("Invalid CHRONIK_API_URL")?;
+    let events_url = base.join("v1/events").context("Failed to join URL path")?;
 
-        let mut target_url = tail_url;
-        target_url
-            .query_pairs_mut()
-            .append_pair("domain", domain)
-            .append_pair("limit", &limit.to_string());
+    let mut target_url = events_url;
+    target_url
+        .query_pairs_mut()
+        .append_pair("domain", domain)
+        .append_pair("limit", &limit.to_string());
 
-        if let Some(s) = since {
-            target_url.query_pairs_mut().append_pair("since", s);
-        }
-
-        let resp = reqwest::blocking::get(target_url.clone())
-            .with_context(|| format!("Failed to fetch from {}", target_url))?;
-
-        if !resp.status().is_success() {
-            anyhow::bail!("Chronik request failed: {}", resp.status());
-        }
-
-        let envelopes: Vec<ChronikEnvelope> = resp.json()?;
-        let results = envelopes
-            .into_iter()
-            .map(|env| FetchedEvent {
-                event: env.payload,
-                cursor: env.received_at,
-            })
-            .collect();
-
-        return Ok(results);
+    if let Some(c) = cursor {
+        target_url.query_pairs_mut().append_pair("cursor", c);
     }
 
-    // Stdin fallback - similar to file mode
-    println!("Reading from stdin...");
-    let reader = BufReader::new(std::io::stdin());
-    let mut results = Vec::new();
-    for line in reader.lines() {
-        let line = line?;
-        if line.trim().is_empty() {
-            continue;
-        }
-        let event: AussenEvent = serde_json::from_str(&line)?;
-        let cursor = event.ts.clone().unwrap_or_else(|| "unknown".to_string());
-        results.push(FetchedEvent { event, cursor });
+    let resp = reqwest::blocking::get(target_url.clone())
+        .with_context(|| format!("Failed to fetch from {}", target_url))?;
+
+    if !resp.status().is_success() {
+        anyhow::bail!("Chronik request failed: {}", resp.status());
     }
-    Ok(results)
+
+    let response_body: ChronikEventsResponse = resp.json()?;
+
+    // Extract payloads
+    let events = response_body
+        .events
+        .into_iter()
+        .map(|env| env.payload)
+        .collect();
+
+    Ok(FetchResult {
+        events,
+        next_cursor: response_body.next_cursor,
+    })
 }
 
 fn main() -> Result<()> {
@@ -234,15 +241,14 @@ fn main() -> Result<()> {
     match cli.command {
         Commands::Ingest { source } => match source {
             IngestSource::Chronik {
-                since,
-                url,
+                cursor,
                 domain,
                 limit,
                 file,
                 state_file,
                 stats_file,
             } => {
-                let mut current_cursor = since.clone();
+                let mut current_cursor = cursor.clone();
 
                 // Load existing state if cursor not provided via args
                 if current_cursor.is_none() {
@@ -253,33 +259,13 @@ fn main() -> Result<()> {
                 }
 
                 // Fetch events
-                match fetch_events(
-                    url.as_ref(),
-                    file.as_ref(),
-                    current_cursor.as_ref(),
-                    &domain,
-                    limit,
-                ) {
-                    Ok(fetched_events) => {
-                        let mut count = 0;
-                        let mut last_processed_cursor = String::new();
+                match fetch_events(file.as_ref(), current_cursor.as_ref(), &domain, limit) {
+                    Ok(fetch_result) => {
                         let mut stats = EventStats::load(&stats_file).unwrap_or_default();
+                        let count = fetch_result.events.len();
 
-                        for item in fetched_events {
-                            let event = item.event;
-                            let cursor = item.cursor;
-
-                            // Filter by cursor (double check, though API should handle it)
-                            if let Some(current) = &current_cursor {
-                                if cursor <= *current {
-                                    continue;
-                                }
-                            }
-
-                            // Process
+                        for event in fetch_result.events {
                             stats.update(&event);
-                            last_processed_cursor = cursor;
-                            count += 1;
                         }
 
                         println!("Processed {} new events.", count);
@@ -289,16 +275,23 @@ fn main() -> Result<()> {
                             println!("Stats updated.");
                         }
 
-                        if !last_processed_cursor.is_empty() {
+                        // Update state with next_cursor from response (or file logic)
+                        // Only update if we actually got a new cursor or processed something?
+                        // Chronik API should return a valid next_cursor even if no events?
+                        // Usually yes (it might differ if catching up).
+                        // Let's trust the API/Logic return value.
+                        if !fetch_result.next_cursor.is_empty()
+                            && Some(&fetch_result.next_cursor) != current_cursor.as_ref()
+                        {
                             let state = IngestState {
-                                cursor: last_processed_cursor,
+                                cursor: fetch_result.next_cursor,
                                 last_ok: OffsetDateTime::now_utc(),
                                 last_error: None,
                             };
                             state.save(&state_file).context("Failed to save state")?;
                             println!("State updated.");
                         } else {
-                            println!("No new events found to update state.");
+                            println!("No new cursor advancement.");
                         }
                     }
                     Err(e) => {
@@ -306,8 +299,7 @@ fn main() -> Result<()> {
                         eprintln!("Ingest failed: {}", err_msg);
 
                         // Try to update last_error in state, preserving cursor
-                        let existing_cursor =
-                            current_cursor.unwrap_or_else(|| "1970-01-01T00:00:00Z".to_string());
+                        let existing_cursor = current_cursor.unwrap_or_else(|| "".to_string());
                         let state = IngestState {
                             cursor: existing_cursor,
                             last_ok: OffsetDateTime::now_utc(), // We update TS to indicate when we tried

@@ -38,7 +38,7 @@ if [ ! -f "$STATS_FILE" ]; then
     exit 1
 fi
 
-# Verify cursor
+# Verify cursor (should be the timestamp of the last event in file mode)
 CURSOR=$(grep -o '"cursor": *"[^"]*"' "$STATE_FILE" | cut -d'"' -f4)
 if [ "$CURSOR" != "2023-01-01T10:01:00Z" ]; then
     echo "Error: Unexpected cursor value: $CURSOR"
