@@ -30,9 +30,9 @@ enum Commands {
 enum IngestSource {
     /// Ingest from Chronik (via HTTP)
     Chronik {
-        /// Explicit cursor start (byte offset) - overrides state
+        /// Explicit cursor start (token) - overrides state
         #[arg(long)]
-        cursor: Option<u64>,
+        cursor: Option<String>,
 
         /// Domain to fetch (default: aussen)
         #[arg(long, default_value = "aussen")]
@@ -76,7 +76,7 @@ enum IngestSource {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct IngestState {
-    cursor: u64, // Strictly u64 (byte offset or line number)
+    cursor: Option<String>, // String token or null
     #[serde(with = "time::serde::iso8601")]
     last_ok: OffsetDateTime,
     last_error: Option<String>,
@@ -149,36 +149,50 @@ impl EventStats {
     }
 }
 
-// Assuming Chronik returns a wrapper. If strictly list, we'd change this.
-// "events": [ { "payload": ... }, ... ]
 #[derive(Deserialize, Debug)]
 struct ChronikEnvelope {
     payload: AussenEvent,
 }
 
 #[derive(Deserialize, Debug)]
+struct BatchMeta {
+    #[allow(dead_code)]
+    count: Option<u32>,
+    #[allow(dead_code)]
+    generated_at: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
 struct ChronikEventsResponse {
     events: Vec<ChronikEnvelope>,
-    next_cursor: u64, // Int based cursor
+    next_cursor: Option<String>,
     has_more: bool,
+    #[allow(dead_code)]
+    meta: Option<BatchMeta>,
 }
 
 struct FetchResult {
     events: Vec<AussenEvent>,
-    next_cursor: u64,
+    next_cursor: Option<String>,
     has_more: bool,
 }
 
-fn fetch_chronik(cursor: Option<u64>, domain: &str, limit: u32) -> Result<FetchResult> {
+fn fetch_chronik(cursor: Option<String>, domain: &str, limit: u32) -> Result<FetchResult> {
     let base_url =
         env::var("CHRONIK_API_URL").unwrap_or_else(|_| "http://localhost:8080".to_string());
 
-    // URL Normalization
+    // Robust URL normalization
     let mut target_url = reqwest::Url::parse(&base_url).context("Invalid CHRONIK_API_URL")?;
+
+    // Ensure we are targeting the base root for joining, or just append correctly
+    // If base is http://host/api/ and we want http://host/api/v1/events
+    // We should use join carefully.
+    // Safest strategy: If path doesn't end with v1/events, append it.
     if !target_url.path().ends_with("/v1/events") {
-        target_url = target_url
-            .join("v1/events")
-            .context("Failed to join URL path")?;
+        // Ensure trailing slash for directory-like join if needed, or use segments
+        if let Ok(mut segments) = target_url.path_segments_mut() {
+            segments.pop_if_empty().push("v1").push("events");
+        }
     }
 
     target_url
@@ -187,9 +201,7 @@ fn fetch_chronik(cursor: Option<u64>, domain: &str, limit: u32) -> Result<FetchR
         .append_pair("limit", &limit.to_string());
 
     if let Some(c) = cursor {
-        target_url
-            .query_pairs_mut()
-            .append_pair("cursor", &c.to_string());
+        target_url.query_pairs_mut().append_pair("cursor", &c);
     }
 
     // Auth & Client
@@ -253,7 +265,7 @@ fn fetch_file(path: &PathBuf, offset: u64) -> Result<FetchResult> {
 
     Ok(FetchResult {
         events,
-        next_cursor: next_offset,
+        next_cursor: Some(next_offset.to_string()),
         has_more: false,
     })
 }
@@ -262,7 +274,7 @@ fn process_ingest(
     source_result: Result<FetchResult>,
     state_file: &PathBuf,
     stats_file: &PathBuf,
-    current_cursor: &mut Option<u64>,
+    current_cursor: &mut Option<String>,
 ) -> Result<bool> {
     match source_result {
         Ok(fetch_result) => {
@@ -281,20 +293,30 @@ fn process_ingest(
             }
 
             // Update state logic
-            // Only update if cursor advanced
+            // Safety: Only commit if we processed events OR if the server advanced us (even if empty)
             let new_cursor = fetch_result.next_cursor;
 
-            // For file mode, new_cursor is offset + lines_read. If lines_read > 0, we advanced.
-            // For API, next_cursor is returned.
-            if Some(new_cursor) != *current_cursor {
+            let should_update = if new_cursor != *current_cursor {
+                // If we got data, we update.
+                // If we got no data but a new cursor, we update (skip/keep alive).
+                true
+            } else {
+                false
+            };
+
+            if should_update {
                 let state = IngestState {
-                    cursor: new_cursor,
+                    cursor: new_cursor.clone(),
                     last_ok: OffsetDateTime::now_utc(),
                     last_error: None,
                 };
                 state.save(state_file).context("Failed to save state")?;
-                *current_cursor = Some(new_cursor);
-                println!("State updated to cursor: {}", new_cursor);
+                *current_cursor = new_cursor.clone();
+                if let Some(c) = new_cursor {
+                    println!("State updated to cursor: {}", c);
+                } else {
+                    println!("State updated (cursor: null).");
+                }
             }
 
             Ok(fetch_result.has_more)
@@ -303,11 +325,27 @@ fn process_ingest(
             let err_msg = format!("{:?}", e);
             eprintln!("Ingest failed: {}", err_msg);
 
-            // Try to update last_error in state
-            let existing_cursor = current_cursor.unwrap_or(0);
+            // On error, we do NOT advance cursor. We record the error.
+            // Preserving existing cursor from memory (or default empty if none)
+            let existing_cursor = current_cursor.clone();
+
+            // We load the old state to preserve the OLD last_ok if possible?
+            // Actually, prompt says: "last_ok only update on success".
+            // So on error, we might want to keep old last_ok.
+            // But we need to write last_error.
+            // Let's try to load existing state to get old last_ok.
+
+            let old_last_ok = if let Ok(Some(s)) = IngestState::load(state_file) {
+                s.last_ok
+            } else {
+                // Fallback if read fails (unlikely if we are running)
+                // or if it's first run failure.
+                OffsetDateTime::now_utc()
+            };
+
             let state = IngestState {
                 cursor: existing_cursor,
-                last_ok: OffsetDateTime::now_utc(),
+                last_ok: old_last_ok,
                 last_error: Some(err_msg),
             };
             let _ = state.save(state_file);
@@ -334,8 +372,10 @@ fn main() -> Result<()> {
 
                 if current_cursor.is_none() {
                     if let Ok(Some(state)) = IngestState::load(&state_file) {
-                        current_cursor = Some(state.cursor);
-                        println!("Resuming from state cursor: {}", state.cursor);
+                        current_cursor = state.cursor;
+                        if let Some(c) = &current_cursor {
+                            println!("Resuming from state cursor: {}", c);
+                        }
                     }
                 }
 
@@ -346,7 +386,7 @@ fn main() -> Result<()> {
                     }
 
                     let has_more = process_ingest(
-                        fetch_chronik(current_cursor, &domain, limit),
+                        fetch_chronik(current_cursor.clone(), &domain, limit),
                         &state_file,
                         &stats_file,
                         &mut current_cursor,
@@ -364,17 +404,26 @@ fn main() -> Result<()> {
                 state_file,
                 stats_file,
             } => {
-                let mut current_cursor = line_offset;
+                let mut current_cursor = line_offset.map(|o| o.to_string());
+
+                // Fallback to loading state if CLI arg missing
                 if current_cursor.is_none() {
                     if let Ok(Some(state)) = IngestState::load(&state_file) {
-                        current_cursor = Some(state.cursor);
-                        println!("Resuming from file offset: {}", state.cursor);
+                        current_cursor = state.cursor;
+                        if let Some(c) = &current_cursor {
+                            println!("Resuming from file offset: {}", c);
+                        }
                     }
                 }
 
+                let offset_u64 = current_cursor
+                    .as_ref()
+                    .and_then(|s| s.parse::<u64>().ok())
+                    .unwrap_or(0);
+
                 // File mode is single pass
                 process_ingest(
-                    fetch_file(&path, current_cursor.unwrap_or(0)),
+                    fetch_file(&path, offset_u64),
                     &state_file,
                     &stats_file,
                     &mut current_cursor,

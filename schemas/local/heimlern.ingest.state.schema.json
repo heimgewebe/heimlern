@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.heimgewebe.org/contracts/heimlern.ingest.state.schema.json",
   "title": "Heimlern Ingest State",
+  "description": "Local state for Heimlern ingestion. Not a canonical contract.",
   "type": "object",
   "properties": {
     "cursor": {
-      "type": "integer",
-      "description": "The identifier (byte offset) of the last successfully processed event."
+      "type": ["string", "null"],
+      "description": "The identifier (token) of the last successfully processed event."
     },
     "last_ok": {
       "type": "string",
