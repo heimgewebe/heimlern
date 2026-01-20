@@ -150,7 +150,7 @@ impl EventStats {
 }
 
 #[derive(Deserialize, Debug)]
-struct ChronikEnvelope {
+struct ChronikEvent {
     r#type: Option<String>,
     payload: AussenEvent,
 }
@@ -165,7 +165,7 @@ struct BatchMeta {
 
 #[derive(Deserialize, Debug)]
 struct ChronikEventsResponse {
-    events: Vec<ChronikEnvelope>,
+    events: Vec<ChronikEvent>,
     next_cursor: Option<String>,
     has_more: bool,
     #[allow(dead_code)]
@@ -187,8 +187,8 @@ fn fetch_chronik(cursor: Option<String>, domain: &str, limit: u32) -> Result<Fet
         anyhow::bail!("Invalid domain: {}", domain);
     }
 
-    let base_url =
-        env::var("CHRONIK_API_URL").unwrap_or_else(|_| "http://localhost:8080".to_string());
+    // Require CHRONIK_API_URL without default to avoid port confusion
+    let base_url = env::var("CHRONIK_API_URL").context("CHRONIK_API_URL env var is required")?;
 
     // Robust URL normalization
     let mut url_str = base_url.trim_end_matches('/').to_string();
@@ -279,32 +279,40 @@ fn process_ingest(
             }
 
             // Update state logic
-            // Safety: Only commit if we processed events > 0.
-            // If count == 0, we do NOT advance cursor, to avoid "silent skip" of empty pages that might be errors or filters.
-            // Exception: If we decide that empty pages are valid progress (e.g. server filtered everything), we would need a flag.
-            // For now, strict safety: No events -> No cursor advance.
+            // Safety: Commit cursor if server advanced us, even if event list is empty (e.g. filtered).
+            // Safety Protocol: If next_cursor is MISSING but has_more=true, it's a protocol error.
 
-            if count > 0 {
-                let new_cursor = fetch_result.next_cursor;
-                if new_cursor != *current_cursor {
-                    let state = IngestState {
-                        cursor: new_cursor.clone(),
-                        last_ok: OffsetDateTime::now_utc(),
-                        last_error: None,
-                    };
-                    state.save(state_file).context("Failed to save state")?;
-                    *current_cursor = new_cursor.clone();
-                    if let Some(c) = new_cursor {
-                        println!("State updated to cursor: {}", c);
-                    } else {
-                        println!("State updated (cursor: null).");
-                    }
-                }
-            } else {
-                // If count is 0, we warn if has_more is true, because we might get stuck loop
-                if fetch_result.has_more {
-                    eprintln!("Warning: Received 0 events but has_more=true. Not advancing cursor to prevent skip. Potential infinite loop if data is permanently filtered.");
-                    return Ok(false); // Stop loop to avoid infinite hammering
+            if fetch_result.next_cursor.is_none() && fetch_result.has_more {
+                // Protocol Violation: Server says there is more but gives no cursor to get it.
+                // We cannot proceed safely.
+                let err_msg = "Protocol Error: has_more=true but next_cursor is missing.";
+                eprintln!("{}", err_msg);
+
+                // Record error
+                let state = IngestState {
+                    cursor: current_cursor.clone(),
+                    last_ok: OffsetDateTime::now_utc(),
+                    last_error: Some(err_msg.to_string()),
+                };
+                let _ = state.save(state_file);
+                return Err(anyhow::anyhow!(err_msg));
+            }
+
+            let new_cursor = fetch_result.next_cursor;
+
+            // Advance if new cursor is different
+            if new_cursor != *current_cursor {
+                let state = IngestState {
+                    cursor: new_cursor.clone(),
+                    last_ok: OffsetDateTime::now_utc(),
+                    last_error: None,
+                };
+                state.save(state_file).context("Failed to save state")?;
+                *current_cursor = new_cursor.clone();
+                if let Some(c) = new_cursor {
+                    println!("State updated to cursor: {}", c);
+                } else {
+                    println!("State updated (cursor: null).");
                 }
             }
 
