@@ -30,9 +30,9 @@ enum Commands {
 enum IngestSource {
     /// Ingest from Chronik (via HTTP)
     Chronik {
-        /// Explicit cursor start (token) - overrides state
+        /// Explicit cursor start (byte offset) - overrides state
         #[arg(long)]
-        cursor: Option<String>,
+        cursor: Option<u64>,
 
         /// Domain to fetch (default: aussen)
         #[arg(long, default_value = "aussen")]
@@ -76,7 +76,7 @@ enum IngestSource {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct IngestState {
-    cursor: Option<String>, // String token or null
+    cursor: Option<u64>, // Integer offset or null
     #[serde(with = "time::serde::iso8601")]
     last_ok: OffsetDateTime,
     last_error: Option<String>,
@@ -166,7 +166,7 @@ struct BatchMeta {
 #[derive(Deserialize, Debug)]
 struct ChronikEventsResponse {
     events: Vec<ChronikEvent>,
-    next_cursor: Option<String>,
+    next_cursor: Option<u64>,
     has_more: bool,
     #[allow(dead_code)]
     meta: Option<BatchMeta>,
@@ -174,11 +174,11 @@ struct ChronikEventsResponse {
 
 struct FetchResult {
     events: Vec<AussenEvent>,
-    next_cursor: Option<String>,
+    next_cursor: Option<u64>,
     has_more: bool,
 }
 
-fn fetch_chronik(cursor: Option<String>, domain: &str, limit: u32) -> Result<FetchResult> {
+fn fetch_chronik(cursor: Option<u64>, domain: &str, limit: u32) -> Result<FetchResult> {
     if domain.trim().is_empty()
         || !domain
             .chars()
@@ -205,7 +205,7 @@ fn fetch_chronik(cursor: Option<String>, domain: &str, limit: u32) -> Result<Fet
         .timeout(Duration::from_secs(10));
 
     if let Some(c) = cursor {
-        req = req.query("cursor", &c);
+        req = req.query("cursor", &c.to_string());
     }
 
     let resp = req
@@ -251,7 +251,7 @@ fn fetch_file(path: &PathBuf, offset: u64) -> Result<FetchResult> {
 
     Ok(FetchResult {
         events,
-        next_cursor: Some(next_offset.to_string()),
+        next_cursor: Some(next_offset),
         has_more: false,
     })
 }
@@ -260,7 +260,7 @@ fn process_ingest(
     source_result: Result<FetchResult>,
     state_file: &PathBuf,
     stats_file: &PathBuf,
-    current_cursor: &mut Option<String>,
+    current_cursor: &mut Option<u64>,
 ) -> Result<bool> {
     match source_result {
         Ok(fetch_result) => {
@@ -278,20 +278,21 @@ fn process_ingest(
                 println!("No new events.");
             }
 
-            // Update state logic
-            // Safety: Commit cursor if server advanced us, even if event list is empty (e.g. filtered).
             // Safety Protocol: If next_cursor is MISSING but has_more=true, it's a protocol error.
-
             if fetch_result.next_cursor.is_none() && fetch_result.has_more {
-                // Protocol Violation: Server says there is more but gives no cursor to get it.
-                // We cannot proceed safely.
                 let err_msg = "Protocol Error: has_more=true but next_cursor is missing.";
                 eprintln!("{}", err_msg);
 
-                // Record error
+                // Record error, preserve old last_ok
+                let old_last_ok = if let Ok(Some(s)) = IngestState::load(state_file) {
+                    s.last_ok
+                } else {
+                    OffsetDateTime::now_utc()
+                };
+
                 let state = IngestState {
-                    cursor: current_cursor.clone(),
-                    last_ok: OffsetDateTime::now_utc(),
+                    cursor: *current_cursor,
+                    last_ok: old_last_ok,
                     last_error: Some(err_msg.to_string()),
                 };
                 let _ = state.save(state_file);
@@ -303,12 +304,12 @@ fn process_ingest(
             // Advance if new cursor is different
             if new_cursor != *current_cursor {
                 let state = IngestState {
-                    cursor: new_cursor.clone(),
+                    cursor: new_cursor,
                     last_ok: OffsetDateTime::now_utc(),
                     last_error: None,
                 };
                 state.save(state_file).context("Failed to save state")?;
-                *current_cursor = new_cursor.clone();
+                *current_cursor = new_cursor;
                 if let Some(c) = new_cursor {
                     println!("State updated to cursor: {}", c);
                 } else {
@@ -322,7 +323,7 @@ fn process_ingest(
             let err_msg = format!("{:?}", e);
             eprintln!("Ingest failed: {}", err_msg);
 
-            let existing_cursor = current_cursor.clone();
+            let existing_cursor = *current_cursor;
 
             let old_last_ok = if let Ok(Some(s)) = IngestState::load(state_file) {
                 s.last_ok
@@ -336,7 +337,8 @@ fn process_ingest(
                 last_error: Some(err_msg),
             };
             let _ = state.save(state_file);
-            std::process::exit(1);
+            // Return error to main loop instead of exit
+            Err(anyhow::anyhow!("Ingestion cycle failed"))
         }
     }
 }
@@ -360,7 +362,7 @@ fn main() -> Result<()> {
                 if current_cursor.is_none() {
                     if let Ok(Some(state)) = IngestState::load(&state_file) {
                         current_cursor = state.cursor;
-                        if let Some(c) = &current_cursor {
+                        if let Some(c) = current_cursor {
                             println!("Resuming from state cursor: {}", c);
                         }
                     }
@@ -372,16 +374,22 @@ fn main() -> Result<()> {
                         break;
                     }
 
-                    let has_more = process_ingest(
-                        fetch_chronik(current_cursor.clone(), &domain, limit),
+                    match process_ingest(
+                        fetch_chronik(current_cursor, &domain, limit),
                         &state_file,
                         &stats_file,
                         &mut current_cursor,
-                    )?;
-
-                    batches_processed += 1;
-                    if !has_more {
-                        break;
+                    ) {
+                        Ok(has_more) => {
+                            batches_processed += 1;
+                            if !has_more {
+                                break;
+                            }
+                        }
+                        Err(_) => {
+                            // process_ingest already logs and saves state error
+                            std::process::exit(1);
+                        }
                     }
                 }
             }
@@ -391,30 +399,29 @@ fn main() -> Result<()> {
                 state_file,
                 stats_file,
             } => {
-                let mut current_cursor = line_offset.map(|o| o.to_string());
+                let mut current_cursor = line_offset;
 
                 // Fallback to loading state if CLI arg missing
                 if current_cursor.is_none() {
                     if let Ok(Some(state)) = IngestState::load(&state_file) {
                         current_cursor = state.cursor;
-                        if let Some(c) = &current_cursor {
+                        if let Some(c) = current_cursor {
                             println!("Resuming from file offset: {}", c);
                         }
                     }
                 }
 
-                let offset_u64 = current_cursor
-                    .as_ref()
-                    .and_then(|s| s.parse::<u64>().ok())
-                    .unwrap_or(0);
+                let offset_u64 = current_cursor.unwrap_or(0);
 
                 // File mode is single pass
-                process_ingest(
+                if let Err(_) = process_ingest(
                     fetch_file(&path, offset_u64),
                     &state_file,
                     &stats_file,
                     &mut current_cursor,
-                )?;
+                ) {
+                    std::process::exit(1);
+                }
             }
         },
     }

@@ -12,10 +12,10 @@ def validate(file_path):
                 print(f"Missing required field: {r}")
                 sys.exit(1)
 
-        # Cursor can be string or null
+        # Cursor must be integer or null
         cursor = data.get('cursor')
-        if cursor is not None and not isinstance(cursor, str):
-             print(f"Cursor must be string or null, got {type(cursor)}")
+        if cursor is not None and not isinstance(cursor, int):
+             print(f"Cursor must be int or null, got {type(cursor)}")
              sys.exit(1)
 
         print("Valid JSON structure")

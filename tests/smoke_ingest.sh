@@ -1,8 +1,9 @@
 #!/bin/bash
 set -e
 
-# Use cargo run to ensure robust invocation
-RUN_CMD="cargo run -p heimlern-cli -- ingest"
+# Build the CLI
+echo "Building heimlern-cli..."
+cargo build -p heimlern-cli
 
 # Create a temporary directory for test data
 TEST_DIR=$(mktemp -d)
@@ -20,7 +21,7 @@ EOF
 
 # Run ingest - pass 1
 echo "Running ingest pass 1..."
-$RUN_CMD file \
+./target/debug/heimlern ingest file \
     --path "$EVENTS_FILE" \
     --state-file "$STATE_FILE" \
     --stats-file "$STATS_FILE"
@@ -34,8 +35,8 @@ fi
 # Validate state JSON structure
 python3 tests/validate_state.py "$STATE_FILE"
 
-# Verify cursor (should be "2")
-CURSOR=$(grep -o '"cursor": *"[^"]*"' "$STATE_FILE" | head -n1 | cut -d'"' -f4)
+# Verify cursor (should be 2)
+CURSOR=$(grep -o '"cursor": *[0-9]*' "$STATE_FILE" | head -n1 | awk -F': ' '{print $2}')
 if [ "$CURSOR" != "2" ]; then
     echo "Error: Unexpected cursor value: $CURSOR"
     cat "$STATE_FILE"
@@ -47,13 +48,13 @@ echo '{"type": "test", "source": "smoke", "ts": "2023-01-01T10:02:00Z", "id": "3
 
 # Run ingest - pass 2 (resume)
 echo "Running ingest pass 2..."
-$RUN_CMD file \
+./target/debug/heimlern ingest file \
     --path "$EVENTS_FILE" \
     --state-file "$STATE_FILE" \
     --stats-file "$STATS_FILE"
 
-# Verify cursor updated to "3"
-CURSOR=$(grep -o '"cursor": *"[^"]*"' "$STATE_FILE" | head -n1 | cut -d'"' -f4)
+# Verify cursor updated to 3
+CURSOR=$(grep -o '"cursor": *[0-9]*' "$STATE_FILE" | head -n1 | awk -F': ' '{print $2}')
 if [ "$CURSOR" != "3" ]; then
     echo "Error: Unexpected cursor value pass 2: $CURSOR"
     cat "$STATE_FILE"
