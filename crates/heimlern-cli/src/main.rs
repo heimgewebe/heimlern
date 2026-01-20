@@ -151,6 +151,7 @@ impl EventStats {
 
 #[derive(Deserialize, Debug)]
 struct ChronikEnvelope {
+    r#type: Option<String>,
     payload: AussenEvent,
 }
 
@@ -178,55 +179,40 @@ struct FetchResult {
 }
 
 fn fetch_chronik(cursor: Option<String>, domain: &str, limit: u32) -> Result<FetchResult> {
+    if domain.trim().is_empty()
+        || !domain
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '.' || c == '-' || c == '_')
+    {
+        anyhow::bail!("Invalid domain: {}", domain);
+    }
+
     let base_url =
         env::var("CHRONIK_API_URL").unwrap_or_else(|_| "http://localhost:8080".to_string());
 
     // Robust URL normalization
-    let mut target_url = reqwest::Url::parse(&base_url).context("Invalid CHRONIK_API_URL")?;
-
-    // Ensure we are targeting the base root for joining, or just append correctly
-    // If base is http://host/api/ and we want http://host/api/v1/events
-    // We should use join carefully.
-    // Safest strategy: If path doesn't end with v1/events, append it.
-    if !target_url.path().ends_with("/v1/events") {
-        // Ensure trailing slash for directory-like join if needed, or use segments
-        if let Ok(mut segments) = target_url.path_segments_mut() {
-            segments.pop_if_empty().push("v1").push("events");
-        }
+    let mut url_str = base_url.trim_end_matches('/').to_string();
+    if !url_str.ends_with("/v1/events") {
+        url_str.push_str("/v1/events");
     }
 
-    target_url
-        .query_pairs_mut()
-        .append_pair("domain", domain)
-        .append_pair("limit", &limit.to_string());
-
-    if let Some(c) = cursor {
-        target_url.query_pairs_mut().append_pair("cursor", &c);
-    }
-
-    // Auth & Client
     let token = env::var("CHRONIK_TOKEN").context("CHRONIK_TOKEN env var is required")?;
 
-    let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(10))
-        .build()?;
+    let mut req = ureq::get(&url_str)
+        .set("X-Auth", &token)
+        .query("domain", domain)
+        .query("limit", &limit.to_string())
+        .timeout(Duration::from_secs(10));
 
-    let resp = client
-        .get(target_url.clone())
-        .header("X-Auth", token)
-        .send()
-        .with_context(|| format!("Failed to fetch from {}", target_url))?;
-
-    if !resp.status().is_success() {
-        if resp.status() == reqwest::StatusCode::UNAUTHORIZED
-            || resp.status() == reqwest::StatusCode::FORBIDDEN
-        {
-            anyhow::bail!("Access denied: {}", resp.status());
-        }
-        anyhow::bail!("Chronik request failed: {}", resp.status());
+    if let Some(c) = cursor {
+        req = req.query("cursor", &c);
     }
 
-    let response_body: ChronikEventsResponse = resp.json()?;
+    let resp = req
+        .call()
+        .with_context(|| format!("Failed to fetch from {}", url_str))?;
+
+    let response_body: ChronikEventsResponse = resp.into_json()?;
 
     let events = response_body
         .events
@@ -293,29 +279,32 @@ fn process_ingest(
             }
 
             // Update state logic
-            // Safety: Only commit if we processed events OR if the server advanced us (even if empty)
-            let new_cursor = fetch_result.next_cursor;
+            // Safety: Only commit if we processed events > 0.
+            // If count == 0, we do NOT advance cursor, to avoid "silent skip" of empty pages that might be errors or filters.
+            // Exception: If we decide that empty pages are valid progress (e.g. server filtered everything), we would need a flag.
+            // For now, strict safety: No events -> No cursor advance.
 
-            let should_update = if new_cursor != *current_cursor {
-                // If we got data, we update.
-                // If we got no data but a new cursor, we update (skip/keep alive).
-                true
+            if count > 0 {
+                let new_cursor = fetch_result.next_cursor;
+                if new_cursor != *current_cursor {
+                    let state = IngestState {
+                        cursor: new_cursor.clone(),
+                        last_ok: OffsetDateTime::now_utc(),
+                        last_error: None,
+                    };
+                    state.save(state_file).context("Failed to save state")?;
+                    *current_cursor = new_cursor.clone();
+                    if let Some(c) = new_cursor {
+                        println!("State updated to cursor: {}", c);
+                    } else {
+                        println!("State updated (cursor: null).");
+                    }
+                }
             } else {
-                false
-            };
-
-            if should_update {
-                let state = IngestState {
-                    cursor: new_cursor.clone(),
-                    last_ok: OffsetDateTime::now_utc(),
-                    last_error: None,
-                };
-                state.save(state_file).context("Failed to save state")?;
-                *current_cursor = new_cursor.clone();
-                if let Some(c) = new_cursor {
-                    println!("State updated to cursor: {}", c);
-                } else {
-                    println!("State updated (cursor: null).");
+                // If count is 0, we warn if has_more is true, because we might get stuck loop
+                if fetch_result.has_more {
+                    eprintln!("Warning: Received 0 events but has_more=true. Not advancing cursor to prevent skip. Potential infinite loop if data is permanently filtered.");
+                    return Ok(false); // Stop loop to avoid infinite hammering
                 }
             }
 
@@ -325,21 +314,11 @@ fn process_ingest(
             let err_msg = format!("{:?}", e);
             eprintln!("Ingest failed: {}", err_msg);
 
-            // On error, we do NOT advance cursor. We record the error.
-            // Preserving existing cursor from memory (or default empty if none)
             let existing_cursor = current_cursor.clone();
-
-            // We load the old state to preserve the OLD last_ok if possible?
-            // Actually, prompt says: "last_ok only update on success".
-            // So on error, we might want to keep old last_ok.
-            // But we need to write last_error.
-            // Let's try to load existing state to get old last_ok.
 
             let old_last_ok = if let Ok(Some(s)) = IngestState::load(state_file) {
                 s.last_ok
             } else {
-                // Fallback if read fails (unlikely if we are running)
-                // or if it's first run failure.
                 OffsetDateTime::now_utc()
             };
 

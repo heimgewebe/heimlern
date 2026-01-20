@@ -3,12 +3,13 @@ use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
 struct ChronikEnvelope {
+    r#type: Option<String>,
     payload: AussenEvent,
 }
 
 #[derive(Deserialize, Debug)]
 struct BatchMeta {
-    count: u32,
+    count: Option<u32>,
     generated_at: Option<String>,
 }
 
@@ -26,6 +27,7 @@ fn test_chronik_response_deserialization_standard() {
     {
         "events": [
             {
+                "type": "test_type_wrapper",
                 "payload": {
                     "type": "test",
                     "source": "unit_test",
@@ -43,6 +45,10 @@ fn test_chronik_response_deserialization_standard() {
         serde_json::from_str(json).expect("Failed to deserialize response");
 
     assert_eq!(response.events.len(), 1);
+    assert_eq!(
+        response.events[0].r#type,
+        Some("test_type_wrapper".to_string())
+    );
     assert_eq!(response.events[0].payload.r#type, "test");
     assert_eq!(response.next_cursor, Some("token_123".to_string()));
     assert!(response.has_more);
@@ -84,5 +90,5 @@ fn test_chronik_response_deserialization_with_meta() {
         serde_json::from_str(json).expect("Failed to deserialize response");
 
     assert!(response.meta.is_some());
-    assert_eq!(response.meta.unwrap().count, 0);
+    assert_eq!(response.meta.unwrap().count, Some(0));
 }

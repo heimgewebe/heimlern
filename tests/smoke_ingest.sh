@@ -1,9 +1,8 @@
 #!/bin/bash
 set -e
 
-# Build the CLI
-echo "Building heimlern-cli..."
-cargo build -p heimlern-cli
+# Use cargo run to ensure robust invocation
+RUN_CMD="cargo run -p heimlern-cli -- ingest"
 
 # Create a temporary directory for test data
 TEST_DIR=$(mktemp -d)
@@ -21,7 +20,7 @@ EOF
 
 # Run ingest - pass 1
 echo "Running ingest pass 1..."
-./target/debug/heimlern ingest file \
+$RUN_CMD file \
     --path "$EVENTS_FILE" \
     --state-file "$STATE_FILE" \
     --stats-file "$STATS_FILE"
@@ -48,7 +47,7 @@ echo '{"type": "test", "source": "smoke", "ts": "2023-01-01T10:02:00Z", "id": "3
 
 # Run ingest - pass 2 (resume)
 echo "Running ingest pass 2..."
-./target/debug/heimlern ingest file \
+$RUN_CMD file \
     --path "$EVENTS_FILE" \
     --state-file "$STATE_FILE" \
     --stats-file "$STATS_FILE"
