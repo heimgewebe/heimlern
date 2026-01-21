@@ -10,6 +10,7 @@ struct ChronikEnvelope {
 #[derive(Deserialize, Debug)]
 struct BatchMeta {
     count: Option<u32>,
+    #[allow(dead_code)]
     generated_at: Option<String>,
 }
 
