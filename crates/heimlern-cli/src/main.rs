@@ -151,6 +151,7 @@ impl EventStats {
 
 #[derive(Deserialize, Debug)]
 struct ChronikEvent {
+    #[allow(dead_code)]
     r#type: Option<String>,
     payload: AussenEvent,
 }
@@ -327,7 +328,7 @@ fn process_ingest(
             // Actually, if next_cursor is None, we just stay where we are.
 
             let mut cursor_updated = false;
-            if let Some(nc) = &new_cursor {
+            if let Some(_nc) = &new_cursor {
                 if *current_cursor != new_cursor {
                     *current_cursor = new_cursor.clone();
                     cursor_updated = true;
