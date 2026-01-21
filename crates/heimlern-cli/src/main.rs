@@ -454,7 +454,9 @@ fn main() -> Result<()> {
                     &state_file,
                     &stats_file,
                     &mut current_cursor,
-                ).is_err() {
+                )
+                .is_err()
+                {
                     std::process::exit(1);
                 }
             }
