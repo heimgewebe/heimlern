@@ -76,7 +76,7 @@ enum IngestSource {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct IngestState {
-    cursor: Option<u64>, // Integer offset or null
+    cursor: u64, // Strictly u64
     #[serde(with = "time::serde::iso8601")]
     last_ok: OffsetDateTime,
     last_error: Option<String>,
@@ -166,7 +166,7 @@ struct BatchMeta {
 #[derive(Deserialize, Debug)]
 struct ChronikEventsResponse {
     events: Vec<ChronikEvent>,
-    next_cursor: Option<u64>,
+    next_cursor: u64, // Strictly u64
     has_more: bool,
     #[allow(dead_code)]
     meta: Option<BatchMeta>,
@@ -174,7 +174,7 @@ struct ChronikEventsResponse {
 
 struct FetchResult {
     events: Vec<AussenEvent>,
-    next_cursor: Option<u64>,
+    next_cursor: u64,
     has_more: bool,
 }
 
@@ -182,23 +182,31 @@ fn fetch_chronik(cursor: Option<u64>, domain: &str, limit: u32) -> Result<FetchR
     if domain.trim().is_empty()
         || !domain
             .chars()
-            .all(|c| c.is_alphanumeric() || c == '.' || c == '-' || c == '_')
+            .all(|c| c.is_alphanumeric() || c == '.' || c == '-')
     {
         anyhow::bail!("Invalid domain: {}", domain);
     }
 
-    // Require CHRONIK_API_URL without default to avoid port confusion
     let base_url = env::var("CHRONIK_API_URL").context("CHRONIK_API_URL env var is required")?;
 
     // Robust URL normalization
-    let mut url_str = base_url.trim_end_matches('/').to_string();
-    if !url_str.ends_with("/v1/events") {
-        url_str.push_str("/v1/events");
+    // Use proper path manipulation
+    let mut target_url = url::Url::parse(&base_url).context("Invalid CHRONIK_API_URL")?;
+
+    // If the path does not end with v1/events, we append it.
+    // We want to be careful not to double append if someone set http://host/v1/events
+    if !target_url.path().ends_with("v1/events") {
+        // Safe join logic:
+        // 1. Remove trailing slash from current path to avoid double slash issues in logic (though join handles it)
+        // 2. Use path_segments_mut to push segments
+        if let Ok(mut segments) = target_url.path_segments_mut() {
+            segments.pop_if_empty().push("v1").push("events");
+        }
     }
 
     let token = env::var("CHRONIK_TOKEN").context("CHRONIK_TOKEN env var is required")?;
 
-    let mut req = ureq::get(&url_str)
+    let mut req = ureq::get(target_url.as_str())
         .set("X-Auth", &token)
         .query("domain", domain)
         .query("limit", &limit.to_string())
@@ -210,7 +218,7 @@ fn fetch_chronik(cursor: Option<u64>, domain: &str, limit: u32) -> Result<FetchR
 
     let resp = req
         .call()
-        .with_context(|| format!("Failed to fetch from {}", url_str))?;
+        .with_context(|| format!("Failed to fetch from {}", target_url))?;
 
     let response_body: ChronikEventsResponse = resp.into_json()?;
 
@@ -251,7 +259,7 @@ fn fetch_file(path: &PathBuf, offset: u64) -> Result<FetchResult> {
 
     Ok(FetchResult {
         events,
-        next_cursor: Some(next_offset),
+        next_cursor: next_offset,
         has_more: false,
     })
 }
@@ -260,7 +268,7 @@ fn process_ingest(
     source_result: Result<FetchResult>,
     state_file: &PathBuf,
     stats_file: &PathBuf,
-    current_cursor: &mut Option<u64>,
+    current_cursor: &mut u64,
 ) -> Result<bool> {
     match source_result {
         Ok(fetch_result) => {
@@ -278,44 +286,22 @@ fn process_ingest(
                 println!("No new events.");
             }
 
-            // Safety Protocol: If next_cursor is MISSING but has_more=true, it's a protocol error.
-            if fetch_result.next_cursor.is_none() && fetch_result.has_more {
-                let err_msg = "Protocol Error: has_more=true but next_cursor is missing.";
-                eprintln!("{}", err_msg);
-
-                // Record error, preserve old last_ok
-                let old_last_ok = if let Ok(Some(s)) = IngestState::load(state_file) {
-                    s.last_ok
-                } else {
-                    OffsetDateTime::now_utc()
-                };
-
-                let state = IngestState {
-                    cursor: *current_cursor,
-                    last_ok: old_last_ok,
-                    last_error: Some(err_msg.to_string()),
-                };
-                let _ = state.save(state_file);
-                return Err(anyhow::anyhow!(err_msg));
-            }
-
+            // Update state logic
             let new_cursor = fetch_result.next_cursor;
 
-            // Advance if new cursor is different
+            // Advance cursor
             if new_cursor != *current_cursor {
-                let state = IngestState {
-                    cursor: new_cursor,
-                    last_ok: OffsetDateTime::now_utc(),
-                    last_error: None,
-                };
-                state.save(state_file).context("Failed to save state")?;
                 *current_cursor = new_cursor;
-                if let Some(c) = new_cursor {
-                    println!("State updated to cursor: {}", c);
-                } else {
-                    println!("State updated (cursor: null).");
-                }
             }
+
+            // Always save state on success to update last_ok
+            let state = IngestState {
+                cursor: *current_cursor,
+                last_ok: OffsetDateTime::now_utc(),
+                last_error: None,
+            };
+            state.save(state_file).context("Failed to save state")?;
+            println!("State updated to cursor: {}", *current_cursor);
 
             Ok(fetch_result.has_more)
         }
@@ -325,6 +311,7 @@ fn process_ingest(
 
             let existing_cursor = *current_cursor;
 
+            // Preserve old last_ok
             let old_last_ok = if let Ok(Some(s)) = IngestState::load(state_file) {
                 s.last_ok
             } else {
@@ -337,7 +324,6 @@ fn process_ingest(
                 last_error: Some(err_msg),
             };
             let _ = state.save(state_file);
-            // Return error to main loop instead of exit
             Err(anyhow::anyhow!("Ingestion cycle failed"))
         }
     }
@@ -357,14 +343,12 @@ fn main() -> Result<()> {
                 stats_file,
             } => {
                 let mut batches_processed = 0;
-                let mut current_cursor = cursor;
+                let mut current_cursor = cursor.unwrap_or(0); // Default to 0
 
-                if current_cursor.is_none() {
+                if cursor.is_none() {
                     if let Ok(Some(state)) = IngestState::load(&state_file) {
                         current_cursor = state.cursor;
-                        if let Some(c) = current_cursor {
-                            println!("Resuming from state cursor: {}", c);
-                        }
+                        println!("Resuming from state cursor: {}", current_cursor);
                     }
                 }
 
@@ -375,7 +359,7 @@ fn main() -> Result<()> {
                     }
 
                     match process_ingest(
-                        fetch_chronik(current_cursor, &domain, limit),
+                        fetch_chronik(Some(current_cursor), &domain, limit),
                         &state_file,
                         &stats_file,
                         &mut current_cursor,
@@ -387,7 +371,6 @@ fn main() -> Result<()> {
                             }
                         }
                         Err(_) => {
-                            // process_ingest already logs and saves state error
                             std::process::exit(1);
                         }
                     }
@@ -399,23 +382,19 @@ fn main() -> Result<()> {
                 state_file,
                 stats_file,
             } => {
-                let mut current_cursor = line_offset;
+                let mut current_cursor = line_offset.unwrap_or(0);
 
                 // Fallback to loading state if CLI arg missing
-                if current_cursor.is_none() {
+                if line_offset.is_none() {
                     if let Ok(Some(state)) = IngestState::load(&state_file) {
                         current_cursor = state.cursor;
-                        if let Some(c) = current_cursor {
-                            println!("Resuming from file offset: {}", c);
-                        }
+                        println!("Resuming from file offset: {}", current_cursor);
                     }
                 }
 
-                let offset_u64 = current_cursor.unwrap_or(0);
-
                 // File mode is single pass
                 if let Err(_) = process_ingest(
-                    fetch_file(&path, offset_u64),
+                    fetch_file(&path, current_cursor),
                     &state_file,
                     &stats_file,
                     &mut current_cursor,

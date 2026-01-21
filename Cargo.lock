@@ -285,6 +285,7 @@ dependencies = [
  "serde_json",
  "time",
  "ureq",
+ "url",
 ]
 
 [[package]]
