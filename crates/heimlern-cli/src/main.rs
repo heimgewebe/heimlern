@@ -276,8 +276,8 @@ fn fetch_file(path: &PathBuf, offset: u64) -> Result<FetchResult> {
 
 fn process_ingest(
     source_result: Result<FetchResult>,
-    state_file: &PathBuf,
-    stats_file: &PathBuf,
+    state_file: &Path,
+    stats_file: &Path,
     current_cursor: &mut Option<String>,
 ) -> Result<bool> {
     match source_result {
@@ -449,12 +449,12 @@ fn main() -> Result<()> {
                     .unwrap_or(0);
 
                 // File mode is single pass
-                if let Err(_) = process_ingest(
+                if process_ingest(
                     fetch_file(&path, offset_u64),
                     &state_file,
                     &stats_file,
                     &mut current_cursor,
-                ) {
+                ).is_err() {
                     std::process::exit(1);
                 }
             }
