@@ -15,20 +15,20 @@ def validate(file_path):
         # Cursor must be integer
         cursor = data.get('cursor')
         if not isinstance(cursor, int):
-             print(f"Cursor must be int, got {type(cursor)}")
-             sys.exit(1)
+            print(f"Cursor must be int, got {type(cursor)}")
+            sys.exit(1)
 
         # Mode must be Chronik or File
         mode = data.get('mode')
         if mode not in ["Chronik", "File"]:
-             print(f"Invalid mode: {mode}")
-             sys.exit(1)
+            print(f"Invalid mode: {mode}")
+            sys.exit(1)
 
         # last_ok can be string or null
         last_ok = data.get('last_ok')
         if last_ok is not None and not isinstance(last_ok, str):
-             print(f"last_ok must be string or null, got {type(last_ok)}")
-             sys.exit(1)
+            print(f"last_ok must be string or null, got {type(last_ok)}")
+            sys.exit(1)
 
         print("Valid JSON structure")
     except Exception as e:
