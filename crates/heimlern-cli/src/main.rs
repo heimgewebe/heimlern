@@ -204,11 +204,12 @@ fn fetch_chronik(cursor: Option<u64>, domain: &str, limit: u32) -> Result<FetchR
         anyhow::bail!("Invalid domain: {}", domain);
     }
 
-    let base_env = env::var("CHRONIK_BASE_URL")
+    let base_env = env::var("CHRONIK_INGEST_URL")
+        .or_else(|_| env::var("CHRONIK_BASE_URL"))
         .or_else(|_| env::var("CHRONIK_API_URL"))
-        .context("CHRONIK_BASE_URL or CHRONIK_API_URL env var is required")?;
+        .context("CHRONIK_INGEST_URL, CHRONIK_BASE_URL, or CHRONIK_API_URL env var is required")?;
 
-    let mut target_url = url::Url::parse(&base_env).context("Invalid CHRONIK_BASE_URL")?;
+    let mut target_url = url::Url::parse(&base_env).context("Invalid Chronik URL")?;
 
     {
         let mut path = target_url.path().to_string();
