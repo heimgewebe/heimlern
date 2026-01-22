@@ -345,13 +345,14 @@ fn process_ingest(
                 }
             }
 
-            let state = IngestState {
+            IngestState {
                 cursor: *current_cursor,
                 mode,
                 last_ok: Some(OffsetDateTime::now_utc()),
                 last_error: None,
-            };
-            state.save(state_file).context("Failed to save state")?;
+            }
+            .save(state_file)
+            .context("Failed to save state")?;
             println!("State updated to cursor: {}", *current_cursor);
 
             Ok(fetch_result.has_more)
@@ -368,13 +369,13 @@ fn process_ingest(
                 None
             };
 
-            let state = IngestState {
+            let _ = IngestState {
                 cursor: existing_cursor,
                 mode,
                 last_ok: old_last_ok,
                 last_error: Some(err_msg),
-            };
-            let _ = state.save(state_file);
+            }
+            .save(state_file);
             Err(anyhow::anyhow!("Ingestion cycle failed"))
         }
     }
