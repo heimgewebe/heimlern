@@ -17,7 +17,7 @@ struct BatchMeta {
 #[derive(Deserialize, Debug)]
 struct ChronikEventsResponse {
     events: Vec<ChronikEnvelope>,
-    next_cursor: Option<String>,
+    next_cursor: u64,
     has_more: bool,
     meta: Option<BatchMeta>,
 }
@@ -37,7 +37,7 @@ fn test_chronik_response_deserialization_standard() {
                 }
             }
         ],
-        "next_cursor": "token_123",
+        "next_cursor": 123,
         "has_more": true
     }
     "#;
@@ -51,16 +51,16 @@ fn test_chronik_response_deserialization_standard() {
         Some("test_type_wrapper".to_string())
     );
     assert_eq!(response.events[0].payload.r#type, "test");
-    assert_eq!(response.next_cursor, Some("token_123".to_string()));
+    assert_eq!(response.next_cursor, 123);
     assert!(response.has_more);
 }
 
 #[test]
-fn test_chronik_response_deserialization_null_cursor() {
+fn test_chronik_response_deserialization_empty() {
     let json = r#"
     {
         "events": [],
-        "next_cursor": null,
+        "next_cursor": 0,
         "has_more": false
     }
     "#;
@@ -69,7 +69,7 @@ fn test_chronik_response_deserialization_null_cursor() {
         serde_json::from_str(json).expect("Failed to deserialize response");
 
     assert_eq!(response.events.len(), 0);
-    assert_eq!(response.next_cursor, None);
+    assert_eq!(response.next_cursor, 0);
     assert!(!response.has_more);
 }
 
@@ -78,7 +78,7 @@ fn test_chronik_response_deserialization_with_meta() {
     let json = r#"
     {
         "events": [],
-        "next_cursor": "token_456",
+        "next_cursor": 456,
         "has_more": false,
         "meta": {
             "count": 0,
@@ -92,5 +92,5 @@ fn test_chronik_response_deserialization_with_meta() {
 
     assert!(response.meta.is_some());
     assert_eq!(response.meta.unwrap().count, Some(0));
-    assert_eq!(response.next_cursor, Some("token_456".to_string()));
+    assert_eq!(response.next_cursor, 456);
 }
