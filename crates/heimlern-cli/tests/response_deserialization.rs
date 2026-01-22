@@ -42,10 +42,14 @@ fn test_chronik_response_deserialization_standard() {
     }
     "#;
 
-    let response: ChronikEventsResponse = serde_json::from_str(json).expect("Failed to deserialize response");
+    let response: ChronikEventsResponse =
+        serde_json::from_str(json).expect("Failed to deserialize response");
 
     assert_eq!(response.events.len(), 1);
-    assert_eq!(response.events[0].r#type, Some("test_type_wrapper".to_string()));
+    assert_eq!(
+        response.events[0].r#type,
+        Some("test_type_wrapper".to_string())
+    );
     assert_eq!(response.events[0].payload.r#type, "test");
     assert_eq!(response.next_cursor, Some(123));
     assert!(response.has_more);
@@ -61,7 +65,8 @@ fn test_chronik_response_deserialization_null_cursor() {
     }
     "#;
 
-    let response: ChronikEventsResponse = serde_json::from_str(json).expect("Failed to deserialize response");
+    let response: ChronikEventsResponse =
+        serde_json::from_str(json).expect("Failed to deserialize response");
 
     assert_eq!(response.events.len(), 0);
     assert_eq!(response.next_cursor, None);
@@ -82,7 +87,8 @@ fn test_chronik_response_deserialization_with_meta() {
     }
     "#;
 
-    let response: ChronikEventsResponse = serde_json::from_str(json).expect("Failed to deserialize response");
+    let response: ChronikEventsResponse =
+        serde_json::from_str(json).expect("Failed to deserialize response");
 
     assert!(response.meta.is_some());
     assert_eq!(response.meta.unwrap().count, Some(0));

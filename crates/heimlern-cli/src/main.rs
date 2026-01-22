@@ -183,7 +183,7 @@ struct BatchMeta {
 #[derive(Deserialize, Debug)]
 struct ChronikEventsResponse {
     events: Vec<ChronikEvent>,
-    next_cursor: Option<u64>, // Relaxed to Option<u64>
+    next_cursor: u64, // Strictly u64
     has_more: bool,
     #[allow(dead_code)]
     meta: Option<BatchMeta>,
@@ -191,7 +191,7 @@ struct ChronikEventsResponse {
 
 struct FetchResult {
     events: Vec<AussenEvent>,
-    next_cursor: Option<u64>, // Relaxed to Option<u64>
+    next_cursor: u64,
     has_more: bool,
 }
 
@@ -286,7 +286,7 @@ fn fetch_file(path: &Path, offset: u64) -> Result<FetchResult> {
 
     Ok(FetchResult {
         events,
-        next_cursor: Some(next_offset),
+        next_cursor: next_offset,
         has_more: false,
     })
 }
@@ -300,7 +300,8 @@ fn process_ingest(
 ) -> Result<bool> {
     match source_result {
         Ok(fetch_result) => {
-            let mut stats = EventStats::load(stats_file).unwrap_or_default();
+            // Strict stats load: fail if corrupt
+            let mut stats = EventStats::load(stats_file)?;
             let count = fetch_result.events.len();
 
             for event in fetch_result.events {
@@ -314,35 +315,36 @@ fn process_ingest(
                 println!("No new events.");
             }
 
-            // Safety Protocol: If next_cursor is MISSING but has_more=true, it's a protocol error.
-            if fetch_result.next_cursor.is_none() && fetch_result.has_more {
-                let err_msg = "Protocol Error: has_more=true but next_cursor is missing.";
+            // Stalled Cursor Check: next_cursor same as current AND has_more=true
+            // This is a protocol violation or infinite loop risk.
+            if fetch_result.next_cursor == *current_cursor && fetch_result.has_more {
+                let err_msg = format!(
+                    "Protocol Error: Stalled cursor {} with has_more=true",
+                    *current_cursor
+                );
                 eprintln!("{}", err_msg);
 
-                // Record error, preserve old last_ok
                 let old_last_ok = if let Ok(Some(s)) = IngestState::load(state_file, mode) {
                     s.last_ok
                 } else {
                     None
                 };
 
-                let state = IngestState {
+                let _ = IngestState {
                     cursor: *current_cursor,
                     mode,
                     last_ok: old_last_ok,
                     last_error: Some(err_msg.to_string()),
-                };
-                let _ = state.save(state_file);
+                }
+                .save(state_file);
+
                 return Err(anyhow::anyhow!(err_msg));
             }
 
             let new_cursor = fetch_result.next_cursor;
 
-            // Advance cursor if valid and changed
-            if let Some(nc) = new_cursor {
-                if nc != *current_cursor {
-                    *current_cursor = nc;
-                }
+            if new_cursor != *current_cursor {
+                *current_cursor = new_cursor;
             }
 
             IngestState {
@@ -353,6 +355,7 @@ fn process_ingest(
             }
             .save(state_file)
             .context("Failed to save state")?;
+
             println!("State updated to cursor: {}", *current_cursor);
 
             Ok(fetch_result.has_more)
