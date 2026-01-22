@@ -12,37 +12,36 @@ Er dient als Brücke zwischen „Events existieren“ und „Heimlern hat sie ta
 * **Heimlern** ist Lern-Organ (Bandits/Feedback/Policies) – braucht Eingänge, aber soll nicht zwingend als dauerlaufender Service starten müssen.
 * **heimlern-cli** ist der **ausführbare Ingest-Orchestrator**: ideal für Cron/systemd, lokale Entwicklung und Debugging.
 
-Damit bleibt das Lernen **service-unabhängig**: man kann Ingest laufen lassen, ohne eine komplette Heimlern-Deployment-Topologie zu benötigen.
-
 ## Designprinzipien
 
 1. **Statefulness ohne Datenbank**
    Der Fortschritt wird in einer lokalen State-Datei gehalten (`cursor`, `mode`, `last_ok`, `last_error`). Das ist bewusst „klein“ und deploymentfreundlich.
 
 2. **Resumierbarkeit als Default**
-   Wenn kein Cursor übergeben wird, wird aus der State-Datei fortgesetzt. Damit sind Runs idempotent-ish und operativ stabil.
+   Wenn kein Cursor übergeben wird, wird aus der State-Datei fortgesetzt.
 
 3. **Protokollhärtung gegen Drift**
    Es gibt explizite Checks für fehlerhafte Serverantworten:
    * `has_more=true` aber `next_cursor` fehlt → Protokollfehler
    * Cursor „stallt“ (`next_cursor == current` bei `has_more=true`) → Protokollfehler
-   Solche Fälle werden im State als Fehler vermerkt und brechen mit Exit-Code ≠ 0 ab.
 
 4. **Simulation zuerst**
-   `ingest file` ermöglicht reproduzierbare Tests/Debugging ohne Chronik-HTTP. Das reduziert Integrationsstress und beschleunigt Entwicklung.
+   `ingest file` ermöglicht reproduzierbare Tests/Debugging ohne Chronik-HTTP.
+   * **Cursor-Semantik:** Im File-Mode ist der Cursor ein **Line-Offset** (0-basiert). In Chronik-Mode ein **Byte-Offset** (opaque u64).
 
 5. **Stats als operatives Nebenprodukt**
-   Eine Stats-Datei zählt Events nach Typ/Quelle und liefert ein minimales Observability-Signal („läuft es überhaupt“, „was kommt rein“), ohne gleich eine Monitoring-Infrastruktur vorauszusetzen.
+   Eine Stats-Datei zählt Events nach Typ/Quelle.
 
 ## Nutzung
 
 ### Ingest aus Chronik (Produktion)
 
 ```bash
+# URL-Format: Basis-URL (z.B. http://localhost:3000). /v1/events wird automatisch angehängt.
 export CHRONIK_BASE_URL="http://localhost:3000"
 export CHRONIK_TOKEN="secret-token"
 
-# Startet Ingest, resumed automatisch aus State-Datei
+# Startet Ingest. Domain muss alphanumerisch (+ . -) sein.
 heimlern ingest chronik --domain aussen
 ```
 
@@ -55,6 +54,5 @@ heimlern ingest file --path events.jsonl
 
 ## Abgrenzung
 
-* `heimlern-cli` enthält **Orchestrationslogik**, nicht die Lernlogik.
-* Die Lernlogik bleibt in `heimlern-core` / `heimlern-bandits` / `heimlern-feedback`.
 * Die State-/Stats-Dateien sind **nicht-kanonisch** (lokal, operational).
+* `last_ok`: Ein fehlendes oder `null` Feld im State bedeutet, dass der Ingest noch nie erfolgreich war.
