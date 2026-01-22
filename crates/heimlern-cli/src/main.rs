@@ -74,7 +74,7 @@ enum IngestSource {
     },
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Copy)]
 enum IngestMode {
     Chronik,
     File,
@@ -360,12 +360,11 @@ fn process_ingest(
 
             let state = IngestState {
                 cursor: existing_cursor,
-                mode: IngestMode::Chronik, // Placeholder, need to fix
+                mode,
                 last_ok: old_last_ok,
                 last_error: Some(err_msg),
             };
-            // logic above is broken because `mode` variable usage.
-            // I will fix struct definition.
+            let _ = state.save(state_file);
             Err(anyhow::anyhow!("Ingestion cycle failed"))
         }
     }
