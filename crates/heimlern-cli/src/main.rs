@@ -307,12 +307,14 @@ fn process_ingest(
                 stats.update(&event);
             }
 
-            if count > 0 {
-                println!("Processed {} events.", count);
-                stats.save(stats_file).context("Failed to save stats")?;
-            } else {
-                println!("No new events.");
-            }
+            // Always update last_updated to reflect the check time
+            stats.last_updated = OffsetDateTime::now_utc();
+
+            println!(
+                "Processed {} events. (Stats updated at {})",
+                count, stats.last_updated
+            );
+            stats.save(stats_file).context("Failed to save stats")?;
 
             // Safety Protocol: If next_cursor is MISSING but has_more=true, it's a protocol error.
             if fetch_result.next_cursor.is_none() && fetch_result.has_more {
