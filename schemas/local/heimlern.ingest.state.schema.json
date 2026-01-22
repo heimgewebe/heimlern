@@ -5,11 +5,11 @@
   "type": "object",
   "properties": {
     "cursor": {
-      "type": ["string", "null"],
-      "description": "The identifier (token) of the last successfully processed event."
+      "type": "integer",
+      "description": "The identifier (byte offset) of the last successfully processed event."
     },
     "last_ok": {
-      "type": "string",
+      "type": ["string", "null"],
       "format": "date-time",
       "description": "Timestamp when the ingest process last ran successfully."
     },
