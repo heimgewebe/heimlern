@@ -338,25 +338,13 @@ fn process_ingest(
             let existing_cursor = *current_cursor;
 
             // Preserve old last_ok
-            // Note: We need expected mode here too, which is circular if load fails.
-            // But we know the mode we ARE running in.
-            // If load fails due to mismatch, we overwrite? No, load returns error.
-            // If load returns error, we might overwrite a valid file of wrong mode?
-            // Safer to attempt load with expected mode.
+            // Attempt to load existing state to get last_ok. If load fails (e.g. file missing,
+            // corrupt, or mode mismatch), we start fresh with None.
             let old_last_ok = if let Ok(Some(s)) = IngestState::load(state_file, mode) {
-                // mode is Copy? No, derived PartialEq/Debug. Need Copy or Clone.
-                // Assuming mode matches if load success.
                 s.last_ok
             } else {
                 None
             };
-
-            // Re-derive mode since it was moved? No, passed by value?
-            // Struct IngestMode doesn't derive Copy.
-            // I should derive Clone/Copy.
-
-            // Wait, IngestMode needs Clone/Copy for this.
-            // I will add Clone, Copy.
 
             let state = IngestState {
                 cursor: existing_cursor,

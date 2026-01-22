@@ -6,7 +6,12 @@
   "properties": {
     "cursor": {
       "type": "integer",
-      "description": "The identifier (byte offset) of the last successfully processed event."
+      "description": "The identifier (byte offset or line offset) of the last successfully processed event."
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["Chronik", "File"],
+      "description": "The ingestion mode this state file belongs to."
     },
     "last_ok": {
       "type": ["string", "null"],
@@ -18,5 +23,6 @@
       "description": "Error message if the last run failed."
     }
   },
-  "required": ["cursor", "last_ok"]
+  "required": ["cursor", "mode", "last_ok"],
+  "additionalProperties": false
 }
