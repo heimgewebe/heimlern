@@ -183,7 +183,7 @@ struct BatchMeta {
 #[derive(Deserialize, Debug)]
 struct ChronikEventsResponse {
     events: Vec<ChronikEvent>,
-    next_cursor: u64, // Strictly u64
+    next_cursor: Option<u64>, // Relaxed to Option<u64>
     has_more: bool,
     #[allow(dead_code)]
     meta: Option<BatchMeta>,
@@ -191,7 +191,7 @@ struct ChronikEventsResponse {
 
 struct FetchResult {
     events: Vec<AussenEvent>,
-    next_cursor: u64,
+    next_cursor: Option<u64>, // Relaxed to Option<u64>
     has_more: bool,
 }
 
@@ -204,12 +204,11 @@ fn fetch_chronik(cursor: Option<u64>, domain: &str, limit: u32) -> Result<FetchR
         anyhow::bail!("Invalid domain: {}", domain);
     }
 
-    let base_env = env::var("CHRONIK_INGEST_URL")
-        .or_else(|_| env::var("CHRONIK_BASE_URL"))
+    let base_env = env::var("CHRONIK_BASE_URL")
         .or_else(|_| env::var("CHRONIK_API_URL"))
-        .context("CHRONIK_INGEST_URL, CHRONIK_BASE_URL, or CHRONIK_API_URL env var is required")?;
+        .context("CHRONIK_BASE_URL or CHRONIK_API_URL env var is required")?;
 
-    let mut target_url = url::Url::parse(&base_env).context("Invalid Chronik URL")?;
+    let mut target_url = url::Url::parse(&base_env).context("Invalid CHRONIK_BASE_URL")?;
 
     {
         let mut path = target_url.path().to_string();
@@ -287,7 +286,7 @@ fn fetch_file(path: &Path, offset: u64) -> Result<FetchResult> {
 
     Ok(FetchResult {
         events,
-        next_cursor: next_offset,
+        next_cursor: Some(next_offset),
         has_more: false,
     })
 }
@@ -315,10 +314,35 @@ fn process_ingest(
                 println!("No new events.");
             }
 
+            // Safety Protocol: If next_cursor is MISSING but has_more=true, it's a protocol error.
+            if fetch_result.next_cursor.is_none() && fetch_result.has_more {
+                let err_msg = "Protocol Error: has_more=true but next_cursor is missing.";
+                eprintln!("{}", err_msg);
+
+                // Record error, preserve old last_ok
+                let old_last_ok = if let Ok(Some(s)) = IngestState::load(state_file, mode) {
+                    s.last_ok
+                } else {
+                    None
+                };
+
+                let state = IngestState {
+                    cursor: *current_cursor,
+                    mode,
+                    last_ok: old_last_ok,
+                    last_error: Some(err_msg.to_string()),
+                };
+                let _ = state.save(state_file);
+                return Err(anyhow::anyhow!(err_msg));
+            }
+
             let new_cursor = fetch_result.next_cursor;
 
-            if new_cursor != *current_cursor {
-                *current_cursor = new_cursor;
+            // Advance cursor if valid and changed
+            if let Some(nc) = new_cursor {
+                if nc != *current_cursor {
+                    *current_cursor = nc;
+                }
             }
 
             let state = IngestState {
@@ -338,9 +362,6 @@ fn process_ingest(
 
             let existing_cursor = *current_cursor;
 
-            // Preserve old last_ok
-            // Attempt to load existing state to get last_ok. If load fails (e.g. file missing,
-            // corrupt, or mode mismatch), we start fresh with None.
             let old_last_ok = if let Ok(Some(s)) = IngestState::load(state_file, mode) {
                 s.last_ok
             } else {
