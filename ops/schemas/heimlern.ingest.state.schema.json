@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Heimlern Ingest State",
+  "description": "Local state for Heimlern ingestion. Not a canonical contract.",
+  "type": "object",
+  "properties": {
+    "cursor": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The identifier (byte offset or line offset) of the last successfully processed event."
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["Chronik", "File"],
+      "description": "The ingestion mode this state file belongs to."
+    },
+    "last_ok": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Timestamp when the ingest process last ran successfully."
+    },
+    "last_error": {
+      "type": ["string", "null"],
+      "description": "Error message if the last run failed."
+    }
+  },
+  "required": ["cursor", "mode", "last_ok"],
+  "additionalProperties": false
+}
