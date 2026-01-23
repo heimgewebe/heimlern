@@ -405,7 +405,9 @@ fn process_ingest(
                 eprintln!("{}", err_msg);
 
                 // Record error, preserve old last_ok
-                record_state_error(state_file, mode, *current_cursor, err_msg)?;
+                if let Err(e) = record_state_error(state_file, mode, *current_cursor, err_msg) {
+                    eprintln!("Failed to record error state: {}", e);
+                }
 
                 return Err(anyhow::anyhow!(err_msg));
             }
@@ -421,7 +423,11 @@ fn process_ingest(
                         *current_cursor
                     );
                     eprintln!("{}", err_msg);
-                    record_state_error(state_file, mode, *current_cursor, &err_msg)?;
+                    if let Err(e) =
+                        record_state_error(state_file, mode, *current_cursor, &err_msg)
+                    {
+                        eprintln!("Failed to record error state: {}", e);
+                    }
                     return Err(anyhow::anyhow!(err_msg));
                 }
 
@@ -450,7 +456,9 @@ fn process_ingest(
             let err_msg = e.to_string();
             eprintln!("Ingest failed: {}", err_msg);
 
-            record_state_error(state_file, mode, *current_cursor, &err_msg)?;
+            if let Err(e) = record_state_error(state_file, mode, *current_cursor, &err_msg) {
+                eprintln!("Failed to record error state: {}", e);
+            }
             Err(anyhow::anyhow!("Ingestion cycle failed"))
         }
     }
@@ -661,5 +669,69 @@ mod tests {
         assert_eq!(state.cursor, 20);
         assert!(state.last_ok.is_some());
         assert!(state.last_error.is_none());
+    }
+
+    #[test]
+    fn test_process_ingest_save_error_does_not_mask_protocol_error() {
+        // Setup: Create a directory that we can make read-only to force a save error
+        let dir = std::env::temp_dir().join("heimlern_test_save_error");
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::create_dir_all(&dir);
+
+        // On Unix, removing write permissions from the directory prevents creating files in it.
+        // We set mode to 500 (r-x --- ---).
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&dir).unwrap().permissions();
+            perms.set_mode(0o500);
+            std::fs::set_permissions(&dir, perms).unwrap();
+        }
+
+        let state_file = dir.join("state.json");
+        let stats_file = dir.join("stats.json");
+
+        // Use a different stats file location that IS writable, because process_ingest
+        // tries to save stats BEFORE checking protocol errors. If stats save fails,
+        // it returns early. We want to test record_state_error failure specifically.
+        // So we need a separate writable dir for stats.
+        let writable_dir = std::env::temp_dir().join("heimlern_test_save_error_writable");
+        let _ = std::fs::remove_dir_all(&writable_dir);
+        let _ = std::fs::create_dir_all(&writable_dir);
+        let valid_stats_file = writable_dir.join("stats.json");
+
+        let fetch_result = FetchResult {
+            events: vec![],
+            next_cursor: None,
+            has_more: true, // Protocol error condition
+        };
+        let mut cursor = 0;
+
+        let res = process_ingest(
+            Ok(fetch_result),
+            &state_file, // This save should fail
+            &valid_stats_file, // This save should succeed
+            &mut cursor,
+            IngestMode::Chronik,
+        );
+
+        // Cleanup permissions so we can delete the dir
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&dir).unwrap().permissions();
+            perms.set_mode(0o700);
+            std::fs::set_permissions(&dir, perms).unwrap();
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&writable_dir);
+
+        // Assertions
+        assert!(res.is_err());
+        let err_str = res.unwrap_err().to_string();
+
+        // We expect the Protocol Error, NOT the Permission Denied error from saving state
+        assert!(err_str.contains("Protocol Error"));
+        assert!(!err_str.contains("Permission denied"));
     }
 }
