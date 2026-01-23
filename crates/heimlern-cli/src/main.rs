@@ -423,8 +423,7 @@ fn process_ingest(
                         *current_cursor
                     );
                     eprintln!("{}", err_msg);
-                    if let Err(e) =
-                        record_state_error(state_file, mode, *current_cursor, &err_msg)
+                    if let Err(e) = record_state_error(state_file, mode, *current_cursor, &err_msg)
                     {
                         eprintln!("Failed to record error state: {}", e);
                     }
@@ -597,7 +596,10 @@ mod tests {
             IngestMode::Chronik,
         );
         assert!(res.is_err());
-        assert!(res.unwrap_err().to_string().contains("next_cursor is missing"));
+        assert!(res
+            .unwrap_err()
+            .to_string()
+            .contains("next_cursor is missing"));
 
         // Check state recorded
         let state = IngestState::load(&state_file, IngestMode::Chronik)
@@ -709,7 +711,7 @@ mod tests {
 
         let res = process_ingest(
             Ok(fetch_result),
-            &state_file, // This save should fail
+            &state_file,       // This save should fail
             &valid_stats_file, // This save should succeed
             &mut cursor,
             IngestMode::Chronik,
