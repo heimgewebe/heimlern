@@ -1,3 +1,8 @@
+//! CLI for heimlern.
+//!
+//! Provides commands for ingesting events from Chronik or local files, managing state and stats,
+//! and performing drift checks. It serves as the operational interface for the policy framework.
+
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use heimlern_core::event::AussenEvent;
@@ -195,12 +200,105 @@ struct FetchResult {
     has_more: bool,
 }
 
+fn is_valid_domain(domain: &str) -> bool {
+    let domain = domain.trim();
+    if domain.is_empty() || domain.len() > 253 {
+        return false;
+    }
+    if domain.contains(char::is_whitespace) {
+        return false;
+    }
+    if domain.starts_with('.') || domain.ends_with('.') {
+        return false;
+    }
+
+    for label in domain.split('.') {
+        if label.is_empty() || label.len() > 63 {
+            return false;
+        }
+        let mut chars = label.chars();
+        // First char must be alphanumeric
+        if !chars.next().unwrap().is_alphanumeric() {
+            return false;
+        }
+        // If there's more than one char, the last must be alphanumeric
+        if label.len() > 1 && !label.chars().last().unwrap().is_alphanumeric() {
+            return false;
+        }
+        // All chars must be alphanumeric or hyphen
+        if !label.chars().all(|c| c.is_alphanumeric() || c == '-') {
+            return false;
+        }
+    }
+
+    true
+}
+
+fn record_state_error(
+    state_file: &Path,
+    mode: IngestMode,
+    cursor: u64,
+    err_msg: &str,
+) -> Result<()> {
+    // Attempt to load old state to preserve last_ok
+    let old_last_ok = if let Ok(Some(s)) = IngestState::load(state_file, mode) {
+        s.last_ok
+    } else {
+        None
+    };
+
+    let state = IngestState {
+        cursor,
+        mode,
+        last_ok: old_last_ok,
+        last_error: Some(err_msg.to_string()),
+    };
+
+    if let Err(e) = state.save(state_file) {
+        eprintln!(
+            "CRITICAL: Failed to save error state to {:?}. Original error: {}. Save error: {}",
+            state_file, err_msg, e
+        );
+        return Err(e);
+    }
+
+    Ok(())
+}
+
+fn build_chronik_url(base: &str) -> Result<url::Url> {
+    let mut target_url = url::Url::parse(base).context("Invalid base URL")?;
+
+    let mut segments: Vec<String> = target_url
+        .path_segments()
+        .map(|iter| iter.map(String::from).collect())
+        .unwrap_or_default();
+
+    if let Some(last) = segments.last() {
+        if last.is_empty() {
+            segments.pop();
+        }
+    }
+
+    if segments.ends_with(&["v1".to_string(), "events".to_string()]) {
+        segments.pop();
+        segments.pop();
+    } else if segments.ends_with(&["v1".to_string()]) {
+        segments.pop();
+    }
+
+    target_url
+        .path_segments_mut()
+        .expect("URL to be mutable")
+        .clear()
+        .extend(segments)
+        .push("v1")
+        .push("events");
+
+    Ok(target_url)
+}
+
 fn fetch_chronik(cursor: Option<u64>, domain: &str, limit: u32) -> Result<FetchResult> {
-    if domain.trim().is_empty()
-        || !domain
-            .chars()
-            .all(|c| c.is_alphanumeric() || c == '.' || c == '-')
-    {
+    if !is_valid_domain(domain) {
         anyhow::bail!("Invalid domain: {}", domain);
     }
 
@@ -208,28 +306,7 @@ fn fetch_chronik(cursor: Option<u64>, domain: &str, limit: u32) -> Result<FetchR
         .or_else(|_| env::var("CHRONIK_API_URL"))
         .context("CHRONIK_BASE_URL or CHRONIK_API_URL env var is required")?;
 
-    let mut target_url = url::Url::parse(&base_env).context("Invalid CHRONIK_BASE_URL")?;
-
-    {
-        let mut path = target_url.path().to_string();
-        if path.ends_with("/v1/events") {
-            path = path.replace("/v1/events", "");
-        } else if path.ends_with("/v1/events/") {
-            path = path.replace("/v1/events/", "");
-        } else if path.ends_with("/v1") {
-            path = path.replace("/v1", "");
-        } else if path.ends_with("/v1/") {
-            path = path.replace("/v1/", "");
-        }
-        if path.ends_with('/') {
-            path.pop();
-        }
-        target_url.set_path(&path);
-    }
-
-    if let Ok(mut segments) = target_url.path_segments_mut() {
-        segments.pop_if_empty().push("v1").push("events");
-    }
+    let target_url = build_chronik_url(&base_env).context("Failed to build Chronik URL")?;
 
     let token = env::var("CHRONIK_TOKEN").context("CHRONIK_TOKEN env var is required")?;
 
@@ -282,7 +359,7 @@ fn fetch_file(path: &Path, offset: u64) -> Result<FetchResult> {
         lines_read += 1;
     }
 
-    let next_offset = offset + lines_read; // next line number
+    let next_offset = offset.checked_add(lines_read).context("Cursor overflow")?;
 
     Ok(FetchResult {
         events,
@@ -300,7 +377,13 @@ fn process_ingest(
 ) -> Result<bool> {
     match source_result {
         Ok(fetch_result) => {
-            let mut stats = EventStats::load(stats_file).unwrap_or_default();
+            let mut stats = EventStats::load(stats_file).unwrap_or_else(|e| {
+                eprintln!(
+                    "Warning: failed to read stats from {:?}; starting fresh: {}",
+                    stats_file, e
+                );
+                EventStats::default()
+            });
             let count = fetch_result.events.len();
 
             for event in fetch_result.events {
@@ -322,19 +405,7 @@ fn process_ingest(
                 eprintln!("{}", err_msg);
 
                 // Record error, preserve old last_ok
-                let old_last_ok = if let Ok(Some(s)) = IngestState::load(state_file, mode) {
-                    s.last_ok
-                } else {
-                    None
-                };
-
-                let _ = IngestState {
-                    cursor: *current_cursor,
-                    mode,
-                    last_ok: old_last_ok,
-                    last_error: Some(err_msg.to_string()),
-                }
-                .save(state_file);
+                record_state_error(state_file, mode, *current_cursor, err_msg)?;
 
                 return Err(anyhow::anyhow!(err_msg));
             }
@@ -350,18 +421,7 @@ fn process_ingest(
                         *current_cursor
                     );
                     eprintln!("{}", err_msg);
-                    let old_last_ok = if let Ok(Some(s)) = IngestState::load(state_file, mode) {
-                        s.last_ok
-                    } else {
-                        None
-                    };
-                    let _ = IngestState {
-                        cursor: *current_cursor,
-                        mode,
-                        last_ok: old_last_ok,
-                        last_error: Some(err_msg.to_string()),
-                    }
-                    .save(state_file);
+                    record_state_error(state_file, mode, *current_cursor, &err_msg)?;
                     return Err(anyhow::anyhow!(err_msg));
                 }
 
@@ -387,24 +447,10 @@ fn process_ingest(
             Ok(fetch_result.has_more)
         }
         Err(e) => {
-            let err_msg = format!("{:?}", e);
+            let err_msg = e.to_string();
             eprintln!("Ingest failed: {}", err_msg);
 
-            let existing_cursor = *current_cursor;
-
-            let old_last_ok = if let Ok(Some(s)) = IngestState::load(state_file, mode) {
-                s.last_ok
-            } else {
-                None
-            };
-
-            let _ = IngestState {
-                cursor: existing_cursor,
-                mode,
-                last_ok: old_last_ok,
-                last_error: Some(err_msg),
-            }
-            .save(state_file);
+            record_state_error(state_file, mode, *current_cursor, &err_msg)?;
             Err(anyhow::anyhow!("Ingestion cycle failed"))
         }
     }
@@ -439,20 +485,17 @@ fn main() -> Result<()> {
                         break;
                     }
 
-                    match process_ingest(
+                    let has_more = process_ingest(
                         fetch_chronik(Some(current_cursor), &domain, limit),
                         &state_file,
                         &stats_file,
                         &mut current_cursor,
                         IngestMode::Chronik,
-                    ) {
-                        Ok(has_more) => {
-                            batches_processed += 1;
-                            if !has_more {
-                                break;
-                            }
-                        }
-                        Err(_) => std::process::exit(1),
+                    )?;
+
+                    batches_processed += 1;
+                    if !has_more {
+                        break;
                     }
                 }
             }
@@ -471,20 +514,152 @@ fn main() -> Result<()> {
                     }
                 }
 
-                if process_ingest(
+                process_ingest(
                     fetch_file(&path, current_cursor),
                     &state_file,
                     &stats_file,
                     &mut current_cursor,
                     IngestMode::File,
-                )
-                .is_err()
-                {
-                    std::process::exit(1);
-                }
+                )?;
             }
         },
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_valid_domain() {
+        assert!(is_valid_domain("example.com"));
+        assert!(is_valid_domain("a.b.c"));
+        assert!(is_valid_domain("my-domain.com"));
+        assert!(is_valid_domain("x"));
+
+        assert!(!is_valid_domain(""));
+        assert!(!is_valid_domain(" "));
+        assert!(!is_valid_domain(".start"));
+        assert!(!is_valid_domain("end."));
+        assert!(!is_valid_domain("my..domain"));
+        assert!(!is_valid_domain("bad_char"));
+        assert!(!is_valid_domain("-start"));
+        assert!(!is_valid_domain("end-"));
+    }
+
+    #[test]
+    fn test_build_chronik_url() {
+        let cases = vec![
+            ("http://host", "http://host/v1/events"),
+            ("http://host/", "http://host/v1/events"),
+            ("http://host/v1", "http://host/v1/events"),
+            ("http://host/v1/events", "http://host/v1/events"),
+            ("http://host/prefix", "http://host/prefix/v1/events"),
+            ("http://host/prefix/", "http://host/prefix/v1/events"),
+        ];
+
+        for (input, expected) in cases {
+            let url = build_chronik_url(input).unwrap();
+            assert_eq!(url.as_str(), expected);
+        }
+    }
+
+    #[test]
+    fn test_process_ingest_protocol_error_missing_cursor() {
+        let dir = std::env::temp_dir().join("heimlern_test_missing_cursor");
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::create_dir_all(&dir);
+        let state_file = dir.join("state.json");
+        let stats_file = dir.join("stats.json");
+
+        let fetch_result = FetchResult {
+            events: vec![],
+            next_cursor: None,
+            has_more: true,
+        };
+        let mut cursor = 0;
+
+        let res = process_ingest(
+            Ok(fetch_result),
+            &state_file,
+            &stats_file,
+            &mut cursor,
+            IngestMode::Chronik,
+        );
+        assert!(res.is_err());
+        assert!(res.unwrap_err().to_string().contains("next_cursor is missing"));
+
+        // Check state recorded
+        let state = IngestState::load(&state_file, IngestMode::Chronik)
+            .unwrap()
+            .unwrap();
+        assert!(state.last_error.is_some());
+    }
+
+    #[test]
+    fn test_process_ingest_protocol_error_stalled() {
+        let dir = std::env::temp_dir().join("heimlern_test_stalled");
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::create_dir_all(&dir);
+        let state_file = dir.join("state.json");
+        let stats_file = dir.join("stats.json");
+
+        let fetch_result = FetchResult {
+            events: vec![],
+            next_cursor: Some(10),
+            has_more: true,
+        };
+        let mut cursor = 10; // Same as next
+
+        let res = process_ingest(
+            Ok(fetch_result),
+            &state_file,
+            &stats_file,
+            &mut cursor,
+            IngestMode::Chronik,
+        );
+        assert!(res.is_err());
+        assert!(res.unwrap_err().to_string().contains("Stalled cursor"));
+
+        let state = IngestState::load(&state_file, IngestMode::Chronik)
+            .unwrap()
+            .unwrap();
+        assert!(state.last_error.is_some());
+    }
+
+    #[test]
+    fn test_process_ingest_normal() {
+        let dir = std::env::temp_dir().join("heimlern_test_normal");
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::create_dir_all(&dir);
+        let state_file = dir.join("state.json");
+        let stats_file = dir.join("stats.json");
+
+        let fetch_result = FetchResult {
+            events: vec![],
+            next_cursor: Some(20),
+            has_more: true,
+        };
+        let mut cursor = 10;
+
+        let res = process_ingest(
+            Ok(fetch_result),
+            &state_file,
+            &stats_file,
+            &mut cursor,
+            IngestMode::Chronik,
+        );
+        assert!(res.is_ok());
+        assert!(res.unwrap()); // has_more
+        assert_eq!(cursor, 20);
+
+        let state = IngestState::load(&state_file, IngestMode::Chronik)
+            .unwrap()
+            .unwrap();
+        assert_eq!(state.cursor, 20);
+        assert!(state.last_ok.is_some());
+        assert!(state.last_error.is_none());
+    }
 }

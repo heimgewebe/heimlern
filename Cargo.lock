@@ -279,7 +279,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "heimlern-bandits",
  "heimlern-core",
  "serde",
  "serde_json",

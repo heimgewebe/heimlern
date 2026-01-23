@@ -17,5 +17,4 @@ anyhow = "1"
 ureq = { version = "2.9", features = ["json"] }
 time = { version = "0.3", features = ["formatting", "parsing", "serde"] }
 heimlern-core = { path = "../heimlern-core" }
-heimlern-bandits = { path = "../heimlern-bandits" }
 url = "2.5.8"
