@@ -691,7 +691,6 @@ mod tests {
         }
 
         let state_file = dir.join("state.json");
-        let stats_file = dir.join("stats.json");
 
         // Use a different stats file location that IS writable, because process_ingest
         // tries to save stats BEFORE checking protocol errors. If stats save fails,
