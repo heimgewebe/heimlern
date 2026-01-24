@@ -674,20 +674,33 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_process_ingest_save_error_does_not_mask_protocol_error() {
+        use std::os::unix::fs::PermissionsExt;
+        
         // Setup: Create a directory that we can make read-only to force a save error
         let dir = std::env::temp_dir().join("heimlern_test_save_error");
         let _ = std::fs::remove_dir_all(&dir);
         let _ = std::fs::create_dir_all(&dir);
 
-        // On Unix, removing write permissions from the directory prevents creating files in it.
+        // Remove write permissions from the directory to prevent creating files in it.
         // We set mode to 500 (r-x --- ---).
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&dir).unwrap().permissions();
+        perms.set_mode(0o500);
+        std::fs::set_permissions(&dir, perms).unwrap();
+        
+        // Verify permissions were actually set (some filesystems may not support this)
+        let actual_perms = std::fs::metadata(&dir).unwrap().permissions();
+        let actual_mode = actual_perms.mode() & 0o777;
+        if actual_mode != 0o500 {
+            // Skip test if filesystem doesn't support permission changes
+            eprintln!("Warning: Skipping test - filesystem doesn't support permission restriction (mode: {:o})", actual_mode);
+            // Cleanup and return early
             let mut perms = std::fs::metadata(&dir).unwrap().permissions();
-            perms.set_mode(0o500);
-            std::fs::set_permissions(&dir, perms).unwrap();
+            perms.set_mode(0o700);
+            let _ = std::fs::set_permissions(&dir, perms);
+            let _ = std::fs::remove_dir_all(&dir);
+            return;
         }
 
         let state_file = dir.join("state.json");
@@ -717,13 +730,9 @@ mod tests {
         );
 
         // Cleanup permissions so we can delete the dir
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = std::fs::metadata(&dir).unwrap().permissions();
-            perms.set_mode(0o700);
-            std::fs::set_permissions(&dir, perms).unwrap();
-        }
+        let mut perms = std::fs::metadata(&dir).unwrap().permissions();
+        perms.set_mode(0o700);
+        std::fs::set_permissions(&dir, perms).unwrap();
         let _ = std::fs::remove_dir_all(&dir);
         let _ = std::fs::remove_dir_all(&writable_dir);
 
