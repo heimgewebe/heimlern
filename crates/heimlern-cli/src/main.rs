@@ -200,6 +200,15 @@ struct FetchResult {
     has_more: bool,
 }
 
+/// Validates an event domain/namespace identifier.
+/// 
+/// This validates event namespace identifiers (e.g., "aussen", "sensor.v1"), not DNS domains.
+/// Single-label identifiers like "aussen" are valid by design.
+/// 
+/// Rules:
+/// - Labels separated by dots, each 1-63 chars, total ≤253 chars
+/// - Each label: starts/ends with alphanumeric, may contain hyphens in middle
+/// - No whitespace, underscores, or leading/trailing dots
 fn is_valid_domain(domain: &str) -> bool {
     let domain = domain.trim();
     if domain.is_empty() || domain.len() > 253 {
