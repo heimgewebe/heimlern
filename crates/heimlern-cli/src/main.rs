@@ -203,12 +203,17 @@ struct FetchResult {
 /// Validates an event domain/namespace identifier.
 ///
 /// This validates event namespace identifiers (e.g., "aussen", "sensor.v1"), not DNS domains.
-/// Single-label identifiers like "aussen" are valid by design.
+/// Single-label identifiers like "aussen" are valid by design for internal event routing.
 ///
-/// Rules:
+/// Rules (similar to DNS hostname rules but applied to namespace identifiers):
 /// - Labels separated by dots, each 1-63 chars, total ≤253 chars
 /// - Each label: starts/ends with alphanumeric, may contain hyphens in middle
 /// - No whitespace, underscores, or leading/trailing dots
+/// - No IDN/Unicode (ASCII alphanumeric + hyphens only)
+///
+/// Note: If future requirements need different characters (e.g., underscores, slashes),
+/// this validation should be relaxed or the semantic meaning of "domain" clarified
+/// with respect to the Chronik API contract.
 fn is_valid_event_domain(domain: &str) -> bool {
     let domain = domain.trim();
     if domain.is_empty() || domain.len() > 253 {
@@ -297,7 +302,7 @@ fn build_chronik_url(base: &str) -> Result<url::Url> {
 
     target_url
         .path_segments_mut()
-        .expect("URL to be mutable")
+        .map_err(|()| anyhow::anyhow!("URL cannot be used as a base (e.g., 'data:' or 'mailto:' schemes are not supported)"))?
         .clear()
         .extend(segments)
         .push("v1")
@@ -467,7 +472,7 @@ fn process_ingest(
             if let Err(e) = record_state_error(state_file, mode, *current_cursor, &err_msg) {
                 eprintln!("Failed to record error state: {}", e);
             }
-            Err(anyhow::anyhow!("Ingestion cycle failed"))
+            Err(e.context("Ingestion cycle failed"))
         }
     }
 }
@@ -685,6 +690,11 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn test_process_ingest_save_error_does_not_mask_protocol_error() {
+        // Note: This test uses filesystem permissions to simulate save failure.
+        // It is Unix-only and includes a skip mechanism for filesystems that don't
+        // support permission restrictions (e.g., some CI environments).
+        // An alternative would be to inject a filesystem abstraction for testing,
+        // but this approach is simpler and sufficient for catching the error-masking bug.
         use std::os::unix::fs::PermissionsExt;
 
         // Setup: Create a directory that we can make read-only to force a save error
