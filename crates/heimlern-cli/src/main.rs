@@ -209,7 +209,7 @@ struct FetchResult {
 /// - Labels separated by dots, each 1-63 chars, total ≤253 chars
 /// - Each label: starts/ends with alphanumeric, may contain hyphens in middle
 /// - No whitespace, underscores, or leading/trailing dots
-fn is_valid_domain(domain: &str) -> bool {
+fn is_valid_event_domain(domain: &str) -> bool {
     let domain = domain.trim();
     if domain.is_empty() || domain.len() > 253 {
         return false;
@@ -307,7 +307,7 @@ fn build_chronik_url(base: &str) -> Result<url::Url> {
 }
 
 fn fetch_chronik(cursor: Option<u64>, domain: &str, limit: u32) -> Result<FetchResult> {
-    if !is_valid_domain(domain) {
+    if !is_valid_event_domain(domain) {
         anyhow::bail!("Invalid domain: {}", domain);
     }
 
@@ -549,20 +549,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_is_valid_domain() {
-        assert!(is_valid_domain("example.com"));
-        assert!(is_valid_domain("a.b.c"));
-        assert!(is_valid_domain("my-domain.com"));
-        assert!(is_valid_domain("x"));
+    fn test_is_valid_event_domain() {
+        assert!(is_valid_event_domain("example.com"));
+        assert!(is_valid_event_domain("a.b.c"));
+        assert!(is_valid_event_domain("my-domain.com"));
+        assert!(is_valid_event_domain("x"));
 
-        assert!(!is_valid_domain(""));
-        assert!(!is_valid_domain(" "));
-        assert!(!is_valid_domain(".start"));
-        assert!(!is_valid_domain("end."));
-        assert!(!is_valid_domain("my..domain"));
-        assert!(!is_valid_domain("bad_char"));
-        assert!(!is_valid_domain("-start"));
-        assert!(!is_valid_domain("end-"));
+        assert!(!is_valid_event_domain(""));
+        assert!(!is_valid_event_domain(" "));
+        assert!(!is_valid_event_domain(".start"));
+        assert!(!is_valid_event_domain("end."));
+        assert!(!is_valid_event_domain("my..domain"));
+        assert!(!is_valid_event_domain("bad_char"));
+        assert!(!is_valid_event_domain("-start"));
+        assert!(!is_valid_event_domain("end-"));
     }
 
     #[test]
