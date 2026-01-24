@@ -201,10 +201,10 @@ struct FetchResult {
 }
 
 /// Validates an event domain/namespace identifier.
-/// 
+///
 /// This validates event namespace identifiers (e.g., "aussen", "sensor.v1"), not DNS domains.
 /// Single-label identifiers like "aussen" are valid by design.
-/// 
+///
 /// Rules:
 /// - Labels separated by dots, each 1-63 chars, total ≤253 chars
 /// - Each label: starts/ends with alphanumeric, may contain hyphens in middle
@@ -686,7 +686,7 @@ mod tests {
     #[cfg(unix)]
     fn test_process_ingest_save_error_does_not_mask_protocol_error() {
         use std::os::unix::fs::PermissionsExt;
-        
+
         // Setup: Create a directory that we can make read-only to force a save error
         let dir = std::env::temp_dir().join("heimlern_test_save_error");
         let _ = std::fs::remove_dir_all(&dir);
@@ -697,7 +697,7 @@ mod tests {
         let mut perms = std::fs::metadata(&dir).unwrap().permissions();
         perms.set_mode(0o500);
         std::fs::set_permissions(&dir, perms).unwrap();
-        
+
         // Verify permissions were actually set (some filesystems may not support this)
         let actual_perms = std::fs::metadata(&dir).unwrap().permissions();
         let actual_mode = actual_perms.mode() & 0o777;
