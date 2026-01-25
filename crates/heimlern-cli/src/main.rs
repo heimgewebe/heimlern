@@ -612,11 +612,9 @@ mod tests {
 
     #[test]
     fn test_process_ingest_protocol_error_missing_cursor() {
-        let dir = std::env::temp_dir().join("heimlern_test_missing_cursor");
-        let _ = std::fs::remove_dir_all(&dir);
-        let _ = std::fs::create_dir_all(&dir);
-        let state_file = dir.join("state.json");
-        let stats_file = dir.join("stats.json");
+        let dir = tempfile::tempdir().unwrap();
+        let state_file = dir.path().join("state.json");
+        let stats_file = dir.path().join("stats.json");
 
         let fetch_result = FetchResult {
             events: vec![],
@@ -647,11 +645,9 @@ mod tests {
 
     #[test]
     fn test_process_ingest_protocol_error_stalled() {
-        let dir = std::env::temp_dir().join("heimlern_test_stalled");
-        let _ = std::fs::remove_dir_all(&dir);
-        let _ = std::fs::create_dir_all(&dir);
-        let state_file = dir.join("state.json");
-        let stats_file = dir.join("stats.json");
+        let dir = tempfile::tempdir().unwrap();
+        let state_file = dir.path().join("state.json");
+        let stats_file = dir.path().join("stats.json");
 
         let fetch_result = FetchResult {
             events: vec![],
@@ -678,11 +674,9 @@ mod tests {
 
     #[test]
     fn test_process_ingest_normal() {
-        let dir = std::env::temp_dir().join("heimlern_test_normal");
-        let _ = std::fs::remove_dir_all(&dir);
-        let _ = std::fs::create_dir_all(&dir);
-        let state_file = dir.join("state.json");
-        let stats_file = dir.join("stats.json");
+        let dir = tempfile::tempdir().unwrap();
+        let state_file = dir.path().join("state.json");
+        let stats_file = dir.path().join("stats.json");
 
         let fetch_result = FetchResult {
             events: vec![],
@@ -721,40 +715,35 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
 
         // Setup: Create a directory that we can make read-only to force a save error
-        let dir = std::env::temp_dir().join("heimlern_test_save_error");
-        let _ = std::fs::remove_dir_all(&dir);
-        let _ = std::fs::create_dir_all(&dir);
+        let readonly_dir = tempfile::tempdir().unwrap();
 
         // Remove write permissions from the directory to prevent creating files in it.
         // We set mode to 500 (r-x --- ---).
-        let mut perms = std::fs::metadata(&dir).unwrap().permissions();
+        let mut perms = std::fs::metadata(readonly_dir.path()).unwrap().permissions();
         perms.set_mode(0o500);
-        std::fs::set_permissions(&dir, perms).unwrap();
+        std::fs::set_permissions(readonly_dir.path(), perms).unwrap();
 
         // Verify permissions were actually set (some filesystems may not support this)
-        let actual_perms = std::fs::metadata(&dir).unwrap().permissions();
+        let actual_perms = std::fs::metadata(readonly_dir.path()).unwrap().permissions();
         let actual_mode = actual_perms.mode() & 0o777;
         if actual_mode != 0o500 {
             // Skip test if filesystem doesn't support permission changes
             eprintln!("Warning: Skipping test - filesystem doesn't support permission restriction (mode: {:o})", actual_mode);
-            // Cleanup and return early
-            let mut perms = std::fs::metadata(&dir).unwrap().permissions();
+            // Cleanup: restore permissions before drop
+            let mut perms = std::fs::metadata(readonly_dir.path()).unwrap().permissions();
             perms.set_mode(0o700);
-            let _ = std::fs::set_permissions(&dir, perms);
-            let _ = std::fs::remove_dir_all(&dir);
+            let _ = std::fs::set_permissions(readonly_dir.path(), perms);
             return;
         }
 
-        let state_file = dir.join("state.json");
+        let state_file = readonly_dir.path().join("state.json");
 
         // Use a different stats file location that IS writable, because process_ingest
         // tries to save stats BEFORE checking protocol errors. If stats save fails,
         // it returns early. We want to test record_state_error failure specifically.
         // So we need a separate writable dir for stats.
-        let writable_dir = std::env::temp_dir().join("heimlern_test_save_error_writable");
-        let _ = std::fs::remove_dir_all(&writable_dir);
-        let _ = std::fs::create_dir_all(&writable_dir);
-        let valid_stats_file = writable_dir.join("stats.json");
+        let writable_dir = tempfile::tempdir().unwrap();
+        let valid_stats_file = writable_dir.path().join("stats.json");
 
         let fetch_result = FetchResult {
             events: vec![],
@@ -771,12 +760,10 @@ mod tests {
             IngestMode::Chronik,
         );
 
-        // Cleanup permissions so we can delete the dir
-        let mut perms = std::fs::metadata(&dir).unwrap().permissions();
+        // Cleanup permissions before drop so tempdir can clean itself up
+        let mut perms = std::fs::metadata(readonly_dir.path()).unwrap().permissions();
         perms.set_mode(0o700);
-        std::fs::set_permissions(&dir, perms).unwrap();
-        let _ = std::fs::remove_dir_all(&dir);
-        let _ = std::fs::remove_dir_all(&writable_dir);
+        std::fs::set_permissions(readonly_dir.path(), perms).unwrap();
 
         // Assertions
         assert!(res.is_err());
