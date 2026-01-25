@@ -719,18 +719,24 @@ mod tests {
 
         // Remove write permissions from the directory to prevent creating files in it.
         // We set mode to 500 (r-x --- ---).
-        let mut perms = std::fs::metadata(readonly_dir.path()).unwrap().permissions();
+        let mut perms = std::fs::metadata(readonly_dir.path())
+            .unwrap()
+            .permissions();
         perms.set_mode(0o500);
         std::fs::set_permissions(readonly_dir.path(), perms).unwrap();
 
         // Verify permissions were actually set (some filesystems may not support this)
-        let actual_perms = std::fs::metadata(readonly_dir.path()).unwrap().permissions();
+        let actual_perms = std::fs::metadata(readonly_dir.path())
+            .unwrap()
+            .permissions();
         let actual_mode = actual_perms.mode() & 0o777;
         if actual_mode != 0o500 {
             // Skip test if filesystem doesn't support permission changes
             eprintln!("Warning: Skipping test - filesystem doesn't support permission restriction (mode: {:o})", actual_mode);
             // Cleanup: restore permissions before drop
-            let mut perms = std::fs::metadata(readonly_dir.path()).unwrap().permissions();
+            let mut perms = std::fs::metadata(readonly_dir.path())
+                .unwrap()
+                .permissions();
             perms.set_mode(0o700);
             let _ = std::fs::set_permissions(readonly_dir.path(), perms);
             return;
@@ -761,7 +767,9 @@ mod tests {
         );
 
         // Cleanup permissions before drop so tempdir can clean itself up
-        let mut perms = std::fs::metadata(readonly_dir.path()).unwrap().permissions();
+        let mut perms = std::fs::metadata(readonly_dir.path())
+            .unwrap()
+            .permissions();
         perms.set_mode(0o700);
         std::fs::set_permissions(readonly_dir.path(), perms).unwrap();
 
