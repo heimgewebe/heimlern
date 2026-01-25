@@ -231,16 +231,16 @@ fn is_valid_event_domain(domain: &str) -> bool {
             return false;
         }
         let mut chars = label.chars();
-        // First char must be alphanumeric
-        if !chars.next().unwrap().is_alphanumeric() {
+        // First char must be ASCII alphanumeric
+        if !chars.next().unwrap().is_ascii_alphanumeric() {
             return false;
         }
-        // If there's more than one char, the last must be alphanumeric
-        if label.len() > 1 && !label.chars().last().unwrap().is_alphanumeric() {
+        // If there's more than one char, the last must be ASCII alphanumeric
+        if label.len() > 1 && !label.chars().last().unwrap().is_ascii_alphanumeric() {
             return false;
         }
-        // All chars must be alphanumeric or hyphen
-        if !label.chars().all(|c| c.is_alphanumeric() || c == '-') {
+        // All chars must be ASCII alphanumeric or hyphen
+        if !label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
             return false;
         }
     }
@@ -568,6 +568,12 @@ mod tests {
         assert!(!is_valid_event_domain("bad_char"));
         assert!(!is_valid_event_domain("-start"));
         assert!(!is_valid_event_domain("end-"));
+
+        // Verify ASCII-only: Unicode characters should be rejected
+        assert!(!is_valid_event_domain("café"));
+        assert!(!is_valid_event_domain("日本"));
+        assert!(!is_valid_event_domain("αβγ"));
+        assert!(!is_valid_event_domain("domain.über"));
     }
 
     #[test]
@@ -584,6 +590,23 @@ mod tests {
         for (input, expected) in cases {
             let url = build_chronik_url(input).unwrap();
             assert_eq!(url.as_str(), expected);
+        }
+    }
+
+    #[test]
+    fn test_build_chronik_url_cannot_be_base() {
+        // Test that cannot-be-a-base URLs are properly rejected
+        let cannot_be_base_urls = vec!["mailto:test@example.com", "data:text/plain,hello"];
+
+        for url in cannot_be_base_urls {
+            let result = build_chronik_url(url);
+            assert!(result.is_err(), "Expected error for URL: {}", url);
+            let err_msg = result.unwrap_err().to_string();
+            assert!(
+                err_msg.contains("cannot be used as a base"),
+                "Error message should mention 'cannot be used as a base', got: {}",
+                err_msg
+            );
         }
     }
 
