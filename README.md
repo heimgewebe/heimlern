@@ -82,6 +82,12 @@ Fixtures unter `tests/fixtures/decision/*.json` werden in CI gegen
 `contracts/policy.decision.schema.json` (metarepo `@contracts-v1`) mit **ajv-cli** geprüft.
 Ungültige Beispiele lassen die Pipeline fehlschlagen.
 
+### Plattformen & Toolchain
+* **CI-Targets:** Die CI läuft aktuell auf Linux (Ubuntu). Windows und macOS sind nicht Teil der Automation, werden aber prinzipiell unterstützt.
+* **Unix-Tests:** Tests, die Dateiberechtigungen manipulieren, sind via `#[cfg(unix)]` gekapselt und werden auf Nicht-Unix-Systemen übersprungen.
+* **Toolchain:** Es wird eine aktuelle stable Rust-Toolchain vorausgesetzt.
+* **Lockfile:** Dass `getrandom` in Version 0.2 und 0.3 im `Cargo.lock` koexistiert, ist bekannt und unproblematisch.
+
 ## Weiterführende Dokumentation
 
 * [ADR-Index](docs/adr/README.md) – Übersicht und Motivation hinter den Architekturentscheidungen.
