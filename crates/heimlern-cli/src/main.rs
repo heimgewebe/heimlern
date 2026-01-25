@@ -612,7 +612,7 @@ mod tests {
 
     #[test]
     fn test_process_ingest_protocol_error_missing_cursor() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("create temp dir");
         let state_file = dir.path().join("state.json");
         let stats_file = dir.path().join("stats.json");
 
@@ -645,7 +645,7 @@ mod tests {
 
     #[test]
     fn test_process_ingest_protocol_error_stalled() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("create temp dir");
         let state_file = dir.path().join("state.json");
         let stats_file = dir.path().join("stats.json");
 
@@ -674,7 +674,7 @@ mod tests {
 
     #[test]
     fn test_process_ingest_normal() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("create temp dir");
         let state_file = dir.path().join("state.json");
         let stats_file = dir.path().join("stats.json");
 
@@ -715,7 +715,7 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
 
         // Setup: Create a directory that we can make read-only to force a save error
-        let readonly_dir = tempfile::tempdir().unwrap();
+        let readonly_dir = tempfile::tempdir().expect("create temp dir");
 
         // Remove write permissions from the directory to prevent creating files in it.
         // We set mode to 500 (r-x --- ---).
@@ -748,7 +748,7 @@ mod tests {
         // tries to save stats BEFORE checking protocol errors. If stats save fails,
         // it returns early. We want to test record_state_error failure specifically.
         // So we need a separate writable dir for stats.
-        let writable_dir = tempfile::tempdir().unwrap();
+        let writable_dir = tempfile::tempdir().expect("create temp dir");
         let valid_stats_file = writable_dir.path().join("stats.json");
 
         let fetch_result = FetchResult {
