@@ -5,8 +5,13 @@ runs:
   steps:
     - name: Check for default branch references
       run: |
-        if grep -rE "uses:.*@(main|master)([[:space:]]|$)" .github/workflows/; then
-          echo "Error: Found '@main' or '@master' references in workflow files. Please use a specific commit SHA or tag."
+        # Regex explanation:
+        # uses:.*@        -> matches 'uses: ... @'
+        # (main|master)   -> matches 'main' or 'master'
+        # ([^a-zA-Z0-9_-]|$) -> matches end of word (ensures we don't match 'maintenance')
+        #                       followed by non-alphanumeric (like #, space, newline) or end of line.
+        if grep -rE "uses:.*@(main|master)([^a-zA-Z0-9_-]|$)" .github/; then
+          echo "Error: Found '@main' or '@master' references in workflow/action files. Please use a specific commit SHA or tag."
           exit 1
         fi
       shell: bash

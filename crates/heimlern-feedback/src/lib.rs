@@ -128,13 +128,19 @@ pub struct WeightAdjustmentProposal {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum DeltaValue {
-    /// Target numeric value (set-to semantics)
+    /// Target numeric value ("set-to" semantics).
+    ///
+    /// The parameter should be set exactly to `value`.
     #[serde(rename = "absolute")]
     Absolute { value: f32 },
-    /// Additive numeric adjustment (delta semantics)
+    /// Additive numeric adjustment ("delta" semantics).
+    ///
+    /// The `value` should be added to the current parameter value.
     #[serde(rename = "additive")]
     Additive { value: f32 },
-    /// Relative percentage adjustment
+    /// Relative percentage adjustment.
+    ///
+    /// The parameter should be adjusted by `value` percent relative to its current value.
     #[serde(rename = "relative")]
     Relative { value: f32, unit: String },
 }
@@ -793,7 +799,10 @@ mod tests {
 
         // Suggest reducing epsilon by 0.1
         let mut deltas = HashMap::new();
-        deltas.insert("epsilon".to_string(), DeltaValue::Additive { value: -0.1 });
+        deltas.insert(
+            "epsilon".to_string(),
+            DeltaValue::Additive { value: -0.1 },
+        );
 
         let proposal = WeightAdjustmentProposal {
             version: "0.1.0".to_string(),
@@ -843,7 +852,10 @@ mod tests {
 
         // Using Absolute should trigger fallback to baseline (0.5)
         let mut deltas = HashMap::new();
-        deltas.insert("epsilon".to_string(), DeltaValue::Absolute { value: 0.4 });
+        deltas.insert(
+            "epsilon".to_string(),
+            DeltaValue::Absolute { value: 0.4 },
+        );
 
         let proposal = WeightAdjustmentProposal {
             version: "0.1.0".to_string(),
@@ -857,11 +869,7 @@ mod tests {
         };
 
         let simulated_rate = analyzer.simulate_adjustment(&proposal, &outcomes);
-        assert!(
-            (simulated_rate - 0.5).abs() < 1e-5,
-            "Expected baseline 0.5, got {}",
-            simulated_rate
-        );
+        assert!((simulated_rate - 0.5).abs() < 1e-5, "Expected baseline 0.5, got {}", simulated_rate);
     }
 
     #[test]
@@ -961,6 +969,51 @@ mod tests {
     }
 
     #[test]
+    fn get_strategy_parses_string_and_array() {
+        // "why" as simple string (handled by create_outcome logic if modified, but let's test explicit JSON structure)
+        let outcome_str = DecisionOutcome {
+            decision_id: "str".into(),
+            ts: iso8601_now(),
+            policy_id: None,
+            action: None,
+            outcome: OutcomeType::Success,
+            success: true,
+            reward: None,
+            context: None,
+            metadata: Some(serde_json::json!({ "why": "explore ε" })),
+        };
+        assert_eq!(get_strategy(&outcome_str), Strategy::Explore);
+
+        // "why" as array
+        let outcome_arr = DecisionOutcome {
+            decision_id: "arr".into(),
+            ts: iso8601_now(),
+            policy_id: None,
+            action: None,
+            outcome: OutcomeType::Success,
+            success: true,
+            reward: None,
+            context: None,
+            metadata: Some(serde_json::json!({ "why": ["exploit"] })),
+        };
+        assert_eq!(get_strategy(&outcome_arr), Strategy::Exploit);
+
+        // "why" mixed
+        let outcome_mixed = DecisionOutcome {
+            decision_id: "mix".into(),
+            ts: iso8601_now(),
+            policy_id: None,
+            action: None,
+            outcome: OutcomeType::Success,
+            success: true,
+            reward: None,
+            context: None,
+            metadata: Some(serde_json::json!({ "why": ["some info", "explore"] })),
+        };
+        assert_eq!(get_strategy(&outcome_mixed), Strategy::Explore);
+    }
+
+    #[test]
     fn simulation_positive_delta_increases_explore() {
         let analyzer = FeedbackAnalyzer::default();
         let outcomes: Vec<DecisionOutcome> = (0..20)
@@ -982,7 +1035,10 @@ mod tests {
 
         // Increase epsilon by 0.1 (more explore)
         let mut deltas = HashMap::new();
-        deltas.insert("epsilon".to_string(), DeltaValue::Additive { value: 0.1 });
+        deltas.insert(
+            "epsilon".to_string(),
+            DeltaValue::Additive { value: 0.1 },
+        );
 
         let proposal = WeightAdjustmentProposal {
             version: "0.1.0".to_string(),
@@ -1025,7 +1081,10 @@ mod tests {
 
         // Huge delta to force clamp
         let mut deltas = HashMap::new();
-        deltas.insert("epsilon".to_string(), DeltaValue::Additive { value: 10.0 });
+        deltas.insert(
+            "epsilon".to_string(),
+            DeltaValue::Additive { value: 10.0 },
+        );
 
         let proposal = WeightAdjustmentProposal {
             version: "0.1.0".to_string(),
@@ -1060,7 +1119,10 @@ mod tests {
             .collect();
 
         let mut deltas = HashMap::new();
-        deltas.insert("epsilon".to_string(), DeltaValue::Additive { value: -0.1 });
+        deltas.insert(
+            "epsilon".to_string(),
+            DeltaValue::Additive { value: -0.1 },
+        );
         let proposal = WeightAdjustmentProposal {
             version: "0.1.0".to_string(),
             basis_policy: "test".to_string(),
@@ -1110,7 +1172,10 @@ mod tests {
         // Total Rate = 16 / 20 = 0.8.
 
         let mut deltas = HashMap::new();
-        deltas.insert("epsilon".to_string(), DeltaValue::Additive { value: -0.1 });
+        deltas.insert(
+            "epsilon".to_string(),
+            DeltaValue::Additive { value: -0.1 },
+        );
         let proposal = WeightAdjustmentProposal {
             version: "0.1.0".to_string(),
             basis_policy: "test".to_string(),
