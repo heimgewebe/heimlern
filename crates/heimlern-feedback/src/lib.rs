@@ -432,6 +432,12 @@ impl FeedbackAnalyzer {
     /// Returns estimated success rate with the proposed adjustments.
     /// This is a simplified simulation - a real implementation would replay
     /// decisions with modified weights.
+    ///
+    /// # Parameter Semantics
+    ///
+    /// *   **epsilon**:
+    ///     *   `DeltaValue::Additive`: Interpreted as a change to the exploration rate.
+    ///     *   `DeltaValue::Absolute`: Interpreted as setting the target exploration probability ($P(explore)$).
     #[must_use]
     pub fn simulate_adjustment(
         &self,
@@ -928,13 +934,15 @@ mod tests {
         let analyzer = FeedbackAnalyzer::default();
         let outcomes: Vec<DecisionOutcome> = (0..10)
             .map(|i| {
+                // Exploit: Success (1.0)
+                // Explore: Failure (0.0)
                 let is_exploit = i % 2 == 0;
                 let strategy = if is_exploit { "exploit" } else { "explore ε" };
                 create_outcome(
                     &i.to_string(),
                     "action",
-                    true, // All success
-                    1.0,
+                    is_exploit,
+                    if is_exploit { 1.0 } else { 0.0 },
                     Some(strategy),
                 )
             })
@@ -942,6 +950,7 @@ mod tests {
 
         let mut deltas = HashMap::new();
         // Set epsilon > 1.0, should clamp to 1.0
+        // If clamped to 1.0, all weight goes to Explore (Failure) -> Rate 0.0
         deltas.insert("epsilon".to_string(), DeltaValue::Absolute { value: 1.5 });
 
         let proposal = WeightAdjustmentProposal {
@@ -956,8 +965,11 @@ mod tests {
         };
 
         let simulated_rate = analyzer.simulate_adjustment(&proposal, &outcomes);
-        // All success, so rate is 1.0. Just verifying it doesn't panic or produce NaN.
-        assert!((simulated_rate - 1.0).abs() < 1e-5);
+        assert!(
+            (simulated_rate - 0.0).abs() < 1e-5,
+            "Expected 0.0 (all explore failure), got {}",
+            simulated_rate
+        );
     }
 
     #[test]
