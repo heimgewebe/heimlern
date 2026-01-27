@@ -83,7 +83,7 @@ pub enum OutcomeType {
 }
 
 /// Evidence supporting a weight adjustment proposal.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Evidence {
     /// Number of decisions analyzed
     pub decisions_analyzed: usize,
@@ -128,9 +128,12 @@ pub struct WeightAdjustmentProposal {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum DeltaValue {
-    /// Absolute numeric adjustment
+    /// Target numeric value (set-to semantics)
     #[serde(rename = "absolute")]
     Absolute { value: f32 },
+    /// Additive numeric adjustment (delta semantics)
+    #[serde(rename = "additive")]
+    Additive { value: f32 },
     /// Relative percentage adjustment
     #[serde(rename = "relative")]
     Relative { value: f32, unit: String },
@@ -363,7 +366,7 @@ impl FeedbackAnalyzer {
         if overall_stats.failure_rate() > ADJUSTMENT_FAILURE_THRESHOLD {
             deltas.insert(
                 "epsilon".to_string(),
-                DeltaValue::Absolute {
+                DeltaValue::Additive {
                     value: ADJUSTMENT_EPSILON_DELTA,
                 },
             );
@@ -371,10 +374,8 @@ impl FeedbackAnalyzer {
         }
 
         // Simulate improvement using reweighting simulation
-        // Note: DeltaValue::Absolute is interpreted here as an additive delta (e.g. -0.05 means epsilon -= 0.05),
-        // not as setting an absolute value.
         let failure_rate_after_sim =
-            if let Some(DeltaValue::Absolute { value }) = deltas.get("epsilon") {
+            if let Some(DeltaValue::Additive { value }) = deltas.get("epsilon") {
                 1.0 - simulate_epsilon_change(outcomes, *value)
             } else {
                 overall_stats.failure_rate()
@@ -414,9 +415,24 @@ impl FeedbackAnalyzer {
         }
 
         // If epsilon is modified, simulate it.
-        // We interpret Absolute value as an additive delta to the current epsilon.
-        if let Some(DeltaValue::Absolute { value }) = proposal.deltas.get("epsilon") {
-            simulate_epsilon_change(outcomes, *value)
+        if let Some(val) = proposal.deltas.get("epsilon") {
+            match val {
+                DeltaValue::Additive { value } => simulate_epsilon_change(outcomes, *value),
+                // For Absolute (set-to), we can't easily simulate without knowing the current epsilon
+                // to calculate the delta. We skip simulation for now or would need current state.
+                // Or we could try to infer current epsilon from explore ratio.
+                DeltaValue::Absolute { .. } => {
+                    // Fallback: Return baseline
+                    let successes = outcomes.iter().filter(|o| outcome_is_success(o)).count();
+
+                    (successes as f32) / (outcomes.len() as f32)
+                }
+                _ => {
+                    let successes = outcomes.iter().filter(|o| outcome_is_success(o)).count();
+
+                    (successes as f32) / (outcomes.len() as f32)
+                }
+            }
         } else {
             // Simple simulation: calculate baseline success rate
             let successes = outcomes.iter().filter(|o| outcome_is_success(o)).count();
@@ -727,7 +743,7 @@ mod tests {
             ts: iso8601_now(),
             deltas: {
                 let mut map = HashMap::new();
-                map.insert("epsilon".to_string(), DeltaValue::Absolute { value: -0.1 });
+                map.insert("epsilon".to_string(), DeltaValue::Additive { value: -0.1 });
                 map
             },
             confidence: 0.68,
@@ -773,7 +789,7 @@ mod tests {
         let mut deltas = HashMap::new();
         deltas.insert(
             "epsilon".to_string(),
-            DeltaValue::Absolute { value: -0.1 },
+            DeltaValue::Additive { value: -0.1 },
         );
 
         let proposal = WeightAdjustmentProposal {
@@ -794,8 +810,54 @@ mod tests {
         };
 
         let simulated_rate = analyzer.simulate_adjustment(&proposal, &outcomes);
-        assert!(simulated_rate > 0.55); // Expected 0.6
-        assert!(simulated_rate <= 1.0);
+        let expected = 0.6;
+        let eps = 1e-5;
+        assert!(
+            (simulated_rate - expected).abs() < eps,
+            "Sim: {:?} Expected: {:?}",
+            simulated_rate,
+            expected
+        );
+    }
+
+    #[test]
+    fn simulation_absolute_returns_baseline() {
+        let analyzer = FeedbackAnalyzer::default();
+        let outcomes: Vec<DecisionOutcome> = (0..20)
+            .map(|i| {
+                // 50% Exploit (Success), 50% Explore (Failure)
+                let is_exploit = i % 2 == 0;
+                let strategy = if is_exploit { "exploit" } else { "explore ε" };
+                create_outcome(
+                    &i.to_string(),
+                    "action",
+                    is_exploit,
+                    if is_exploit { 1.0 } else { 0.0 },
+                    Some(strategy),
+                )
+            })
+            .collect();
+
+        // Using Absolute should trigger fallback to baseline (0.5)
+        let mut deltas = HashMap::new();
+        deltas.insert(
+            "epsilon".to_string(),
+            DeltaValue::Absolute { value: 0.4 },
+        );
+
+        let proposal = WeightAdjustmentProposal {
+            version: "0.1.0".to_string(),
+            basis_policy: "test".to_string(),
+            ts: iso8601_now(),
+            deltas,
+            confidence: 0.7,
+            evidence: Evidence::default(),
+            reasoning: None,
+            status: ProposalStatus::Proposed,
+        };
+
+        let simulated_rate = analyzer.simulate_adjustment(&proposal, &outcomes);
+        assert!((simulated_rate - 0.5).abs() < 1e-5, "Expected baseline 0.5, got {}", simulated_rate);
     }
 
     #[test]
