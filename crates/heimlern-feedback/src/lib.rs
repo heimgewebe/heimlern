@@ -5,6 +5,23 @@
 //! This crate implements retrospective analysis of policy decisions and
 //! generates weight adjustment proposals. It follows the principle:
 //! **heimlern analyzes and proposes, never directly modifies live weights**.
+//!
+//! # Delta Semantics
+//!
+//! Adjustments are proposed via [`WeightAdjustmentProposal`], which contains a map of
+//! [`DeltaValue`]. The variants define how the values should be applied:
+//!
+//! *   [`DeltaValue::Absolute`]: "Set-to" semantics. The target parameter should be set exactly to this value.
+//!     Legacy consumers might have interpreted this as additive in the past, but the new standard distinguishes them.
+//! *   [`DeltaValue::Additive`]: "Delta" semantics. The value should be added to the current parameter.
+//! *   [`DeltaValue::Relative`]: Percentage change relative to the current value.
+//!
+//! # Simulation
+//!
+//! This crate can simulate the expected impact of `epsilon` (exploration rate) adjustments using
+//! Importance Sampling / Re-weighting. This requires decision outcomes to carry metadata about
+//! whether they were "explore" or "exploit" decisions. Simulation is currently supported only for
+//! [`DeltaValue::Additive`] adjustments to `epsilon`.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -21,11 +38,6 @@ const CONFIDENCE_LOW_PATTERN: f32 = 0.5;
 const CONFIDENCE_SAMPLE_WEIGHT: f32 = 0.4;
 /// Weight for pattern count component in confidence calculation
 const CONFIDENCE_PATTERN_WEIGHT: f32 = 0.6;
-
-// Simulation constants
-/// Placeholder improvement estimate for simulations (15% improvement)
-/// TODO: Replace with actual replay-based simulation
-const SIMULATION_ESTIMATED_IMPROVEMENT: f32 = 0.15;
 
 // Pattern detection thresholds
 /// Minimum number of decisions for a specific action before analyzing patterns
@@ -88,7 +100,7 @@ pub enum OutcomeType {
 }
 
 /// Evidence supporting a weight adjustment proposal.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Evidence {
     /// Number of decisions analyzed
     pub decisions_analyzed: usize,
@@ -133,10 +145,19 @@ pub struct WeightAdjustmentProposal {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum DeltaValue {
-    /// Absolute numeric adjustment
+    /// Target numeric value ("set-to" semantics).
+    ///
+    /// The parameter should be set exactly to `value`.
     #[serde(rename = "absolute")]
     Absolute { value: f32 },
-    /// Relative percentage adjustment
+    /// Additive numeric adjustment ("delta" semantics).
+    ///
+    /// The `value` should be added to the current parameter value.
+    #[serde(rename = "additive")]
+    Additive { value: f32 },
+    /// Relative percentage adjustment.
+    ///
+    /// The parameter should be adjusted by `value` percent relative to its current value.
     #[serde(rename = "relative")]
     Relative { value: f32, unit: String },
 }
@@ -167,13 +188,7 @@ impl OutcomeStatistics {
     /// Calculate success rate (0.0 to 1.0).
     #[must_use]
     pub fn success_rate(&self) -> f32 {
-        if self.total == 0 {
-            return 0.0;
-        }
-        #[allow(clippy::cast_precision_loss)]
-        {
-            self.successes as f32 / self.total as f32
-        }
+        ratio(self.successes, self.total)
     }
 
     /// Calculate failure rate (0.0 to 1.0).
@@ -199,6 +214,17 @@ impl OutcomeStatistics {
         {
             (self.total_reward / self.total as f64) as f32
         }
+    }
+}
+
+/// Helper to calculate ratio of two numbers with precision loss handling.
+fn ratio(num: usize, den: usize) -> f32 {
+    if den == 0 {
+        return 0.0;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    {
+        num as f32 / den as f32
     }
 }
 
@@ -368,16 +394,20 @@ impl FeedbackAnalyzer {
         if overall_stats.failure_rate() > ADJUSTMENT_FAILURE_THRESHOLD {
             deltas.insert(
                 "epsilon".to_string(),
-                DeltaValue::Absolute {
+                DeltaValue::Additive {
                     value: ADJUSTMENT_EPSILON_DELTA,
                 },
             );
             reasoning.push("Reduce exploration due to high failure rate".to_string());
         }
 
-        // Simulate improvement (placeholder - real simulation would replay decisions)
+        // Simulate improvement using reweighting simulation
         let failure_rate_after_sim =
-            (overall_stats.failure_rate() - SIMULATION_ESTIMATED_IMPROVEMENT).max(0.0);
+            if let Some(DeltaValue::Additive { value }) = deltas.get("epsilon") {
+                1.0 - simulate_epsilon_change(outcomes, *value)
+            } else {
+                overall_stats.failure_rate()
+            };
 
         Some(WeightAdjustmentProposal {
             version: "0.1.0".to_string(),
@@ -389,7 +419,7 @@ impl FeedbackAnalyzer {
                 decisions_analyzed: outcomes.len(),
                 failure_rate_before: Some(overall_stats.failure_rate()),
                 failure_rate_after_sim: Some(failure_rate_after_sim),
-                simulation_method: Some("placeholder_constant".to_string()),
+                simulation_method: Some("reweight_epsilon_simulation".to_string()),
                 patterns: Some(patterns),
             },
             reasoning: Some(reasoning),
@@ -405,21 +435,153 @@ impl FeedbackAnalyzer {
     #[must_use]
     pub fn simulate_adjustment(
         &self,
-        _proposal: &WeightAdjustmentProposal,
+        proposal: &WeightAdjustmentProposal,
         outcomes: &[DecisionOutcome],
     ) -> f32 {
         if outcomes.is_empty() {
             return 0.0;
         }
 
-        // Simple simulation: calculate baseline success rate
-        let successes = outcomes.iter().filter(|o| outcome_is_success(o)).count();
-        #[allow(clippy::cast_precision_loss)]
-        let baseline = successes as f32 / outcomes.len() as f32;
+        // If epsilon is modified, simulate it.
+        if let Some(val) = proposal.deltas.get("epsilon") {
+            match val {
+                DeltaValue::Additive { value } => simulate_epsilon_change(outcomes, *value),
+                // For Absolute (set-to), we can't easily simulate without knowing the current epsilon
+                // to calculate the delta. We skip simulation for now or would need current state.
+                // Or we could try to infer current epsilon from explore ratio.
+                DeltaValue::Absolute { .. } => {
+                    // Fallback: Return baseline
+                    let successes = outcomes.iter().filter(|o| outcome_is_success(o)).count();
+                    ratio(successes, outcomes.len())
+                }
+                _ => {
+                    let successes = outcomes.iter().filter(|o| outcome_is_success(o)).count();
+                    ratio(successes, outcomes.len())
+                }
+            }
+        } else {
+            // Simple simulation: calculate baseline success rate
+            let successes = outcomes.iter().filter(|o| outcome_is_success(o)).count();
+            #[allow(clippy::cast_precision_loss)]
+            let baseline = successes as f32 / outcomes.len() as f32;
+            baseline
+        }
+    }
+}
 
-        // Estimate improvement using placeholder constant
-        // TODO: Replace with actual replay-based simulation
-        (baseline + SIMULATION_ESTIMATED_IMPROVEMENT).min(1.0)
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum Strategy {
+    Explore,
+    Exploit,
+    Unknown,
+}
+
+fn get_strategy(outcome: &DecisionOutcome) -> Strategy {
+    if let Some(metadata) = &outcome.metadata {
+        if let Some(why) = metadata.get("why") {
+            let reasons = if let Some(arr) = why.as_array() {
+                arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>()
+            } else if let Some(s) = why.as_str() {
+                vec![s]
+            } else {
+                vec![]
+            };
+
+            for reason in reasons {
+                // Case-insensitive matching to be robust against "Explore", "EXPLORE", etc.
+                // We checks for "explore" or "exploit" presence.
+                let r = reason.to_lowercase();
+                if r.contains("explore") {
+                    return Strategy::Explore;
+                }
+                if r.contains("exploit") {
+                    return Strategy::Exploit;
+                }
+            }
+        }
+    }
+    Strategy::Unknown
+}
+
+/// Estimates the success rate if epsilon were changed by `epsilon_delta`.
+///
+/// If `epsilon_delta` < 0 (less exploration), we shift probability mass from Explore to Exploit.
+/// If `epsilon_delta` > 0 (more exploration), we shift probability mass from Exploit to Explore.
+///
+/// Mass shifting logic:
+/// New P(Explore) = Old P(Explore) + Delta
+/// But "Old P(Explore)" is approximated by N_explore / N_known.
+///
+/// Returns the estimated success rate over the entire set of outcomes (including Unknowns).
+fn simulate_epsilon_change(outcomes: &[DecisionOutcome], epsilon_delta: f32) -> f32 {
+    let mut exploit_stats = OutcomeStatistics::default();
+    let mut explore_stats = OutcomeStatistics::default();
+    let mut unknown_stats = OutcomeStatistics::default();
+
+    for outcome in outcomes {
+        let is_success = outcome_is_success(outcome);
+        match get_strategy(outcome) {
+            Strategy::Exploit => {
+                exploit_stats.total += 1;
+                if is_success {
+                    exploit_stats.successes += 1;
+                } else {
+                    exploit_stats.failures += 1;
+                }
+            }
+            Strategy::Explore => {
+                explore_stats.total += 1;
+                if is_success {
+                    explore_stats.successes += 1;
+                } else {
+                    explore_stats.failures += 1;
+                }
+            }
+            Strategy::Unknown => {
+                unknown_stats.total += 1;
+                if is_success {
+                    unknown_stats.successes += 1;
+                } else {
+                    unknown_stats.failures += 1;
+                }
+            }
+        }
+    }
+
+    let total_decisions = exploit_stats.total + explore_stats.total + unknown_stats.total;
+    if total_decisions == 0 {
+        return 0.0;
+    }
+
+    let known_total = exploit_stats.total + explore_stats.total;
+
+    // If we have no known strategies, we can't simulate change. Return baseline.
+    if known_total == 0 {
+        return ratio(unknown_stats.successes, unknown_stats.total);
+    }
+
+    let current_explore_fraction = ratio(explore_stats.total, known_total);
+
+    // Calculate new explore fraction
+    let new_explore_fraction = (current_explore_fraction + epsilon_delta).clamp(0.0, 1.0);
+    let new_exploit_fraction = 1.0 - new_explore_fraction;
+
+    let exploit_success_rate = exploit_stats.success_rate();
+    let explore_success_rate = explore_stats.success_rate();
+
+    // Projected successes from the known subset
+    #[allow(clippy::cast_precision_loss)]
+    let projected_known_successes = (known_total as f32)
+        * (new_exploit_fraction * exploit_success_rate
+            + new_explore_fraction * explore_success_rate);
+
+    // Add back unknown successes (assumed unchanged)
+    #[allow(clippy::cast_precision_loss)]
+    let total_projected_successes = projected_known_successes + (unknown_stats.successes as f32);
+
+    #[allow(clippy::cast_precision_loss)]
+    {
+        total_projected_successes / (total_decisions as f32)
     }
 }
 
@@ -454,7 +616,14 @@ mod tests {
         action: &str,
         success: bool,
         reward: f32,
+        strategy: Option<&str>,
     ) -> DecisionOutcome {
+        let metadata = strategy.map(|s| {
+            serde_json::json!({
+                "why": [s]
+            })
+        });
+
         DecisionOutcome {
             decision_id: decision_id.to_string(),
             ts: iso8601_now(),
@@ -468,7 +637,7 @@ mod tests {
             success,
             reward: Some(reward),
             context: None,
-            metadata: None,
+            metadata,
         }
     }
 
@@ -505,9 +674,9 @@ mod tests {
     fn analyzer_aggregates_outcomes_by_action() {
         let analyzer = FeedbackAnalyzer::default();
         let outcomes = vec![
-            create_outcome("1", "remind.morning", true, 1.0),
-            create_outcome("2", "remind.morning", false, 0.0),
-            create_outcome("3", "remind.evening", true, 1.0),
+            create_outcome("1", "remind.morning", true, 1.0, None),
+            create_outcome("2", "remind.morning", false, 0.0, None),
+            create_outcome("3", "remind.evening", true, 1.0, None),
         ];
 
         let by_action = analyzer.aggregate_outcomes(&outcomes, |o| o.action.clone());
@@ -524,7 +693,7 @@ mod tests {
     fn analyzer_identifies_high_failure_patterns() {
         let analyzer = FeedbackAnalyzer::default();
         let outcomes: Vec<DecisionOutcome> = (0..10)
-            .map(|i| create_outcome(&i.to_string(), "remind.night", false, 0.0))
+            .map(|i| create_outcome(&i.to_string(), "remind.night", false, 0.0, None))
             .collect();
 
         let patterns = analyzer.analyze_patterns(&outcomes);
@@ -550,7 +719,7 @@ mod tests {
             })
             .collect();
 
-        outcomes.push(create_outcome("10", "remind.morning", true, 1.0));
+        outcomes.push(create_outcome("10", "remind.morning", true, 1.0, None));
 
         let patterns = analyzer.analyze_patterns(&outcomes);
 
@@ -563,8 +732,8 @@ mod tests {
     fn analyzer_requires_minimum_decisions() {
         let analyzer = FeedbackAnalyzer::new(10, 0.5);
         let outcomes = vec![
-            create_outcome("1", "remind.morning", false, 0.0),
-            create_outcome("2", "remind.morning", false, 0.0),
+            create_outcome("1", "remind.morning", false, 0.0, None),
+            create_outcome("2", "remind.morning", false, 0.0, None),
         ];
 
         let proposal = analyzer.propose_adjustment("test-policy", &outcomes);
@@ -582,6 +751,7 @@ mod tests {
                     "remind.morning",
                     success,
                     if success { 1.0 } else { 0.0 },
+                    None,
                 )
             })
             .collect();
@@ -603,7 +773,7 @@ mod tests {
             ts: iso8601_now(),
             deltas: {
                 let mut map = HashMap::new();
-                map.insert("epsilon".to_string(), DeltaValue::Absolute { value: -0.1 });
+                map.insert("epsilon".to_string(), DeltaValue::Additive { value: -0.1 });
                 map
             },
             confidence: 0.68,
@@ -632,21 +802,28 @@ mod tests {
         let analyzer = FeedbackAnalyzer::default();
         let outcomes: Vec<DecisionOutcome> = (0..20)
             .map(|i| {
-                let success = i % 2 == 0; // 50% success rate
+                // 50% Exploit (Success), 50% Explore (Failure)
+                let is_exploit = i % 2 == 0;
+                let strategy = if is_exploit { "exploit" } else { "explore ε" };
                 create_outcome(
                     &i.to_string(),
                     "action",
-                    success,
-                    if success { 1.0 } else { 0.0 },
+                    is_exploit,
+                    if is_exploit { 1.0 } else { 0.0 },
+                    Some(strategy),
                 )
             })
             .collect();
+
+        // Suggest reducing epsilon by 0.1
+        let mut deltas = HashMap::new();
+        deltas.insert("epsilon".to_string(), DeltaValue::Additive { value: -0.1 });
 
         let proposal = WeightAdjustmentProposal {
             version: "0.1.0".to_string(),
             basis_policy: "test".to_string(),
             ts: iso8601_now(),
-            deltas: HashMap::new(),
+            deltas,
             confidence: 0.7,
             evidence: Evidence {
                 decisions_analyzed: 20,
@@ -660,8 +837,55 @@ mod tests {
         };
 
         let simulated_rate = analyzer.simulate_adjustment(&proposal, &outcomes);
-        assert!(simulated_rate > 0.5); // Should show improvement
-        assert!(simulated_rate <= 1.0);
+        let expected = 0.6;
+        let eps = 1e-5;
+        assert!(
+            (simulated_rate - expected).abs() < eps,
+            "Sim: {:?} Expected: {:?}",
+            simulated_rate,
+            expected
+        );
+    }
+
+    #[test]
+    fn simulation_absolute_returns_baseline() {
+        let analyzer = FeedbackAnalyzer::default();
+        let outcomes: Vec<DecisionOutcome> = (0..20)
+            .map(|i| {
+                // 50% Exploit (Success), 50% Explore (Failure)
+                let is_exploit = i % 2 == 0;
+                let strategy = if is_exploit { "exploit" } else { "explore ε" };
+                create_outcome(
+                    &i.to_string(),
+                    "action",
+                    is_exploit,
+                    if is_exploit { 1.0 } else { 0.0 },
+                    Some(strategy),
+                )
+            })
+            .collect();
+
+        // Using Absolute should trigger fallback to baseline (0.5)
+        let mut deltas = HashMap::new();
+        deltas.insert("epsilon".to_string(), DeltaValue::Absolute { value: 0.4 });
+
+        let proposal = WeightAdjustmentProposal {
+            version: "0.1.0".to_string(),
+            basis_policy: "test".to_string(),
+            ts: iso8601_now(),
+            deltas,
+            confidence: 0.7,
+            evidence: Evidence::default(),
+            reasoning: None,
+            status: ProposalStatus::Proposed,
+        };
+
+        let simulated_rate = analyzer.simulate_adjustment(&proposal, &outcomes);
+        assert!(
+            (simulated_rate - 0.5).abs() < 1e-5,
+            "Expected baseline 0.5, got {}",
+            simulated_rate
+        );
     }
 
     #[test]
@@ -749,5 +973,229 @@ mod tests {
             .patterns
             .as_ref()
             .is_some_and(|p| p.len() >= 2));
+    }
+
+    #[test]
+    fn get_strategy_is_case_insensitive() {
+        let outcome = create_outcome("1", "act", true, 1.0, Some("EXPLORE ε"));
+        assert_eq!(get_strategy(&outcome), Strategy::Explore);
+
+        let outcome2 = create_outcome("2", "act", true, 1.0, Some("Exploit"));
+        assert_eq!(get_strategy(&outcome2), Strategy::Exploit);
+    }
+
+    #[test]
+    fn get_strategy_parses_string_and_array() {
+        // "why" as simple string (handled by create_outcome logic if modified, but let's test explicit JSON structure)
+        let outcome_str = DecisionOutcome {
+            decision_id: "str".into(),
+            ts: iso8601_now(),
+            policy_id: None,
+            action: None,
+            outcome: OutcomeType::Success,
+            success: true,
+            reward: None,
+            context: None,
+            metadata: Some(serde_json::json!({ "why": "explore ε" })),
+        };
+        assert_eq!(get_strategy(&outcome_str), Strategy::Explore);
+
+        // "why" as array
+        let outcome_arr = DecisionOutcome {
+            decision_id: "arr".into(),
+            ts: iso8601_now(),
+            policy_id: None,
+            action: None,
+            outcome: OutcomeType::Success,
+            success: true,
+            reward: None,
+            context: None,
+            metadata: Some(serde_json::json!({ "why": ["exploit"] })),
+        };
+        assert_eq!(get_strategy(&outcome_arr), Strategy::Exploit);
+
+        // "why" mixed
+        let outcome_mixed = DecisionOutcome {
+            decision_id: "mix".into(),
+            ts: iso8601_now(),
+            policy_id: None,
+            action: None,
+            outcome: OutcomeType::Success,
+            success: true,
+            reward: None,
+            context: None,
+            metadata: Some(serde_json::json!({ "why": ["some info", "explore"] })),
+        };
+        assert_eq!(get_strategy(&outcome_mixed), Strategy::Explore);
+    }
+
+    #[test]
+    fn simulation_positive_delta_increases_explore() {
+        let analyzer = FeedbackAnalyzer::default();
+        let outcomes: Vec<DecisionOutcome> = (0..20)
+            .map(|i| {
+                // Exploit: 0% success (failure)
+                // Explore: 100% success (success)
+                // This scenario makes Exploration desirable.
+                let is_exploit = i % 2 == 0;
+                let strategy = if is_exploit { "exploit" } else { "explore ε" };
+                create_outcome(
+                    &i.to_string(),
+                    "action",
+                    !is_exploit, // success if explore
+                    if !is_exploit { 1.0 } else { 0.0 },
+                    Some(strategy),
+                )
+            })
+            .collect();
+
+        // Increase epsilon by 0.1 (more explore)
+        let mut deltas = HashMap::new();
+        deltas.insert("epsilon".to_string(), DeltaValue::Additive { value: 0.1 });
+
+        let proposal = WeightAdjustmentProposal {
+            version: "0.1.0".to_string(),
+            basis_policy: "test".to_string(),
+            ts: iso8601_now(),
+            deltas,
+            confidence: 0.7,
+            evidence: Evidence::default(),
+            reasoning: None,
+            status: ProposalStatus::Proposed,
+        };
+
+        // Current: 50% Exploit (fail), 50% Explore (success) -> 0.5 rate
+        // New: 40% Exploit (fail), 60% Explore (success) -> 0.6 rate
+        let simulated_rate = analyzer.simulate_adjustment(&proposal, &outcomes);
+        assert!(
+            (simulated_rate - 0.6).abs() < 1e-5,
+            "Expected 0.6, got {}",
+            simulated_rate
+        );
+    }
+
+    #[test]
+    fn simulation_clamps_probabilities() {
+        let analyzer = FeedbackAnalyzer::default();
+        let outcomes: Vec<DecisionOutcome> = (0..10)
+            .map(|i| {
+                // 50/50 split
+                let is_exploit = i % 2 == 0;
+                let strategy = if is_exploit { "exploit" } else { "explore ε" };
+                create_outcome(
+                    &i.to_string(),
+                    "action",
+                    true, // All success
+                    1.0,
+                    Some(strategy),
+                )
+            })
+            .collect();
+
+        // Huge delta to force clamp
+        let mut deltas = HashMap::new();
+        deltas.insert("epsilon".to_string(), DeltaValue::Additive { value: 10.0 });
+
+        let proposal = WeightAdjustmentProposal {
+            version: "0.1.0".to_string(),
+            basis_policy: "test".to_string(),
+            ts: iso8601_now(),
+            deltas,
+            confidence: 0.7,
+            evidence: Evidence::default(),
+            reasoning: None,
+            status: ProposalStatus::Proposed,
+        };
+
+        // All success, so rate should stay 1.0 regardless of mix
+        let simulated_rate = analyzer.simulate_adjustment(&proposal, &outcomes);
+        assert!((simulated_rate - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn simulation_handles_unknown_strategies() {
+        let analyzer = FeedbackAnalyzer::default();
+        let outcomes: Vec<DecisionOutcome> = (0..10)
+            .map(|i| {
+                // No strategy metadata
+                create_outcome(
+                    &i.to_string(),
+                    "action",
+                    i % 2 == 0, // 50% success
+                    if i % 2 == 0 { 1.0 } else { 0.0 },
+                    None,
+                )
+            })
+            .collect();
+
+        let mut deltas = HashMap::new();
+        deltas.insert("epsilon".to_string(), DeltaValue::Additive { value: -0.1 });
+        let proposal = WeightAdjustmentProposal {
+            version: "0.1.0".to_string(),
+            basis_policy: "test".to_string(),
+            ts: iso8601_now(),
+            deltas,
+            confidence: 0.7,
+            evidence: Evidence::default(),
+            reasoning: None,
+            status: ProposalStatus::Proposed,
+        };
+
+        // Should return baseline (0.5) because known_total is 0
+        let simulated_rate = analyzer.simulate_adjustment(&proposal, &outcomes);
+        assert!((simulated_rate - 0.5).abs() < 1e-5);
+    }
+
+    #[test]
+    fn simulation_handles_mixed_known_unknown() {
+        let analyzer = FeedbackAnalyzer::default();
+        let mut outcomes = Vec::new();
+
+        // 10 Known: 5 Exploit (Success), 5 Explore (Failure) -> Rate 0.5
+        for i in 0..10 {
+            let is_exploit = i % 2 == 0;
+            let strategy = if is_exploit { "exploit" } else { "explore ε" };
+            outcomes.push(create_outcome(
+                &i.to_string(),
+                "a",
+                is_exploit,
+                if is_exploit { 1.0 } else { 0.0 },
+                Some(strategy),
+            ));
+        }
+
+        // 10 Unknown: All Success -> Rate 1.0
+        for i in 10..20 {
+            outcomes.push(create_outcome(&i.to_string(), "b", true, 1.0, None));
+        }
+
+        // Total decisions: 20
+        // Known: 10. Current Explore Ratio: 0.5.
+        // Proposal: Delta -0.1 -> New Explore Ratio 0.4.
+        // New Known Success Rate: 0.6 (calculated in previous test logic: 0.6*1.0 + 0.4*0.0)
+        // Expected Success Count (Known) = 0.6 * 10 = 6.
+        // Unknown Success Count = 10 (unchanged).
+        // Total Success = 16.
+        // Total Rate = 16 / 20 = 0.8.
+
+        let mut deltas = HashMap::new();
+        deltas.insert("epsilon".to_string(), DeltaValue::Additive { value: -0.1 });
+        let proposal = WeightAdjustmentProposal {
+            version: "0.1.0".to_string(),
+            basis_policy: "test".to_string(),
+            ts: iso8601_now(),
+            deltas,
+            confidence: 0.7,
+            evidence: Evidence::default(),
+            reasoning: None,
+            status: ProposalStatus::Proposed,
+        };
+
+        let simulated_rate = analyzer.simulate_adjustment(&proposal, &outcomes);
+        assert!(
+            (simulated_rate - 0.8).abs() < 1e-5,
+            "Expected 0.8, got {}",
+            simulated_rate
+        );
     }
 }
