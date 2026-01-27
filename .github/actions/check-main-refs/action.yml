@@ -10,7 +10,8 @@ runs:
         # (main|master)   -> matches 'main' or 'master'
         # ([^a-zA-Z0-9_-]|$) -> matches end of word (ensures we don't match 'maintenance')
         #                       followed by non-alphanumeric (like #, space, newline) or end of line.
-        if grep -rE "uses:.*@(main|master)([^a-zA-Z0-9_-]|$)" .github/; then
+        # Restrict to yaml/yml files to avoid false positives in binary files or others
+        if grep -rE "uses:.*@(main|master)([^a-zA-Z0-9_-]|$)" .github/ --include="*.yml" --include="*.yaml"; then
           echo "Error: Found '@main' or '@master' references in workflow/action files. Please use a specific commit SHA or tag."
           exit 1
         fi
