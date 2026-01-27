@@ -704,6 +704,8 @@ mod tests {
         assert!(state.last_error.is_none());
     }
 
+    /// This test uses Unix-specific permission handling (chmod) to simulate IO errors.
+    /// It is gated with #[cfg(unix)] to prevent failures on non-Unix systems (e.g., Windows).
     #[test]
     #[cfg(unix)]
     fn test_process_ingest_save_error_does_not_mask_protocol_error() {
