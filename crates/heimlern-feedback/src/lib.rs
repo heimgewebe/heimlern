@@ -5,6 +5,23 @@
 //! This crate implements retrospective analysis of policy decisions and
 //! generates weight adjustment proposals. It follows the principle:
 //! **heimlern analyzes and proposes, never directly modifies live weights**.
+//!
+//! # Delta Semantics
+//!
+//! Adjustments are proposed via [`WeightAdjustmentProposal`], which contains a map of
+//! [`DeltaValue`]. The variants define how the values should be applied:
+//!
+//! *   [`DeltaValue::Absolute`]: "Set-to" semantics. The target parameter should be set exactly to this value.
+//!     Legacy consumers might have interpreted this as additive in the past, but the new standard distinguishes them.
+//! *   [`DeltaValue::Additive`]: "Delta" semantics. The value should be added to the current parameter.
+//! *   [`DeltaValue::Relative`]: Percentage change relative to the current value.
+//!
+//! # Simulation
+//!
+//! This crate can simulate the expected impact of `epsilon` (exploration rate) adjustments using
+//! Importance Sampling / Re-weighting. This requires decision outcomes to carry metadata about
+//! whether they were "explore" or "exploit" decisions. Simulation is currently supported only for
+//! [`DeltaValue::Additive`] adjustments to `epsilon`.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -171,13 +188,7 @@ impl OutcomeStatistics {
     /// Calculate success rate (0.0 to 1.0).
     #[must_use]
     pub fn success_rate(&self) -> f32 {
-        if self.total == 0 {
-            return 0.0;
-        }
-        #[allow(clippy::cast_precision_loss)]
-        {
-            self.successes as f32 / self.total as f32
-        }
+        ratio(self.successes, self.total)
     }
 
     /// Calculate failure rate (0.0 to 1.0).
@@ -203,6 +214,17 @@ impl OutcomeStatistics {
         {
             (self.total_reward / self.total as f64) as f32
         }
+    }
+}
+
+/// Helper to calculate ratio of two numbers with precision loss handling.
+fn ratio(num: usize, den: usize) -> f32 {
+    if den == 0 {
+        return 0.0;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    {
+        num as f32 / den as f32
     }
 }
 
@@ -430,13 +452,11 @@ impl FeedbackAnalyzer {
                 DeltaValue::Absolute { .. } => {
                     // Fallback: Return baseline
                     let successes = outcomes.iter().filter(|o| outcome_is_success(o)).count();
-
-                    (successes as f32) / (outcomes.len() as f32)
+                    ratio(successes, outcomes.len())
                 }
                 _ => {
                     let successes = outcomes.iter().filter(|o| outcome_is_success(o)).count();
-
-                    (successes as f32) / (outcomes.len() as f32)
+                    ratio(successes, outcomes.len())
                 }
             }
         } else {
@@ -537,12 +557,10 @@ fn simulate_epsilon_change(outcomes: &[DecisionOutcome], epsilon_delta: f32) -> 
 
     // If we have no known strategies, we can't simulate change. Return baseline.
     if known_total == 0 {
-        #[allow(clippy::cast_precision_loss)]
-        return (unknown_stats.successes as f32) / (unknown_stats.total as f32);
+        return ratio(unknown_stats.successes, unknown_stats.total);
     }
 
-    #[allow(clippy::cast_precision_loss)]
-    let current_explore_fraction = explore_stats.total as f32 / known_total as f32;
+    let current_explore_fraction = ratio(explore_stats.total, known_total);
 
     // Calculate new explore fraction
     let new_explore_fraction = (current_explore_fraction + epsilon_delta).clamp(0.0, 1.0);
