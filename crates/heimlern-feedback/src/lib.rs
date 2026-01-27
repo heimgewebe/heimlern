@@ -19,7 +19,7 @@
 //! # Simulation
 //!
 //! This crate can simulate the expected impact of `epsilon` (exploration rate) adjustments using
-//! Importance Sampling / Re-weighting. This requires decision outcomes to carry metadata about
+//! statistical re-weighting (mixture re-weighting). This requires decision outcomes to carry metadata about
 //! whether they were "explore" or "exploit" decisions. Simulation is supported for
 //! [`DeltaValue::Additive`] and [`DeltaValue::Absolute`] adjustments to `epsilon`.
 
@@ -597,8 +597,9 @@ fn simulate_epsilon_change(outcomes: &[DecisionOutcome], epsilon_delta: f32) -> 
 
     let known_total = exploit_stats.total + explore_stats.total;
     if known_total == 0 {
-        // Fallback handled inside simulate_reweighting, but needed for current ratio
-        return simulate_reweighting(&exploit_stats, &explore_stats, &unknown_stats, 0.0);
+        // If we have no known strategies, we can't simulate change based on epsilon shift.
+        // Return the success rate of the unknown set (baseline).
+        return ratio(unknown_stats.successes, unknown_stats.total);
     }
 
     let current_explore_fraction = ratio(explore_stats.total, known_total);
