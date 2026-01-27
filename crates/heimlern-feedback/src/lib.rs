@@ -20,8 +20,8 @@
 //!
 //! This crate can simulate the expected impact of `epsilon` (exploration rate) adjustments using
 //! Importance Sampling / Re-weighting. This requires decision outcomes to carry metadata about
-//! whether they were "explore" or "exploit" decisions. Simulation is currently supported only for
-//! [`DeltaValue::Additive`] adjustments to `epsilon`.
+//! whether they were "explore" or "exploit" decisions. Simulation is supported for
+//! [`DeltaValue::Additive`] and [`DeltaValue::Absolute`] adjustments to `epsilon`.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -446,14 +446,7 @@ impl FeedbackAnalyzer {
         if let Some(val) = proposal.deltas.get("epsilon") {
             match val {
                 DeltaValue::Additive { value } => simulate_epsilon_change(outcomes, *value),
-                // For Absolute (set-to), we can't easily simulate without knowing the current epsilon
-                // to calculate the delta. We skip simulation for now or would need current state.
-                // Or we could try to infer current epsilon from explore ratio.
-                DeltaValue::Absolute { .. } => {
-                    // Fallback: Return baseline
-                    let successes = outcomes.iter().filter(|o| outcome_is_success(o)).count();
-                    ratio(successes, outcomes.len())
-                }
+                DeltaValue::Absolute { value } => simulate_epsilon_absolute(outcomes, *value),
                 _ => {
                     let successes = outcomes.iter().filter(|o| outcome_is_success(o)).count();
                     ratio(successes, outcomes.len())
@@ -503,17 +496,9 @@ fn get_strategy(outcome: &DecisionOutcome) -> Strategy {
     Strategy::Unknown
 }
 
-/// Estimates the success rate if epsilon were changed by `epsilon_delta`.
-///
-/// If `epsilon_delta` < 0 (less exploration), we shift probability mass from Explore to Exploit.
-/// If `epsilon_delta` > 0 (more exploration), we shift probability mass from Exploit to Explore.
-///
-/// Mass shifting logic:
-/// New P(Explore) = Old P(Explore) + Delta
-/// But "Old P(Explore)" is approximated by N_explore / N_known.
-///
-/// Returns the estimated success rate over the entire set of outcomes (including Unknowns).
-fn simulate_epsilon_change(outcomes: &[DecisionOutcome], epsilon_delta: f32) -> f32 {
+fn collect_strategy_stats(
+    outcomes: &[DecisionOutcome],
+) -> (OutcomeStatistics, OutcomeStatistics, OutcomeStatistics) {
     let mut exploit_stats = OutcomeStatistics::default();
     let mut explore_stats = OutcomeStatistics::default();
     let mut unknown_stats = OutcomeStatistics::default();
@@ -547,7 +532,16 @@ fn simulate_epsilon_change(outcomes: &[DecisionOutcome], epsilon_delta: f32) -> 
             }
         }
     }
+    (exploit_stats, explore_stats, unknown_stats)
+}
 
+/// Helper to perform re-weighting simulation given a target exploration fraction.
+fn simulate_reweighting(
+    exploit_stats: &OutcomeStatistics,
+    explore_stats: &OutcomeStatistics,
+    unknown_stats: &OutcomeStatistics,
+    new_explore_fraction: f32,
+) -> f32 {
     let total_decisions = exploit_stats.total + explore_stats.total + unknown_stats.total;
     if total_decisions == 0 {
         return 0.0;
@@ -560,10 +554,7 @@ fn simulate_epsilon_change(outcomes: &[DecisionOutcome], epsilon_delta: f32) -> 
         return ratio(unknown_stats.successes, unknown_stats.total);
     }
 
-    let current_explore_fraction = ratio(explore_stats.total, known_total);
-
-    // Calculate new explore fraction
-    let new_explore_fraction = (current_explore_fraction + epsilon_delta).clamp(0.0, 1.0);
+    let new_explore_fraction = new_explore_fraction.clamp(0.0, 1.0);
     let new_exploit_fraction = 1.0 - new_explore_fraction;
 
     let exploit_success_rate = exploit_stats.success_rate();
@@ -583,6 +574,47 @@ fn simulate_epsilon_change(outcomes: &[DecisionOutcome], epsilon_delta: f32) -> 
     {
         total_projected_successes / (total_decisions as f32)
     }
+}
+
+/// Estimates the success rate if epsilon were changed by `epsilon_delta`.
+///
+/// If `epsilon_delta` < 0 (less exploration), we shift probability mass from Explore to Exploit.
+/// If `epsilon_delta` > 0 (more exploration), we shift probability mass from Exploit to Explore.
+///
+/// Mass shifting logic:
+/// New P(Explore) = Old P(Explore) + Delta
+/// But "Old P(Explore)" is approximated by N_explore / N_known.
+///
+/// Returns the estimated success rate over the entire set of outcomes (including Unknowns).
+fn simulate_epsilon_change(outcomes: &[DecisionOutcome], epsilon_delta: f32) -> f32 {
+    let (exploit_stats, explore_stats, unknown_stats) = collect_strategy_stats(outcomes);
+
+    let known_total = exploit_stats.total + explore_stats.total;
+    if known_total == 0 {
+        // Fallback handled inside simulate_reweighting, but needed for current ratio
+        return simulate_reweighting(&exploit_stats, &explore_stats, &unknown_stats, 0.0);
+    }
+
+    let current_explore_fraction = ratio(explore_stats.total, known_total);
+    let new_explore_fraction = current_explore_fraction + epsilon_delta;
+
+    simulate_reweighting(
+        &exploit_stats,
+        &explore_stats,
+        &unknown_stats,
+        new_explore_fraction,
+    )
+}
+
+/// Estimates the success rate if epsilon were set to `target_epsilon`.
+fn simulate_epsilon_absolute(outcomes: &[DecisionOutcome], target_epsilon: f32) -> f32 {
+    let (exploit_stats, explore_stats, unknown_stats) = collect_strategy_stats(outcomes);
+    simulate_reweighting(
+        &exploit_stats,
+        &explore_stats,
+        &unknown_stats,
+        target_epsilon,
+    )
 }
 
 fn outcome_is_success(outcome: &DecisionOutcome) -> bool {
@@ -848,7 +880,7 @@ mod tests {
     }
 
     #[test]
-    fn simulation_absolute_returns_baseline() {
+    fn simulation_absolute_correctly_simulates() {
         let analyzer = FeedbackAnalyzer::default();
         let outcomes: Vec<DecisionOutcome> = (0..20)
             .map(|i| {
@@ -865,7 +897,10 @@ mod tests {
             })
             .collect();
 
-        // Using Absolute should trigger fallback to baseline (0.5)
+        // Target Epsilon = 0.4.
+        // Current Explore (Failure) = 0.5. Current Exploit (Success) = 0.5.
+        // New Explore = 0.4. New Exploit = 0.6.
+        // Expected Success = 0.6 (Exploit) * 1.0 (Success Rate) + 0.4 (Explore) * 0.0 (Success Rate) = 0.6.
         let mut deltas = HashMap::new();
         deltas.insert("epsilon".to_string(), DeltaValue::Absolute { value: 0.4 });
 
@@ -882,10 +917,47 @@ mod tests {
 
         let simulated_rate = analyzer.simulate_adjustment(&proposal, &outcomes);
         assert!(
-            (simulated_rate - 0.5).abs() < 1e-5,
-            "Expected baseline 0.5, got {}",
+            (simulated_rate - 0.6).abs() < 1e-5,
+            "Expected 0.6, got {}",
             simulated_rate
         );
+    }
+
+    #[test]
+    fn simulate_epsilon_absolute_clamps_probabilities() {
+        let analyzer = FeedbackAnalyzer::default();
+        let outcomes: Vec<DecisionOutcome> = (0..10)
+            .map(|i| {
+                let is_exploit = i % 2 == 0;
+                let strategy = if is_exploit { "exploit" } else { "explore ε" };
+                create_outcome(
+                    &i.to_string(),
+                    "action",
+                    true, // All success
+                    1.0,
+                    Some(strategy),
+                )
+            })
+            .collect();
+
+        let mut deltas = HashMap::new();
+        // Set epsilon > 1.0, should clamp to 1.0
+        deltas.insert("epsilon".to_string(), DeltaValue::Absolute { value: 1.5 });
+
+        let proposal = WeightAdjustmentProposal {
+            version: "0.1.0".to_string(),
+            basis_policy: "test".to_string(),
+            ts: iso8601_now(),
+            deltas,
+            confidence: 0.7,
+            evidence: Evidence::default(),
+            reasoning: None,
+            status: ProposalStatus::Proposed,
+        };
+
+        let simulated_rate = analyzer.simulate_adjustment(&proposal, &outcomes);
+        // All success, so rate is 1.0. Just verifying it doesn't panic or produce NaN.
+        assert!((simulated_rate - 1.0).abs() < 1e-5);
     }
 
     #[test]
