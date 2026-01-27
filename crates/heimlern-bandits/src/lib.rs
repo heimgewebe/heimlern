@@ -166,7 +166,7 @@ impl Policy for RemindBandit {
             }
         };
 
-        let value_estimate = self.get_average_reward(&chosen_slot);
+        let value_estimate = self.get_average_reward(chosen_slot);
 
         Decision {
             action: format!("remind.{chosen_slot}"),
