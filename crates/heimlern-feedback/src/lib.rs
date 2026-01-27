@@ -817,10 +817,7 @@ mod tests {
 
         // Suggest reducing epsilon by 0.1
         let mut deltas = HashMap::new();
-        deltas.insert(
-            "epsilon".to_string(),
-            DeltaValue::Additive { value: -0.1 },
-        );
+        deltas.insert("epsilon".to_string(), DeltaValue::Additive { value: -0.1 });
 
         let proposal = WeightAdjustmentProposal {
             version: "0.1.0".to_string(),
@@ -870,10 +867,7 @@ mod tests {
 
         // Using Absolute should trigger fallback to baseline (0.5)
         let mut deltas = HashMap::new();
-        deltas.insert(
-            "epsilon".to_string(),
-            DeltaValue::Absolute { value: 0.4 },
-        );
+        deltas.insert("epsilon".to_string(), DeltaValue::Absolute { value: 0.4 });
 
         let proposal = WeightAdjustmentProposal {
             version: "0.1.0".to_string(),
@@ -887,7 +881,11 @@ mod tests {
         };
 
         let simulated_rate = analyzer.simulate_adjustment(&proposal, &outcomes);
-        assert!((simulated_rate - 0.5).abs() < 1e-5, "Expected baseline 0.5, got {}", simulated_rate);
+        assert!(
+            (simulated_rate - 0.5).abs() < 1e-5,
+            "Expected baseline 0.5, got {}",
+            simulated_rate
+        );
     }
 
     #[test]
@@ -1053,10 +1051,7 @@ mod tests {
 
         // Increase epsilon by 0.1 (more explore)
         let mut deltas = HashMap::new();
-        deltas.insert(
-            "epsilon".to_string(),
-            DeltaValue::Additive { value: 0.1 },
-        );
+        deltas.insert("epsilon".to_string(), DeltaValue::Additive { value: 0.1 });
 
         let proposal = WeightAdjustmentProposal {
             version: "0.1.0".to_string(),
@@ -1099,10 +1094,7 @@ mod tests {
 
         // Huge delta to force clamp
         let mut deltas = HashMap::new();
-        deltas.insert(
-            "epsilon".to_string(),
-            DeltaValue::Additive { value: 10.0 },
-        );
+        deltas.insert("epsilon".to_string(), DeltaValue::Additive { value: 10.0 });
 
         let proposal = WeightAdjustmentProposal {
             version: "0.1.0".to_string(),
@@ -1137,10 +1129,7 @@ mod tests {
             .collect();
 
         let mut deltas = HashMap::new();
-        deltas.insert(
-            "epsilon".to_string(),
-            DeltaValue::Additive { value: -0.1 },
-        );
+        deltas.insert("epsilon".to_string(), DeltaValue::Additive { value: -0.1 });
         let proposal = WeightAdjustmentProposal {
             version: "0.1.0".to_string(),
             basis_policy: "test".to_string(),
@@ -1190,10 +1179,7 @@ mod tests {
         // Total Rate = 16 / 20 = 0.8.
 
         let mut deltas = HashMap::new();
-        deltas.insert(
-            "epsilon".to_string(),
-            DeltaValue::Additive { value: -0.1 },
-        );
+        deltas.insert("epsilon".to_string(), DeltaValue::Additive { value: -0.1 });
         let proposal = WeightAdjustmentProposal {
             version: "0.1.0".to_string(),
             basis_policy: "test".to_string(),
