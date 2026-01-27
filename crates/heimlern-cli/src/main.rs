@@ -162,10 +162,10 @@ impl EventStats {
         Ok(())
     }
 
-    fn update(&mut self, event: &AussenEvent) {
+    fn update(&mut self, event: AussenEvent) {
         self.total_processed += 1;
-        *self.by_type.entry(event.r#type.clone()).or_insert(0) += 1;
-        *self.by_source.entry(event.source.clone()).or_insert(0) += 1;
+        *self.by_type.entry(event.r#type).or_insert(0) += 1;
+        *self.by_source.entry(event.source).or_insert(0) += 1;
         self.last_updated = OffsetDateTime::now_utc();
     }
 }
@@ -401,7 +401,7 @@ fn process_ingest(
             let count = fetch_result.events.len();
 
             for event in fetch_result.events {
-                stats.update(&event);
+                stats.update(event);
             }
 
             // Always update last_updated to reflect the check time
