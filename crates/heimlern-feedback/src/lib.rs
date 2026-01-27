@@ -370,7 +370,9 @@ impl FeedbackAnalyzer {
             reasoning.push("Reduce exploration due to high failure rate".to_string());
         }
 
-        // Simulate improvement using replay-based simulation
+        // Simulate improvement using reweighting simulation
+        // Note: DeltaValue::Absolute is interpreted here as an additive delta (e.g. -0.05 means epsilon -= 0.05),
+        // not as setting an absolute value.
         let failure_rate_after_sim =
             if let Some(DeltaValue::Absolute { value }) = deltas.get("epsilon") {
                 1.0 - simulate_epsilon_change(outcomes, *value)
@@ -388,7 +390,7 @@ impl FeedbackAnalyzer {
                 decisions_analyzed: outcomes.len(),
                 failure_rate_before: Some(overall_stats.failure_rate()),
                 failure_rate_after_sim: Some(failure_rate_after_sim),
-                simulation_method: Some("replay_epsilon_simulation".to_string()),
+                simulation_method: Some("reweight_epsilon_simulation".to_string()),
                 patterns: Some(patterns),
             },
             reasoning: Some(reasoning),
@@ -412,6 +414,7 @@ impl FeedbackAnalyzer {
         }
 
         // If epsilon is modified, simulate it.
+        // We interpret Absolute value as an additive delta to the current epsilon.
         if let Some(DeltaValue::Absolute { value }) = proposal.deltas.get("epsilon") {
             simulate_epsilon_change(outcomes, *value)
         } else {
@@ -443,10 +446,13 @@ fn get_strategy(outcome: &DecisionOutcome) -> Strategy {
             };
 
             for reason in reasons {
-                if reason.contains("explore") {
+                // Case-insensitive matching to be robust against "Explore", "EXPLORE", etc.
+                // We checks for "explore" or "exploit" presence.
+                let r = reason.to_lowercase();
+                if r.contains("explore") {
                     return Strategy::Explore;
                 }
-                if reason.contains("exploit") {
+                if r.contains("exploit") {
                     return Strategy::Exploit;
                 }
             }
@@ -877,5 +883,14 @@ mod tests {
             .patterns
             .as_ref()
             .is_some_and(|p| p.len() >= 2));
+    }
+
+    #[test]
+    fn get_strategy_is_case_insensitive() {
+        let outcome = create_outcome("1", "act", true, 1.0, Some("EXPLORE ε"));
+        assert_eq!(get_strategy(&outcome), Strategy::Explore);
+
+        let outcome2 = create_outcome("2", "act", true, 1.0, Some("Exploit"));
+        assert_eq!(get_strategy(&outcome2), Strategy::Exploit);
     }
 }
