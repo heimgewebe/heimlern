@@ -81,7 +81,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ts: iso8601_now(),
         policy_id: "remind-bandit".to_string(), // Matches RemindBandit snapshot ID
         policy: "heimlern-bandits".to_string(),
-        context: ctx.clone(),
+        context: ctx,
         decision,
     };
 
