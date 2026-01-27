@@ -142,7 +142,7 @@ impl Policy for RemindBandit {
         let chosen_slot = if explore {
             // Exploration: zufällig wählen (safe, da nicht leer, aber defensiv).
             if let Some(slot) = self.slots.choose(&mut rng) {
-                slot.clone()
+                slot
             } else {
                 return fallback_decision("no slots available", ctx);
             }
@@ -158,7 +158,7 @@ impl Policy for RemindBandit {
                 })
                 .max_by(|(_, a_avg), (_, b_avg)| a_avg.total_cmp(b_avg))
             {
-                slot.clone()
+                slot
             } else {
                 // Falls alle Rewards NaN sind, trotzdem stabil zurückfallen
                 log_warn("decide(): alle Slots haben ungültige Rewards (NaN) – fallback");
