@@ -5,7 +5,7 @@ runs:
   steps:
     - name: Check for default branch references
       run: |
-        if grep -rE "@(main|master)" .github/workflows/; then
+        if grep -rE "uses:.*@(main|master)([[:space:]]|$)" .github/workflows/; then
           echo "Error: Found '@main' or '@master' references in workflow files. Please use a specific commit SHA or tag."
           exit 1
         fi
