@@ -22,11 +22,6 @@ const CONFIDENCE_SAMPLE_WEIGHT: f32 = 0.4;
 /// Weight for pattern count component in confidence calculation
 const CONFIDENCE_PATTERN_WEIGHT: f32 = 0.6;
 
-// Simulation constants
-/// Placeholder improvement estimate for simulations (15% improvement)
-/// TODO: Replace with actual replay-based simulation
-const SIMULATION_ESTIMATED_IMPROVEMENT: f32 = 0.15;
-
 // Pattern detection thresholds
 /// Minimum number of decisions for a specific action before analyzing patterns
 const PATTERN_MIN_DECISIONS_PER_ACTION: usize = 5;
@@ -375,9 +370,13 @@ impl FeedbackAnalyzer {
             reasoning.push("Reduce exploration due to high failure rate".to_string());
         }
 
-        // Simulate improvement (placeholder - real simulation would replay decisions)
+        // Simulate improvement using replay-based simulation
         let failure_rate_after_sim =
-            (overall_stats.failure_rate() - SIMULATION_ESTIMATED_IMPROVEMENT).max(0.0);
+            if let Some(DeltaValue::Absolute { value }) = deltas.get("epsilon") {
+                1.0 - simulate_epsilon_change(outcomes, *value)
+            } else {
+                overall_stats.failure_rate()
+            };
 
         Some(WeightAdjustmentProposal {
             version: "0.1.0".to_string(),
@@ -389,7 +388,7 @@ impl FeedbackAnalyzer {
                 decisions_analyzed: outcomes.len(),
                 failure_rate_before: Some(overall_stats.failure_rate()),
                 failure_rate_after_sim: Some(failure_rate_after_sim),
-                simulation_method: Some("placeholder_constant".to_string()),
+                simulation_method: Some("replay_epsilon_simulation".to_string()),
                 patterns: Some(patterns),
             },
             reasoning: Some(reasoning),
@@ -405,21 +404,132 @@ impl FeedbackAnalyzer {
     #[must_use]
     pub fn simulate_adjustment(
         &self,
-        _proposal: &WeightAdjustmentProposal,
+        proposal: &WeightAdjustmentProposal,
         outcomes: &[DecisionOutcome],
     ) -> f32 {
         if outcomes.is_empty() {
             return 0.0;
         }
 
-        // Simple simulation: calculate baseline success rate
-        let successes = outcomes.iter().filter(|o| outcome_is_success(o)).count();
-        #[allow(clippy::cast_precision_loss)]
-        let baseline = successes as f32 / outcomes.len() as f32;
+        // If epsilon is modified, simulate it.
+        if let Some(DeltaValue::Absolute { value }) = proposal.deltas.get("epsilon") {
+            simulate_epsilon_change(outcomes, *value)
+        } else {
+            // Simple simulation: calculate baseline success rate
+            let successes = outcomes.iter().filter(|o| outcome_is_success(o)).count();
+            #[allow(clippy::cast_precision_loss)]
+            let baseline = successes as f32 / outcomes.len() as f32;
+            baseline
+        }
+    }
+}
 
-        // Estimate improvement using placeholder constant
-        // TODO: Replace with actual replay-based simulation
-        (baseline + SIMULATION_ESTIMATED_IMPROVEMENT).min(1.0)
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum Strategy {
+    Explore,
+    Exploit,
+    Unknown,
+}
+
+fn get_strategy(outcome: &DecisionOutcome) -> Strategy {
+    if let Some(metadata) = &outcome.metadata {
+        if let Some(why) = metadata.get("why") {
+            let reasons = if let Some(arr) = why.as_array() {
+                arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>()
+            } else if let Some(s) = why.as_str() {
+                vec![s]
+            } else {
+                vec![]
+            };
+
+            for reason in reasons {
+                if reason.contains("explore") {
+                    return Strategy::Explore;
+                }
+                if reason.contains("exploit") {
+                    return Strategy::Exploit;
+                }
+            }
+        }
+    }
+    Strategy::Unknown
+}
+
+/// Estimates the success rate if epsilon were changed by `epsilon_delta`.
+///
+/// If `epsilon_delta` < 0 (less exploration), we shift probability mass from Explore to Exploit.
+/// If `epsilon_delta` > 0 (more exploration), we shift probability mass from Exploit to Explore.
+///
+/// Mass shifting logic:
+/// New P(Explore) = Old P(Explore) + Delta
+/// But "Old P(Explore)" is approximated by N_explore / N_known.
+///
+/// Returns the estimated success rate over the entire set of outcomes (including Unknowns).
+fn simulate_epsilon_change(outcomes: &[DecisionOutcome], epsilon_delta: f32) -> f32 {
+    let mut exploit_stats = OutcomeStatistics::default();
+    let mut explore_stats = OutcomeStatistics::default();
+    let mut unknown_stats = OutcomeStatistics::default();
+
+    for outcome in outcomes {
+        let is_success = outcome_is_success(outcome);
+        match get_strategy(outcome) {
+            Strategy::Exploit => {
+                exploit_stats.total += 1;
+                if is_success {
+                    exploit_stats.successes += 1;
+                }
+            }
+            Strategy::Explore => {
+                explore_stats.total += 1;
+                if is_success {
+                    explore_stats.successes += 1;
+                }
+            }
+            Strategy::Unknown => {
+                unknown_stats.total += 1;
+                if is_success {
+                    unknown_stats.successes += 1;
+                }
+            }
+        }
+    }
+
+    let total_decisions = exploit_stats.total + explore_stats.total + unknown_stats.total;
+    if total_decisions == 0 {
+        return 0.0;
+    }
+
+    let known_total = exploit_stats.total + explore_stats.total;
+
+    // If we have no known strategies, we can't simulate change. Return baseline.
+    if known_total == 0 {
+        #[allow(clippy::cast_precision_loss)]
+        return (unknown_stats.successes as f32) / (unknown_stats.total as f32);
+    }
+
+    #[allow(clippy::cast_precision_loss)]
+    let current_explore_fraction = explore_stats.total as f32 / known_total as f32;
+
+    // Calculate new explore fraction
+    let new_explore_fraction = (current_explore_fraction + epsilon_delta).clamp(0.0, 1.0);
+    let new_exploit_fraction = 1.0 - new_explore_fraction;
+
+    let exploit_success_rate = exploit_stats.success_rate();
+    let explore_success_rate = explore_stats.success_rate();
+
+    // Projected successes from the known subset
+    #[allow(clippy::cast_precision_loss)]
+    let projected_known_successes = (known_total as f32)
+        * (new_exploit_fraction * exploit_success_rate
+            + new_explore_fraction * explore_success_rate);
+
+    // Add back unknown successes (assumed unchanged)
+    #[allow(clippy::cast_precision_loss)]
+    let total_projected_successes = projected_known_successes + (unknown_stats.successes as f32);
+
+    #[allow(clippy::cast_precision_loss)]
+    {
+        total_projected_successes / (total_decisions as f32)
     }
 }
 
@@ -454,7 +564,14 @@ mod tests {
         action: &str,
         success: bool,
         reward: f32,
+        strategy: Option<&str>,
     ) -> DecisionOutcome {
+        let metadata = strategy.map(|s| {
+            serde_json::json!({
+                "why": [s]
+            })
+        });
+
         DecisionOutcome {
             decision_id: decision_id.to_string(),
             ts: iso8601_now(),
@@ -468,7 +585,7 @@ mod tests {
             success,
             reward: Some(reward),
             context: None,
-            metadata: None,
+            metadata,
         }
     }
 
@@ -505,9 +622,9 @@ mod tests {
     fn analyzer_aggregates_outcomes_by_action() {
         let analyzer = FeedbackAnalyzer::default();
         let outcomes = vec![
-            create_outcome("1", "remind.morning", true, 1.0),
-            create_outcome("2", "remind.morning", false, 0.0),
-            create_outcome("3", "remind.evening", true, 1.0),
+            create_outcome("1", "remind.morning", true, 1.0, None),
+            create_outcome("2", "remind.morning", false, 0.0, None),
+            create_outcome("3", "remind.evening", true, 1.0, None),
         ];
 
         let by_action = analyzer.aggregate_outcomes(&outcomes, |o| o.action.clone());
@@ -524,7 +641,7 @@ mod tests {
     fn analyzer_identifies_high_failure_patterns() {
         let analyzer = FeedbackAnalyzer::default();
         let outcomes: Vec<DecisionOutcome> = (0..10)
-            .map(|i| create_outcome(&i.to_string(), "remind.night", false, 0.0))
+            .map(|i| create_outcome(&i.to_string(), "remind.night", false, 0.0, None))
             .collect();
 
         let patterns = analyzer.analyze_patterns(&outcomes);
@@ -550,7 +667,7 @@ mod tests {
             })
             .collect();
 
-        outcomes.push(create_outcome("10", "remind.morning", true, 1.0));
+        outcomes.push(create_outcome("10", "remind.morning", true, 1.0, None));
 
         let patterns = analyzer.analyze_patterns(&outcomes);
 
@@ -563,8 +680,8 @@ mod tests {
     fn analyzer_requires_minimum_decisions() {
         let analyzer = FeedbackAnalyzer::new(10, 0.5);
         let outcomes = vec![
-            create_outcome("1", "remind.morning", false, 0.0),
-            create_outcome("2", "remind.morning", false, 0.0),
+            create_outcome("1", "remind.morning", false, 0.0, None),
+            create_outcome("2", "remind.morning", false, 0.0, None),
         ];
 
         let proposal = analyzer.propose_adjustment("test-policy", &outcomes);
@@ -582,6 +699,7 @@ mod tests {
                     "remind.morning",
                     success,
                     if success { 1.0 } else { 0.0 },
+                    None,
                 )
             })
             .collect();
@@ -632,21 +750,31 @@ mod tests {
         let analyzer = FeedbackAnalyzer::default();
         let outcomes: Vec<DecisionOutcome> = (0..20)
             .map(|i| {
-                let success = i % 2 == 0; // 50% success rate
+                // 50% Exploit (Success), 50% Explore (Failure)
+                let is_exploit = i % 2 == 0;
+                let strategy = if is_exploit { "exploit" } else { "explore ε" };
                 create_outcome(
                     &i.to_string(),
                     "action",
-                    success,
-                    if success { 1.0 } else { 0.0 },
+                    is_exploit,
+                    if is_exploit { 1.0 } else { 0.0 },
+                    Some(strategy),
                 )
             })
             .collect();
+
+        // Suggest reducing epsilon by 0.1
+        let mut deltas = HashMap::new();
+        deltas.insert(
+            "epsilon".to_string(),
+            DeltaValue::Absolute { value: -0.1 },
+        );
 
         let proposal = WeightAdjustmentProposal {
             version: "0.1.0".to_string(),
             basis_policy: "test".to_string(),
             ts: iso8601_now(),
-            deltas: HashMap::new(),
+            deltas,
             confidence: 0.7,
             evidence: Evidence {
                 decisions_analyzed: 20,
@@ -660,7 +788,7 @@ mod tests {
         };
 
         let simulated_rate = analyzer.simulate_adjustment(&proposal, &outcomes);
-        assert!(simulated_rate > 0.5); // Should show improvement
+        assert!(simulated_rate > 0.55); // Expected 0.6
         assert!(simulated_rate <= 1.0);
     }
 
