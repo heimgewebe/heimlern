@@ -34,6 +34,11 @@ fn log_warn(msg: &str) {
 
 const DEFAULT_SLOTS: &[&str] = &["morning", "afternoon", "evening"];
 
+/// Maximale Anzahl an Armen (Slots), um DoS durch Ressourcenverbrauch zu verhindern.
+pub const MAX_ARMS: usize = 1000;
+/// Maximale Länge eines Arm-Namens.
+pub const MAX_ARM_NAME_LEN: usize = 64;
+
 /// ε-greedy Policy für Erinnerungen.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RemindBandit {
@@ -188,6 +193,14 @@ impl Policy for RemindBandit {
         if let Some(slot) = action.strip_prefix("remind.") {
             let slot_name = slot.to_string();
             if !self.slots.contains(&slot_name) {
+                if self.slots.len() >= MAX_ARMS {
+                    log_warn("feedback(): MAX_ARMS erreicht, neuer Slot wird ignoriert");
+                    return;
+                }
+                if slot_name.len() > MAX_ARM_NAME_LEN {
+                    log_warn("feedback(): Slot-Name zu lang, wird ignoriert");
+                    return;
+                }
                 self.slots.push(slot_name.clone());
             }
             let entry = self.values.entry(slot_name).or_insert((0, 0.0));
@@ -233,6 +246,18 @@ impl Policy for RemindBandit {
             let values_len = snap.values.len();
             let arms = snap.arms;
             let expected_len = arms.len();
+
+            if expected_len > MAX_ARMS {
+                log_warn(&format!(
+                    "load(): zu viele Arme ({expected_len} > {MAX_ARMS}) – verworfen"
+                ));
+                return;
+            }
+            if arms.iter().any(|a| a.len() > MAX_ARM_NAME_LEN) {
+                log_warn("load(): mindestens ein Arm-Name ist zu lang – verworfen");
+                return;
+            }
+
             // counts/values müssen zur Länge der Arme passen, sonst ist der Snapshot ungültig.
             let lengths_match = counts_len == expected_len && values_len == expected_len;
             if !lengths_match {
@@ -265,6 +290,17 @@ impl Policy for RemindBandit {
         // 2) Fallback: alte Form (direkte Struct-Serialization)
         match serde_json::from_value::<RemindBandit>(v) {
             Ok(mut legacy) => {
+                if legacy.slots.len() > MAX_ARMS {
+                    log_warn(&format!(
+                        "load(legacy): zu viele Slots ({} > {MAX_ARMS})",
+                        legacy.slots.len()
+                    ));
+                    return;
+                }
+                if legacy.slots.iter().any(|s| s.len() > MAX_ARM_NAME_LEN) {
+                    log_warn("load(legacy): Slot-Name zu lang");
+                    return;
+                }
                 legacy.sanitize();
                 *self = legacy;
             }
@@ -364,6 +400,92 @@ mod tests {
         let decision = bandit.decide(&ctx);
         assert_eq!(decision.action, "remind.afternoon");
         assert!(decision.score > 0.5);
+    }
+
+    #[test]
+    fn load_rejects_snapshot_with_too_many_arms() {
+        let mut bandit = RemindBandit::default();
+        let too_many = MAX_ARMS + 1;
+        let arms: Vec<String> = (0..too_many).map(|i| format!("slot_{i}")).collect();
+        let counts: Vec<u32> = vec![0; too_many];
+        let values: Vec<f64> = vec![0.0; too_many];
+
+        let snap = serde_json::json!({
+            "version": "0.1.0",
+            "policy_id": "remind-bandit",
+            "ts": "2024-01-01T00:00:00Z",
+            "arms": arms,
+            "counts": counts,
+            "values": values,
+            "epsilon": 0.5
+        });
+
+        bandit.load(snap);
+        // Sollte nicht geladen worden sein, epsilon bleibt default (0.2)
+        #[allow(clippy::float_cmp)]
+        {
+            assert_eq!(bandit.epsilon, 0.2);
+        }
+        assert_eq!(bandit.slots, default_slots());
+    }
+
+    #[test]
+    fn load_rejects_snapshot_with_too_long_arm_name() {
+        let mut bandit = RemindBandit::default();
+        let long_name = "a".repeat(MAX_ARM_NAME_LEN + 1);
+
+        let snap = serde_json::json!({
+            "version": "0.1.0",
+            "policy_id": "remind-bandit",
+            "ts": "2024-01-01T00:00:00Z",
+            "arms": [long_name],
+            "counts": [0],
+            "values": [0.0],
+            "epsilon": 0.5
+        });
+
+        bandit.load(snap);
+        #[allow(clippy::float_cmp)]
+        {
+            assert_eq!(bandit.epsilon, 0.2);
+        }
+        assert_eq!(bandit.slots, default_slots());
+    }
+
+    #[test]
+    fn feedback_respects_max_arms() {
+        let mut bandit = RemindBandit {
+            epsilon: 0.2,
+            slots: Vec::new(),
+            values: HashMap::new(),
+        };
+        let ctx = Context {
+            kind: "t".into(),
+            features: serde_json::Value::Null,
+        };
+
+        for i in 0..MAX_ARMS {
+            bandit.feedback(&ctx, &format!("remind.slot_{i}"), 1.0);
+        }
+        assert_eq!(bandit.slots.len(), MAX_ARMS);
+
+        // Nächster Slot sollte ignoriert werden
+        bandit.feedback(&ctx, "remind.one_more", 1.0);
+        assert_eq!(bandit.slots.len(), MAX_ARMS);
+        assert!(!bandit.slots.contains(&"one_more".to_string()));
+    }
+
+    #[test]
+    fn feedback_respects_max_arm_name_len() {
+        let mut bandit = RemindBandit::default();
+        let ctx = Context {
+            kind: "t".into(),
+            features: serde_json::Value::Null,
+        };
+        let long_name = "a".repeat(MAX_ARM_NAME_LEN + 1);
+
+        bandit.feedback(&ctx, &format!("remind.{long_name}"), 1.0);
+        assert!(!bandit.slots.contains(&long_name));
     }
 
     #[test]
