@@ -64,7 +64,7 @@ mod tests {
             source: "home-assistant".to_string(),
             title: Some("Living Room Temperature".to_string()),
             summary: Some("Temperature reading from the main sensor.".to_string()),
-            url: Some("http://ha.local/sensor/123".to_string()),
+            url: Some("https://ha.local/sensor/123".to_string()),
             tags: Some(vec!["home".to_string(), "iot".to_string()]),
             ts: Some("2023-10-27T10:00:00Z".to_string()),
             features: Some(features),
@@ -73,9 +73,13 @@ mod tests {
 
         let serialized = serde_json::to_string(&event)?;
 
-        // Ensure "r#type" is NOT in the JSON, but "type" IS.
-        assert!(serialized.contains("\"type\":\"sensor.reading\""));
-        assert!(!serialized.contains("r#type"));
+        // Ensure "r#type" is NOT in the JSON, but "type" IS (structural check).
+        let v: serde_json::Value = serde_json::from_str(&serialized)?;
+        assert_eq!(
+            v.get("type").and_then(|x| x.as_str()),
+            Some("sensor.reading")
+        );
+        assert!(v.get("r#type").is_none());
 
         let deserialized: AussenEvent = serde_json::from_str(&serialized)?;
         assert_eq!(event, deserialized);
