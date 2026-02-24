@@ -51,7 +51,7 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn aussen_event_roundtrip() {
+    fn aussen_event_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
         let mut features = BTreeMap::new();
         features.insert("temperature".to_string(), json!(22.5));
 
@@ -71,19 +71,19 @@ mod tests {
             meta: Some(meta),
         };
 
-        let serialized = serde_json::to_string(&event).expect("Serialization failed");
+        let serialized = serde_json::to_string(&event)?;
 
         // Ensure "r#type" is NOT in the JSON, but "type" IS.
         assert!(serialized.contains("\"type\":\"sensor.reading\""));
         assert!(!serialized.contains("r#type"));
 
-        let deserialized: AussenEvent =
-            serde_json::from_str(&serialized).expect("Deserialization failed");
+        let deserialized: AussenEvent = serde_json::from_str(&serialized)?;
         assert_eq!(event, deserialized);
+        Ok(())
     }
 
     #[test]
-    fn aussen_event_from_json_fixture() {
+    fn aussen_event_from_json_fixture() -> Result<(), Box<dyn std::error::Error>> {
         let json_data = json!({
             "type": "link",
             "source": "test",
@@ -93,12 +93,13 @@ mod tests {
             "features": {}
         });
 
-        let event: AussenEvent = serde_json::from_value(json_data).expect("Deserialization failed");
+        let event: AussenEvent = serde_json::from_value(json_data)?;
         assert_eq!(event.r#type, "link");
         assert_eq!(event.source, "test");
         assert_eq!(event.title, Some("Hello".to_string()));
         assert_eq!(event.url, Some("https://example.org".to_string()));
         assert_eq!(event.tags, Some(vec!["demo".to_string()]));
         assert!(event.features.is_some());
+        Ok(())
     }
 }
