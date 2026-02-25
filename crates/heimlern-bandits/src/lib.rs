@@ -14,7 +14,7 @@ use heimlern_core::{Context, Decision, Policy};
 use rand::prelude::*;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 /// Logging-Helfer:
@@ -33,6 +33,11 @@ fn log_warn(msg: &str) {
 }
 
 const DEFAULT_SLOTS: &[&str] = &["morning", "afternoon", "evening"];
+
+/// Maximale Anzahl an Armen (Slots), um DoS durch Ressourcenverbrauch zu verhindern.
+pub(crate) const MAX_ARMS: usize = 1000;
+/// Maximale Länge eines Arm-Namens.
+pub(crate) const MAX_ARM_NAME_LEN: usize = 64;
 
 /// ε-greedy Policy für Erinnerungen.
 #[derive(Debug, Serialize, Deserialize)]
@@ -188,6 +193,14 @@ impl Policy for RemindBandit {
         if let Some(slot) = action.strip_prefix("remind.") {
             let slot_name = slot.to_string();
             if !self.slots.contains(&slot_name) {
+                if self.slots.len() >= MAX_ARMS {
+                    log_warn("feedback(): MAX_ARMS erreicht, neuer Slot wird ignoriert");
+                    return;
+                }
+                if slot_name.len() > MAX_ARM_NAME_LEN {
+                    log_warn("feedback(): Slot-Name zu lang, wird ignoriert");
+                    return;
+                }
                 self.slots.push(slot_name.clone());
             }
             let entry = self.values.entry(slot_name).or_insert((0, 0.0));
@@ -233,6 +246,18 @@ impl Policy for RemindBandit {
             let values_len = snap.values.len();
             let arms = snap.arms;
             let expected_len = arms.len();
+
+            if expected_len > MAX_ARMS {
+                log_warn(&format!(
+                    "load(): zu viele Arme ({expected_len} > {MAX_ARMS}) – verworfen"
+                ));
+                return;
+            }
+            if arms.iter().any(|a| a.len() > MAX_ARM_NAME_LEN) {
+                log_warn("load(): mindestens ein Arm-Name ist zu lang – verworfen");
+                return;
+            }
+
             // counts/values müssen zur Länge der Arme passen, sonst ist der Snapshot ungültig.
             let lengths_match = counts_len == expected_len && values_len == expected_len;
             if !lengths_match {
@@ -265,6 +290,39 @@ impl Policy for RemindBandit {
         // 2) Fallback: alte Form (direkte Struct-Serialization)
         match serde_json::from_value::<RemindBandit>(v) {
             Ok(mut legacy) => {
+                // 1. Slots-Anzahl & Namen validieren
+                if legacy.slots.len() > MAX_ARMS {
+                    log_warn(&format!(
+                        "load(legacy): zu viele Slots ({} > {MAX_ARMS})",
+                        legacy.slots.len()
+                    ));
+                    return;
+                }
+                if legacy.slots.iter().any(|s| s.len() > MAX_ARM_NAME_LEN) {
+                    log_warn("load(legacy): ein Slot-Name ist zu lang");
+                    return;
+                }
+
+                // 2. Values-Map validieren (Ressourcen & Konsistenz)
+                if legacy.values.len() > MAX_ARMS {
+                    log_warn(&format!(
+                        "load(legacy): zu viele Einträge in values ({} > {MAX_ARMS})",
+                        legacy.values.len()
+                    ));
+                    return;
+                }
+                // Alle Keys in values müssen in slots enthalten sein (Subset-Check)
+                let slots_set: HashSet<&String> = legacy.slots.iter().collect();
+                if legacy.values.keys().any(|k| !slots_set.contains(k)) {
+                    log_warn("load(legacy): values enthält Keys, die nicht in slots gelistet sind");
+                    return;
+                }
+                // Key-Längen in values (redundant zu slots-Check, aber sicher für Konsistenz)
+                if legacy.values.keys().any(|k| k.len() > MAX_ARM_NAME_LEN) {
+                    log_warn("load(legacy): ein Key in values ist zu lang");
+                    return;
+                }
+
                 legacy.sanitize();
                 *self = legacy;
             }
@@ -364,6 +422,98 @@ mod tests {
         let decision = bandit.decide(&ctx);
         assert_eq!(decision.action, "remind.afternoon");
         assert!(decision.score > 0.5);
+    }
+
+    #[test]
+    fn load_rejects_snapshot_with_too_many_arms() {
+        let mut bandit = RemindBandit::default();
+        let initial_epsilon = bandit.epsilon;
+        let initial_slots = bandit.slots.clone();
+
+        let too_many = MAX_ARMS + 1;
+        let arms: Vec<String> = (0..too_many).map(|i| format!("slot_{i}")).collect();
+        let counts: Vec<u32> = vec![0; too_many];
+        let values: Vec<f64> = vec![0.0; too_many];
+
+        let snap = serde_json::json!({
+            "version": "0.1.0",
+            "policy_id": "remind-bandit",
+            "ts": "2024-01-01T00:00:00Z",
+            "arms": arms,
+            "counts": counts,
+            "values": values,
+            "epsilon": 0.5
+        });
+
+        bandit.load(snap);
+        // Sollte nicht geladen worden sein, Zustand bleibt initial
+        #[allow(clippy::float_cmp)]
+        {
+            assert_eq!(bandit.epsilon, initial_epsilon);
+        }
+        assert_eq!(bandit.slots, initial_slots);
+    }
+
+    #[test]
+    fn load_rejects_snapshot_with_too_long_arm_name() {
+        let mut bandit = RemindBandit::default();
+        let initial_epsilon = bandit.epsilon;
+        let initial_slots = bandit.slots.clone();
+
+        let long_name = "a".repeat(MAX_ARM_NAME_LEN + 1);
+
+        let snap = serde_json::json!({
+            "version": "0.1.0",
+            "policy_id": "remind-bandit",
+            "ts": "2024-01-01T00:00:00Z",
+            "arms": [long_name],
+            "counts": [0],
+            "values": [0.0],
+            "epsilon": 0.5
+        });
+
+        bandit.load(snap);
+        #[allow(clippy::float_cmp)]
+        {
+            assert_eq!(bandit.epsilon, initial_epsilon);
+        }
+        assert_eq!(bandit.slots, initial_slots);
+    }
+
+    #[test]
+    fn feedback_respects_max_arms() {
+        let mut bandit = RemindBandit {
+            epsilon: 0.2,
+            slots: Vec::new(),
+            values: HashMap::new(),
+        };
+        let ctx = Context {
+            kind: "t".into(),
+            features: serde_json::Value::Null,
+        };
+
+        for i in 0..MAX_ARMS {
+            bandit.feedback(&ctx, &format!("remind.slot_{i}"), 1.0);
+        }
+        assert_eq!(bandit.slots.len(), MAX_ARMS);
+
+        // Nächster Slot sollte ignoriert werden
+        bandit.feedback(&ctx, "remind.one_more", 1.0);
+        assert_eq!(bandit.slots.len(), MAX_ARMS);
+        assert!(!bandit.slots.contains(&"one_more".to_string()));
+    }
+
+    #[test]
+    fn feedback_respects_max_arm_name_len() {
+        let mut bandit = RemindBandit::default();
+        let ctx = Context {
+            kind: "t".into(),
+            features: serde_json::Value::Null,
+        };
+        let long_name = "a".repeat(MAX_ARM_NAME_LEN + 1);
+
+        bandit.feedback(&ctx, &format!("remind.{long_name}"), 1.0);
+        assert!(!bandit.slots.contains(&long_name));
     }
 
     #[test]
@@ -828,5 +978,78 @@ mod tests {
             diff < f32_loss,
             "f64 roundtrip ({diff}) not better than f32 ({f32_loss})"
         );
+    }
+
+    #[test]
+    fn load_rejects_legacy_with_too_many_values() {
+        let mut bandit = RemindBandit::default();
+        let initial_epsilon = bandit.epsilon;
+        let initial_slots = bandit.slots.clone();
+
+        let too_many = MAX_ARMS + 1;
+        let mut values = serde_json::Map::new();
+        for i in 0..too_many {
+            values.insert(format!("s{i}"), serde_json::json!([0, 0.0]));
+        }
+
+        let legacy_json = serde_json::json!({
+            "epsilon": 0.9,
+            "slots": ["s0"],
+            "values": values
+        });
+
+        bandit.load(legacy_json);
+        // Sollte verworfen werden
+        #[allow(clippy::float_cmp)]
+        {
+            assert_eq!(bandit.epsilon, initial_epsilon);
+        }
+        assert_eq!(bandit.slots, initial_slots);
+    }
+
+    #[test]
+    fn load_rejects_legacy_with_key_not_in_slots() {
+        let mut bandit = RemindBandit::default();
+        let initial_epsilon = bandit.epsilon;
+        let initial_slots = bandit.slots.clone();
+
+        let legacy_json = serde_json::json!({
+            "epsilon": 0.9,
+            "slots": ["only_this"],
+            "values": {
+                "not_in_slots": [1, 0.5]
+            }
+        });
+
+        bandit.load(legacy_json);
+        #[allow(clippy::float_cmp)]
+        {
+            assert_eq!(bandit.epsilon, initial_epsilon);
+        }
+        assert_eq!(bandit.slots, initial_slots);
+    }
+
+    #[test]
+    fn load_rejects_legacy_with_too_long_key_in_values() {
+        let mut bandit = RemindBandit::default();
+        let initial_epsilon = bandit.epsilon;
+        let initial_slots = bandit.slots.clone();
+
+        let long_key = "a".repeat(MAX_ARM_NAME_LEN + 1);
+
+        let legacy_json = serde_json::json!({
+            "epsilon": 0.9,
+            "slots": [long_key.clone()],
+            "values": {
+                long_key: [1, 0.5]
+            }
+        });
+
+        bandit.load(legacy_json);
+        #[allow(clippy::float_cmp)]
+        {
+            assert_eq!(bandit.epsilon, initial_epsilon);
+        }
+        assert_eq!(bandit.slots, initial_slots);
     }
 }
