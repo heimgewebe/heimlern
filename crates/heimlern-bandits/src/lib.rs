@@ -207,8 +207,7 @@ impl Policy for RemindBandit {
                 entry.0 += 1; // pulls
                 entry.1 += f64::from(reward); // total reward
             } else {
-                self.values
-                    .insert(slot.to_string(), (1, f64::from(reward)));
+                self.values.insert(slot.to_string(), (1, f64::from(reward)));
             }
         } else {
             // Klare Rückmeldung statt stillem Ignorieren.
