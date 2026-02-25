@@ -14,7 +14,7 @@ use heimlern_core::{Context, Decision, Policy};
 use rand::prelude::*;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 /// Logging-Helfer:
@@ -312,7 +312,8 @@ impl Policy for RemindBandit {
                     return;
                 }
                 // Alle Keys in values müssen in slots enthalten sein (Subset-Check)
-                if legacy.values.keys().any(|k| !legacy.slots.contains(k)) {
+                let slots_set: HashSet<&String> = legacy.slots.iter().collect();
+                if legacy.values.keys().any(|k| !slots_set.contains(k)) {
                     log_warn("load(legacy): values enthält Keys, die nicht in slots gelistet sind");
                     return;
                 }
@@ -426,6 +427,9 @@ mod tests {
     #[test]
     fn load_rejects_snapshot_with_too_many_arms() {
         let mut bandit = RemindBandit::default();
+        let initial_epsilon = bandit.epsilon;
+        let initial_slots = bandit.slots.clone();
+
         let too_many = MAX_ARMS + 1;
         let arms: Vec<String> = (0..too_many).map(|i| format!("slot_{i}")).collect();
         let counts: Vec<u32> = vec![0; too_many];
@@ -442,17 +446,20 @@ mod tests {
         });
 
         bandit.load(snap);
-        // Sollte nicht geladen worden sein, epsilon bleibt default (0.2)
+        // Sollte nicht geladen worden sein, Zustand bleibt initial
         #[allow(clippy::float_cmp)]
         {
-            assert_eq!(bandit.epsilon, 0.2);
+            assert_eq!(bandit.epsilon, initial_epsilon);
         }
-        assert_eq!(bandit.slots, default_slots());
+        assert_eq!(bandit.slots, initial_slots);
     }
 
     #[test]
     fn load_rejects_snapshot_with_too_long_arm_name() {
         let mut bandit = RemindBandit::default();
+        let initial_epsilon = bandit.epsilon;
+        let initial_slots = bandit.slots.clone();
+
         let long_name = "a".repeat(MAX_ARM_NAME_LEN + 1);
 
         let snap = serde_json::json!({
@@ -468,9 +475,9 @@ mod tests {
         bandit.load(snap);
         #[allow(clippy::float_cmp)]
         {
-            assert_eq!(bandit.epsilon, 0.2);
+            assert_eq!(bandit.epsilon, initial_epsilon);
         }
-        assert_eq!(bandit.slots, default_slots());
+        assert_eq!(bandit.slots, initial_slots);
     }
 
     #[test]
@@ -976,6 +983,9 @@ mod tests {
     #[test]
     fn load_rejects_legacy_with_too_many_values() {
         let mut bandit = RemindBandit::default();
+        let initial_epsilon = bandit.epsilon;
+        let initial_slots = bandit.slots.clone();
+
         let too_many = MAX_ARMS + 1;
         let mut values = serde_json::Map::new();
         for i in 0..too_many {
@@ -990,13 +1000,18 @@ mod tests {
 
         bandit.load(legacy_json);
         // Sollte verworfen werden
-        assert_eq!(bandit.epsilon, 0.2);
-        assert_eq!(bandit.slots, default_slots());
+        #[allow(clippy::float_cmp)]
+        {
+            assert_eq!(bandit.epsilon, initial_epsilon);
+        }
+        assert_eq!(bandit.slots, initial_slots);
     }
 
     #[test]
     fn load_rejects_legacy_with_key_not_in_slots() {
         let mut bandit = RemindBandit::default();
+        let initial_epsilon = bandit.epsilon;
+        let initial_slots = bandit.slots.clone();
 
         let legacy_json = serde_json::json!({
             "epsilon": 0.9,
@@ -1007,13 +1022,19 @@ mod tests {
         });
 
         bandit.load(legacy_json);
-        assert_eq!(bandit.epsilon, 0.2);
-        assert_eq!(bandit.slots, default_slots());
+        #[allow(clippy::float_cmp)]
+        {
+            assert_eq!(bandit.epsilon, initial_epsilon);
+        }
+        assert_eq!(bandit.slots, initial_slots);
     }
 
     #[test]
     fn load_rejects_legacy_with_too_long_key_in_values() {
         let mut bandit = RemindBandit::default();
+        let initial_epsilon = bandit.epsilon;
+        let initial_slots = bandit.slots.clone();
+
         let long_key = "a".repeat(MAX_ARM_NAME_LEN + 1);
 
         let legacy_json = serde_json::json!({
@@ -1025,7 +1046,10 @@ mod tests {
         });
 
         bandit.load(legacy_json);
-        assert_eq!(bandit.epsilon, 0.2);
-        assert_eq!(bandit.slots, default_slots());
+        #[allow(clippy::float_cmp)]
+        {
+            assert_eq!(bandit.epsilon, initial_epsilon);
+        }
+        assert_eq!(bandit.slots, initial_slots);
     }
 }
