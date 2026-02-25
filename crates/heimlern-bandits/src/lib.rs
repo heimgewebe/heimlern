@@ -186,13 +186,16 @@ impl Policy for RemindBandit {
             return;
         }
         if let Some(slot) = action.strip_prefix("remind.") {
-            let slot_name = slot.to_string();
-            if !self.slots.contains(&slot_name) {
-                self.slots.push(slot_name.clone());
+            if !self.slots.iter().any(|s| s == slot) {
+                self.slots.push(slot.to_string());
             }
-            let entry = self.values.entry(slot_name).or_insert((0, 0.0));
-            entry.0 += 1; // pulls
-            entry.1 += f64::from(reward); // total reward
+
+            if let Some(entry) = self.values.get_mut(slot) {
+                entry.0 += 1; // pulls
+                entry.1 += f64::from(reward); // total reward
+            } else {
+                self.values.insert(slot.to_string(), (1, f64::from(reward)));
+            }
         } else {
             // Klare Rückmeldung statt stillem Ignorieren.
             log_warn(&format!(
