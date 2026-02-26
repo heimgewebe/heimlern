@@ -191,24 +191,21 @@ impl Policy for RemindBandit {
             return;
         }
         if let Some(slot) = action.strip_prefix("remind.") {
-            if !self.slots.iter().any(|s| s == slot) {
+            let slot_name = slot.to_string();
+            if !self.slots.contains(&slot_name) {
                 if self.slots.len() >= MAX_ARMS {
                     log_warn("feedback(): MAX_ARMS erreicht, neuer Slot wird ignoriert");
                     return;
                 }
-                if slot.len() > MAX_ARM_NAME_LEN {
+                if slot_name.len() > MAX_ARM_NAME_LEN {
                     log_warn("feedback(): Slot-Name zu lang, wird ignoriert");
                     return;
                 }
-                self.slots.push(slot.to_string());
+                self.slots.push(slot_name.clone());
             }
-
-            if let Some(entry) = self.values.get_mut(slot) {
-                entry.0 += 1; // pulls
-                entry.1 += f64::from(reward); // total reward
-            } else {
-                self.values.insert(slot.to_string(), (1, f64::from(reward)));
-            }
+            let entry = self.values.entry(slot_name).or_insert((0, 0.0));
+            entry.0 += 1; // pulls
+            entry.1 += f64::from(reward); // total reward
         } else {
             // Klare Rückmeldung statt stillem Ignorieren.
             log_warn(&format!(
