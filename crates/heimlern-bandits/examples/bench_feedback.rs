@@ -38,7 +38,10 @@ fn main() {
         bandit.feedback(&ctx, &action, reward);
     }
     let duration = start.elapsed();
-    println!("Feedback for FILLING slots (0..{}) took: {:?}", CAP, duration);
+    println!(
+        "Feedback for FILLING slots (0..{}) took: {:?}",
+        CAP, duration
+    );
     println!(
         "Average per call: {:?}",
         duration / u32::try_from(CAP).unwrap()
