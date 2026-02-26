@@ -230,13 +230,12 @@ fn is_valid_event_domain(domain: &str) -> bool {
         if label.is_empty() || label.len() > 63 {
             return false;
         }
-        let mut chars = label.chars();
         // First char must be ASCII alphanumeric
-        if !chars.next().unwrap().is_ascii_alphanumeric() {
+        if !label.starts_with(|c: char| c.is_ascii_alphanumeric()) {
             return false;
         }
         // If there's more than one char, the last must be ASCII alphanumeric
-        if label.len() > 1 && !label.chars().last().unwrap().is_ascii_alphanumeric() {
+        if label.len() > 1 && !label.ends_with(|c: char| c.is_ascii_alphanumeric()) {
             return false;
         }
         // All chars must be ASCII alphanumeric or hyphen
