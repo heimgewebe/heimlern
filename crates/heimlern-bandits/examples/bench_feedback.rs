@@ -1,5 +1,6 @@
 use heimlern_bandits::RemindBandit;
 use heimlern_core::{Context, Policy};
+use std::fmt::Write;
 use std::time::Instant;
 
 /// Must be kept in sync with `MAX_ARMS` in `crates/heimlern-bandits/src/lib.rs`.
@@ -50,12 +51,15 @@ fn main() {
     // Measure rejection overhead (slots full)
     // We reuse the bandit which is now full (len == CAP)
     let reject_iterations = 1_000_000;
+    // Reuse buffer to avoid allocation noise in the benchmark loop
+    let mut action_buf = String::with_capacity(32);
     let start = Instant::now();
     for i in 0..reject_iterations {
         // These are new slot names, so they trigger the "new slot" path,
         // but get rejected because len >= MAX_ARMS.
-        let action = format!("remind.reject_{}", i);
-        bandit.feedback(&ctx, &action, reward);
+        action_buf.clear();
+        write!(&mut action_buf, "remind.reject_{}", i).unwrap();
+        bandit.feedback(&ctx, &action_buf, reward);
     }
     let duration = start.elapsed();
     println!(
