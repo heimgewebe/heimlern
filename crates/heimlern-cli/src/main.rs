@@ -226,6 +226,7 @@ fn is_valid_event_domain(domain: &str) -> bool {
         return false;
     }
 
+    // Note: whitespace and non-ASCII are rejected implicitly by the ASCII byte checks below.
     for label in bytes.split(|&b| b == b'.') {
         if label.is_empty() || label.len() > 63 {
             return false;
