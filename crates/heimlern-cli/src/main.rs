@@ -221,12 +221,16 @@ fn is_valid_event_domain(domain: &str) -> bool {
     }
 
     let bytes = domain.as_bytes();
+    // Structural fast fail: domain must not start or end with a dot.
+    if bytes[0] == b'.' || bytes[bytes.len() - 1] == b'.' {
+        return false;
+    }
+
     for label in bytes.split(|&b| b == b'.') {
         if label.is_empty() || label.len() > 63 {
             return false;
         }
         // First and last bytes of each label must be ASCII alphanumeric.
-        // This also prevents labels like "-" or "-a" or "a-".
         if !label[0].is_ascii_alphanumeric() || !label[label.len() - 1].is_ascii_alphanumeric() {
             return false;
         }
