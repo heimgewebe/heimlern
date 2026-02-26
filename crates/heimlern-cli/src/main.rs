@@ -219,27 +219,22 @@ fn is_valid_event_domain(domain: &str) -> bool {
     if domain.is_empty() || domain.len() > 253 {
         return false;
     }
-    if domain.contains(char::is_whitespace) {
-        return false;
-    }
-    if domain.starts_with('.') || domain.ends_with('.') {
-        return false;
-    }
 
-    for label in domain.split('.') {
+    let bytes = domain.as_bytes();
+    for label in bytes.split(|&b| b == b'.') {
         if label.is_empty() || label.len() > 63 {
             return false;
         }
-        // First char must be ASCII alphanumeric
-        if !label.starts_with(|c: char| c.is_ascii_alphanumeric()) {
+        // First and last bytes of each label must be ASCII alphanumeric.
+        // This also prevents labels like "-" or "-a" or "a-".
+        if !label[0].is_ascii_alphanumeric() || !label[label.len() - 1].is_ascii_alphanumeric() {
             return false;
         }
-        // If there's more than one char, the last must be ASCII alphanumeric
-        if label.len() > 1 && !label.ends_with(|c: char| c.is_ascii_alphanumeric()) {
-            return false;
-        }
-        // All chars must be ASCII alphanumeric or hyphen
-        if !label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        // All bytes must be ASCII alphanumeric or hyphen.
+        if !label
+            .iter()
+            .all(|&b| b.is_ascii_alphanumeric() || b == b'-')
+        {
             return false;
         }
     }
