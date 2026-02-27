@@ -217,6 +217,11 @@ impl Policy for RemindBandit {
                     return;
                 }
                 self.slots.push(slot.to_string());
+            } else {
+                log_warn(&format!(
+                    "feedback(): slot '{}' in slots but missing in values; recovering entry",
+                    slot
+                ));
             }
 
             // Insert initial values for the new (or recovered) slot
