@@ -5,7 +5,7 @@
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use heimlern_core::event::AussenEvent;
+use heimlern_core::event::{is_valid_event_domain, AussenEvent};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
@@ -198,54 +198,6 @@ struct FetchResult {
     events: Vec<AussenEvent>,
     next_cursor: Option<u64>, // Relaxed to Option<u64>
     has_more: bool,
-}
-
-/// Validates an event domain/namespace identifier.
-///
-/// This validates event namespace identifiers (e.g., "aussen", "sensor.v1"), not DNS domains.
-/// Single-label identifiers like "aussen" are valid by design for internal event routing.
-///
-/// Rules (similar to DNS hostname rules but applied to namespace identifiers):
-/// - Labels separated by dots, each 1-63 chars, total ≤253 chars
-/// - Each label: starts/ends with alphanumeric, may contain hyphens in middle
-/// - No whitespace, underscores, or leading/trailing dots
-/// - No IDN/Unicode (ASCII alphanumeric + hyphens only)
-///
-/// Note: If future requirements need different characters (e.g., underscores, slashes),
-/// this validation should be relaxed or the semantic meaning of "domain" clarified
-/// with respect to the Chronik API contract.
-fn is_valid_event_domain(domain: &str) -> bool {
-    let domain = domain.trim();
-    if domain.is_empty() || domain.len() > 253 {
-        return false;
-    }
-    if domain.contains(char::is_whitespace) {
-        return false;
-    }
-    if domain.starts_with('.') || domain.ends_with('.') {
-        return false;
-    }
-
-    for label in domain.split('.') {
-        if label.is_empty() || label.len() > 63 {
-            return false;
-        }
-        let mut chars = label.chars();
-        // First char must be ASCII alphanumeric
-        if !chars.next().unwrap().is_ascii_alphanumeric() {
-            return false;
-        }
-        // If there's more than one char, the last must be ASCII alphanumeric
-        if label.len() > 1 && !label.chars().last().unwrap().is_ascii_alphanumeric() {
-            return false;
-        }
-        // All chars must be ASCII alphanumeric or hyphen
-        if !label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
-            return false;
-        }
-    }
-
-    true
 }
 
 fn record_state_error(
@@ -552,29 +504,6 @@ fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_is_valid_event_domain() {
-        assert!(is_valid_event_domain("example.com"));
-        assert!(is_valid_event_domain("a.b.c"));
-        assert!(is_valid_event_domain("my-domain.com"));
-        assert!(is_valid_event_domain("x"));
-
-        assert!(!is_valid_event_domain(""));
-        assert!(!is_valid_event_domain(" "));
-        assert!(!is_valid_event_domain(".start"));
-        assert!(!is_valid_event_domain("end."));
-        assert!(!is_valid_event_domain("my..domain"));
-        assert!(!is_valid_event_domain("bad_char"));
-        assert!(!is_valid_event_domain("-start"));
-        assert!(!is_valid_event_domain("end-"));
-
-        // Verify ASCII-only: Unicode characters should be rejected
-        assert!(!is_valid_event_domain("café"));
-        assert!(!is_valid_event_domain("日本"));
-        assert!(!is_valid_event_domain("αβγ"));
-        assert!(!is_valid_event_domain("domain.über"));
-    }
 
     #[test]
     fn test_build_chronik_url() {
