@@ -60,7 +60,6 @@ pub struct AussenEvent {
 /// this validation should be relaxed or the semantic meaning of "domain" clarified
 /// with respect to the Chronik API contract.
 pub fn is_valid_event_domain(domain: &str) -> bool {
-    let domain = domain.trim();
     if domain.is_empty() || domain.len() > 253 {
         return false;
     }
@@ -163,6 +162,8 @@ mod tests {
 
         assert!(!is_valid_event_domain(""));
         assert!(!is_valid_event_domain(" "));
+        assert!(!is_valid_event_domain(" example.com"));
+        assert!(!is_valid_event_domain("example.com "));
         assert!(!is_valid_event_domain(".start"));
         assert!(!is_valid_event_domain("end."));
         assert!(!is_valid_event_domain("my..domain"));
