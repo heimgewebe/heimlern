@@ -42,7 +42,7 @@ pub struct RemindBandit {
     /// Verfügbare Zeit-Slots (Arme).
     pub slots: Vec<String>,
     /// Statistiken je Slot: (Anzahl Ziehungen, summierte Rewards).
-    values: HashMap<String, (u32, f64)>,
+    values: HashMap<String, (u64, f64)>,
 }
 
 // ---- Contract-Snapshot (gemäß contracts/policy.snapshot.schema.json) ----
@@ -53,7 +53,7 @@ struct ContractSnapshot {
     ts: String,
     arms: Vec<String>,
     /// Anzahl der Feedbacks (Pulls) pro Arm.
-    counts: Vec<u32>,
+    counts: Vec<u64>,
     /// Durchschnittlicher Reward pro Arm (Average Reward).
     /// ACHTUNG: Semantik ist "average", nicht "sum". Beim Laden muss
     /// `total = avg * count` berechnet werden.
@@ -98,7 +98,7 @@ impl RemindBandit {
         {
             self.values.get(slot).map_or(0.0, |(n, v)| {
                 if *n > 0 {
-                    (v / f64::from(*n)) as f32
+                    (v / (*n as f64)) as f32
                 } else {
                     0.0
                 }
@@ -250,7 +250,7 @@ impl Policy for RemindBandit {
             for (arm, (n, avg)) in arms.iter().zip(counts.iter().zip(values.iter())) {
                 #[allow(clippy::cast_precision_loss)]
                 let total = if *n > 0 && avg.is_finite() {
-                    avg * f64::from(*n)
+                    avg * (*n as f64)
                 } else {
                     0.0
                 };
@@ -311,7 +311,7 @@ impl RemindBandit {
             counts.push(n);
             #[allow(clippy::cast_precision_loss)]
             let avg = if n > 0 {
-                sanitized_sum / f64::from(n)
+                sanitized_sum / (n as f64)
             } else {
                 0.0
             };
@@ -828,5 +828,32 @@ mod tests {
             diff < f32_loss,
             "f64 roundtrip ({diff}) not better than f32 ({f32_loss})"
         );
+    }
+
+    #[test]
+    fn test_pull_counter_overflow_protection() {
+        let mut bandit = RemindBandit::default();
+        let ctx = Context {
+            kind: "test".into(),
+            features: serde_json::json!({}),
+        };
+
+        // Initialize a slot with u32::MAX pulls
+        let slot = "morning";
+        let max_u32 = u32::MAX as u64;
+        bandit.values.insert(slot.to_string(), (max_u32, 100.0));
+
+        // Call feedback to increment the counter
+        bandit.feedback(&ctx, &format!("remind.{slot}"), 1.0);
+
+        // Verify it exceeded u32::MAX and didn't wrap around
+        let (n, sum) = bandit.values.get(slot).copied().expect("slot missing");
+        assert_eq!(n, 4_294_967_296, "Counter should be u32::MAX + 1");
+        assert_eq!(sum, 101.0);
+
+        // Verify average reward is still correct
+        let avg = bandit.get_average_reward(slot);
+        let expected_avg = 101.0 / 4_294_967_296.0;
+        assert!((avg - expected_avg as f32).abs() < f32::EPSILON);
     }
 }
