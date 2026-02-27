@@ -47,7 +47,7 @@ pub struct RemindBandit {
     /// Verfügbare Zeit-Slots (Arme).
     pub slots: Vec<String>,
     /// Statistiken je Slot: (Anzahl Ziehungen, summierte Rewards).
-    values: HashMap<String, (u32, f64)>,
+    values: HashMap<String, (u64, f64)>,
 }
 
 // ---- Contract-Snapshot (gemäß contracts/policy.snapshot.schema.json) ----
@@ -58,7 +58,7 @@ struct ContractSnapshot {
     ts: String,
     arms: Vec<String>,
     /// Anzahl der Feedbacks (Pulls) pro Arm.
-    counts: Vec<u32>,
+    counts: Vec<u64>,
     /// Durchschnittlicher Reward pro Arm (Average Reward).
     /// ACHTUNG: Semantik ist "average", nicht "sum". Beim Laden muss
     /// `total = avg * count` berechnet werden.
@@ -103,7 +103,7 @@ impl RemindBandit {
         {
             self.values.get(slot).map_or(0.0, |(n, v)| {
                 if *n > 0 {
-                    (v / f64::from(*n)) as f32
+                    (v / (*n as f64)) as f32
                 } else {
                     0.0
                 }
@@ -191,21 +191,41 @@ impl Policy for RemindBandit {
             return;
         }
         if let Some(slot) = action.strip_prefix("remind.") {
-            let slot_name = slot.to_string();
-            if !self.slots.contains(&slot_name) {
+            // Optimize: fast path for existing slots (no allocations)
+            if let Some(entry) = self.values.get_mut(slot) {
+                // Ensure consistency: fast path only valid if slot is also in self.slots
+                debug_assert!(self.slots.iter().any(|s| s == slot));
+                entry.0 = entry.0.saturating_add(1); // pulls
+                entry.1 += f64::from(reward); // total reward
+                return;
+            }
+
+            // Slow path: new slot or not in map yet.
+            // Check limits before allocation.
+
+            if slot.len() > MAX_ARM_NAME_LEN {
+                log_warn("feedback(): Slot-Name zu lang, wird ignoriert");
+                return;
+            }
+
+            // Check if slot is already in `slots` (but missing in `values` for some reason)
+            let is_known = self.slots.iter().any(|s| s == slot);
+
+            if !is_known {
                 if self.slots.len() >= MAX_ARMS {
                     log_warn("feedback(): MAX_ARMS erreicht, neuer Slot wird ignoriert");
                     return;
                 }
-                if slot_name.len() > MAX_ARM_NAME_LEN {
-                    log_warn("feedback(): Slot-Name zu lang, wird ignoriert");
-                    return;
-                }
-                self.slots.push(slot_name.clone());
+                self.slots.push(slot.to_string());
+            } else {
+                log_warn(&format!(
+                    "feedback(): slot '{}' in slots but missing in values; recovering entry",
+                    slot
+                ));
             }
-            let entry = self.values.entry(slot_name).or_insert((0, 0.0));
-            entry.0 += 1; // pulls
-            entry.1 += f64::from(reward); // total reward
+
+            // Insert initial values for the new (or recovered) slot
+            self.values.insert(slot.to_string(), (1, f64::from(reward)));
         } else {
             // Klare Rückmeldung statt stillem Ignorieren.
             log_warn(&format!(
@@ -271,11 +291,11 @@ impl Policy for RemindBandit {
             let values = snap.values;
 
             // Rückbau avg → totals: total = avg * n
-            let mut map = HashMap::new();
+            let mut map = HashMap::with_capacity(arms.len());
             for (arm, (n, avg)) in arms.iter().zip(counts.iter().zip(values.iter())) {
                 #[allow(clippy::cast_precision_loss)]
                 let total = if *n > 0 && avg.is_finite() {
-                    avg * f64::from(*n)
+                    avg * (*n as f64)
                 } else {
                     0.0
                 };
@@ -369,7 +389,7 @@ impl RemindBandit {
             counts.push(n);
             #[allow(clippy::cast_precision_loss)]
             let avg = if n > 0 {
-                sanitized_sum / f64::from(n)
+                sanitized_sum / (n as f64)
             } else {
                 0.0
             };
@@ -1051,5 +1071,37 @@ mod tests {
             assert_eq!(bandit.epsilon, initial_epsilon);
         }
         assert_eq!(bandit.slots, initial_slots);
+    }
+
+    #[test]
+    fn test_pull_counter_exceeds_u32_max() {
+        let mut bandit = RemindBandit::default();
+        let ctx = Context {
+            kind: "test".into(),
+            features: serde_json::json!({}),
+        };
+
+        // Initialize a slot with u32::MAX pulls
+        let slot = "morning";
+        let max_u32 = u64::from(u32::MAX);
+        bandit.values.insert(slot.to_string(), (max_u32, 100.0));
+
+        // Call feedback to increment the counter
+        bandit.feedback(&ctx, &format!("remind.{slot}"), 1.0);
+
+        // Verify it exceeded u32::MAX (demonstrating u64 usage)
+        let Some((n, sum)) = bandit.values.get(slot).copied() else {
+            panic!("slot missing");
+        };
+        assert_eq!(n, 4_294_967_296, "Counter should be u32::MAX + 1");
+        #[allow(clippy::float_cmp)]
+        {
+            assert_eq!(sum, 101.0);
+        }
+
+        // Verify average reward is still correct
+        let avg = bandit.get_average_reward(slot);
+        let expected_avg = 101.0 / 4_294_967_296.0;
+        assert!((avg - expected_avg as f32).abs() < f32::EPSILON);
     }
 }
