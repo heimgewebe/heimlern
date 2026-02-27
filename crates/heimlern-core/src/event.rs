@@ -45,6 +45,53 @@ pub struct AussenEvent {
     pub meta: Option<BTreeMap<String, Value>>,
 }
 
+/// Validates an event domain/namespace identifier.
+///
+/// This validates event namespace identifiers (e.g., "aussen", "sensor.v1"), not DNS domains.
+/// Single-label identifiers like "aussen" are valid by design for internal event routing.
+///
+/// Rules (similar to DNS hostname rules but applied to namespace identifiers):
+/// - Labels separated by dots, each 1-63 chars, total ≤253 chars
+/// - Each label: starts/ends with alphanumeric, may contain hyphens in middle
+/// - No whitespace, underscores, or leading/trailing dots
+/// - No IDN/Unicode (ASCII alphanumeric + hyphens only)
+///
+/// Note: If future requirements need different characters (e.g., underscores, slashes),
+/// this validation should be relaxed or the semantic meaning of "domain" clarified
+/// with respect to the Chronik API contract.
+pub fn is_valid_event_domain(domain: &str) -> bool {
+    let domain = domain.trim();
+    if domain.is_empty() || domain.len() > 253 {
+        return false;
+    }
+
+    let bytes = domain.as_bytes();
+    // Structural fast fail: domain must not start or end with a dot.
+    if bytes[0] == b'.' || bytes[bytes.len() - 1] == b'.' {
+        return false;
+    }
+
+    // Note: whitespace and non-ASCII are rejected implicitly by the ASCII byte checks below.
+    for label in bytes.split(|&b| b == b'.') {
+        if label.is_empty() || label.len() > 63 {
+            return false;
+        }
+        // First and last bytes of each label must be ASCII alphanumeric.
+        if !label[0].is_ascii_alphanumeric() || !label[label.len() - 1].is_ascii_alphanumeric() {
+            return false;
+        }
+        // All bytes must be ASCII alphanumeric or hyphen.
+        if !label
+            .iter()
+            .all(|&b| b.is_ascii_alphanumeric() || b == b'-')
+        {
+            return false;
+        }
+    }
+
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -105,5 +152,28 @@ mod tests {
         assert_eq!(event.tags, Some(vec!["demo".to_string()]));
         assert!(event.features.is_some());
         Ok(())
+    }
+
+    #[test]
+    fn test_is_valid_event_domain() {
+        assert!(is_valid_event_domain("example.com"));
+        assert!(is_valid_event_domain("a.b.c"));
+        assert!(is_valid_event_domain("my-domain.com"));
+        assert!(is_valid_event_domain("x"));
+
+        assert!(!is_valid_event_domain(""));
+        assert!(!is_valid_event_domain(" "));
+        assert!(!is_valid_event_domain(".start"));
+        assert!(!is_valid_event_domain("end."));
+        assert!(!is_valid_event_domain("my..domain"));
+        assert!(!is_valid_event_domain("bad_char"));
+        assert!(!is_valid_event_domain("-start"));
+        assert!(!is_valid_event_domain("end-"));
+
+        // Verify ASCII-only: Unicode characters should be rejected
+        assert!(!is_valid_event_domain("café"));
+        assert!(!is_valid_event_domain("日本"));
+        assert!(!is_valid_event_domain("αβγ"));
+        assert!(!is_valid_event_domain("domain.über"));
     }
 }
