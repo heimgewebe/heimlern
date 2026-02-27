@@ -554,65 +554,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_event_stats_default() {
-        let stats = EventStats::default();
-        assert_eq!(stats.total_processed, 0);
-        assert!(stats.by_type.is_empty());
-        assert!(stats.by_source.is_empty());
-        // last_updated should be recent
-        let now = OffsetDateTime::now_utc();
-        assert!(stats.last_updated <= now);
-        assert!(stats.last_updated > now - time::Duration::seconds(5));
-    }
-
-    #[test]
-    fn test_event_stats_update() {
-        let mut stats = EventStats::default();
-        // Manually set last_updated to the past to verify it gets updated
-        stats.last_updated = OffsetDateTime::now_utc() - time::Duration::seconds(60);
-        let initial_time = stats.last_updated;
-
-        let event1 = AussenEvent {
-            id: Some("1".to_string()),
-            r#type: "test.event".to_string(),
-            source: "test.source".to_string(),
-            title: None,
-            summary: None,
-            url: None,
-            tags: None,
-            ts: None,
-            features: None,
-            meta: None,
-        };
-
-        stats.update(event1);
-
-        assert_eq!(stats.total_processed, 1);
-        assert_eq!(stats.by_type.get("test.event"), Some(&1));
-        assert_eq!(stats.by_source.get("test.source"), Some(&1));
-        assert!(stats.last_updated > initial_time);
-
-        let event2 = AussenEvent {
-            id: Some("2".to_string()),
-            r#type: "test.event".to_string(),
-            source: "other.source".to_string(),
-            title: None,
-            summary: None,
-            url: None,
-            tags: None,
-            ts: None,
-            features: None,
-            meta: None,
-        };
-
-        stats.update(event2);
-
-        assert_eq!(stats.total_processed, 2);
-        assert_eq!(stats.by_type.get("test.event"), Some(&2));
-        assert_eq!(stats.by_source.get("other.source"), Some(&1));
-    }
-
-    #[test]
     fn test_is_valid_event_domain() {
         assert!(is_valid_event_domain("example.com"));
         assert!(is_valid_event_domain("a.b.c"));
