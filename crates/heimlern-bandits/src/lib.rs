@@ -193,27 +193,34 @@ impl Policy for RemindBandit {
         if let Some(slot) = action.strip_prefix("remind.") {
             // Optimize: fast path for existing slots (no allocations)
             if let Some(entry) = self.values.get_mut(slot) {
+                // Ensure consistency: fast path only valid if slot is also in self.slots
+                debug_assert!(self.slots.iter().any(|s| s == slot));
                 entry.0 = entry.0.saturating_add(1); // pulls
                 entry.1 += f64::from(reward); // total reward
                 return;
             }
 
-            // Slow path: new slot or not in map yet
-            let slot_name = slot.to_string();
-            // Check limits before allocation/pushing if not present
-            if !self.slots.contains(&slot_name) {
+            // Slow path: new slot or not in map yet.
+            // Check limits before allocation.
+
+            if slot.len() > MAX_ARM_NAME_LEN {
+                log_warn("feedback(): Slot-Name zu lang, wird ignoriert");
+                return;
+            }
+
+            // Check if slot is already in `slots` (but missing in `values` for some reason)
+            let is_known = self.slots.iter().any(|s| s == slot);
+
+            if !is_known {
                 if self.slots.len() >= MAX_ARMS {
                     log_warn("feedback(): MAX_ARMS erreicht, neuer Slot wird ignoriert");
                     return;
                 }
-                if slot_name.len() > MAX_ARM_NAME_LEN {
-                    log_warn("feedback(): Slot-Name zu lang, wird ignoriert");
-                    return;
-                }
-                self.slots.push(slot_name.clone());
+                self.slots.push(slot.to_string());
             }
-            // Insert initial values for the new slot
-            self.values.insert(slot_name, (1, f64::from(reward)));
+
+            // Insert initial values for the new (or recovered) slot
+            self.values.insert(slot.to_string(), (1, f64::from(reward)));
         } else {
             // Klare Rückmeldung statt stillem Ignorieren.
             log_warn(&format!(
@@ -1062,7 +1069,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pull_counter_overflow_protection() {
+    fn test_pull_counter_exceeds_u32_max() {
         let mut bandit = RemindBandit::default();
         let ctx = Context {
             kind: "test".into(),
@@ -1077,7 +1084,7 @@ mod tests {
         // Call feedback to increment the counter
         bandit.feedback(&ctx, &format!("remind.{slot}"), 1.0);
 
-        // Verify it exceeded u32::MAX and didn't wrap around
+        // Verify it exceeded u32::MAX (demonstrating u64 usage)
         let Some((n, sum)) = bandit.values.get(slot).copied() else {
             panic!("slot missing");
         };
