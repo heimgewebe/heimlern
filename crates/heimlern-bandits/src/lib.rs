@@ -1078,7 +1078,9 @@ mod tests {
         bandit.feedback(&ctx, &format!("remind.{slot}"), 1.0);
 
         // Verify it exceeded u32::MAX and didn't wrap around
-        let (n, sum) = bandit.values.get(slot).copied().expect("slot missing");
+        let Some((n, sum)) = bandit.values.get(slot).copied() else {
+            panic!("slot missing");
+        };
         assert_eq!(n, 4_294_967_296, "Counter should be u32::MAX + 1");
         #[allow(clippy::float_cmp)]
         {
