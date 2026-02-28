@@ -70,7 +70,7 @@ pub fn is_valid_event_domain(domain: &str) -> bool {
         return false;
     }
 
-    // Note: whitespace and non-ASCII are rejected implicitly by the ASCII byte checks below.
+    // Note: any whitespace and non-ASCII bytes are rejected by the ASCII-only label checks below.
     for label in bytes.split(|&b| b == b'.') {
         if label.is_empty() || label.len() > 63 {
             return false;
@@ -164,6 +164,7 @@ mod tests {
         assert!(!is_valid_event_domain(" "));
         assert!(!is_valid_event_domain(" example.com"));
         assert!(!is_valid_event_domain("example.com "));
+        assert!(!is_valid_event_domain("ex ample.com"));
         assert!(!is_valid_event_domain(".start"));
         assert!(!is_valid_event_domain("end."));
         assert!(!is_valid_event_domain("my..domain"));
