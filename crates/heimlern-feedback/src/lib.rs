@@ -461,9 +461,7 @@ impl FeedbackAnalyzer {
         } else {
             // Simple simulation: calculate baseline success rate
             let successes = outcomes.iter().filter(|o| outcome_is_success(o)).count();
-            #[allow(clippy::cast_precision_loss)]
-            let baseline = successes as f32 / outcomes.len() as f32;
-            baseline
+            ratio(successes, outcomes.len())
         }
     }
 }

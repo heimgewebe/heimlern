@@ -312,10 +312,10 @@ fn fetch_file(path: &Path, offset: u64) -> Result<FetchResult> {
     let mut lines_read = 0;
 
     for (idx, line) in reader.lines().enumerate() {
+        let line = line?;
         if (idx as u64) < offset {
             continue;
         }
-        let line = line?;
         if line.trim().is_empty() {
             lines_read += 1;
             continue;
@@ -446,9 +446,18 @@ fn main() -> Result<()> {
                 let mut current_cursor = cursor.unwrap_or(0);
 
                 if cursor.is_none() {
-                    if let Ok(Some(state)) = IngestState::load(&state_file, IngestMode::Chronik) {
-                        current_cursor = state.cursor;
-                        println!("Resuming from state cursor: {}", current_cursor);
+                    match IngestState::load(&state_file, IngestMode::Chronik) {
+                        Ok(Some(state)) => {
+                            current_cursor = state.cursor;
+                            println!("Resuming from state cursor: {}", current_cursor);
+                        }
+                        Ok(None) => {} // No state file yet, start from 0
+                        Err(e) => {
+                            eprintln!(
+                                "Warning: failed to load state from {:?}; starting from cursor 0: {}",
+                                state_file, e
+                            );
+                        }
                     }
                 }
 
@@ -481,9 +490,18 @@ fn main() -> Result<()> {
                 let mut current_cursor = line_offset.unwrap_or(0);
 
                 if line_offset.is_none() {
-                    if let Ok(Some(state)) = IngestState::load(&state_file, IngestMode::File) {
-                        current_cursor = state.cursor;
-                        println!("Resuming from file offset: {}", current_cursor);
+                    match IngestState::load(&state_file, IngestMode::File) {
+                        Ok(Some(state)) => {
+                            current_cursor = state.cursor;
+                            println!("Resuming from file offset: {}", current_cursor);
+                        }
+                        Ok(None) => {} // No state file yet, start from 0
+                        Err(e) => {
+                            eprintln!(
+                                "Warning: failed to load state from {:?}; starting from offset 0: {}",
+                                state_file, e
+                            );
+                        }
                     }
                 }
 
