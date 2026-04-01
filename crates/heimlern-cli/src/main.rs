@@ -231,6 +231,41 @@ fn record_state_error(
     Ok(())
 }
 
+/// Loads the ingest cursor from the state file, falling back to `None` on any error.
+///
+/// ## Warn-and-continue rationale
+///
+/// On state-load failure (corrupt JSON, mode mismatch, I/O error) we emit a
+/// warning to stderr and return `None` (i.e. start from cursor 0) rather than
+/// aborting. This is a deliberate, conscious choice:
+///
+/// * The state file is a *resumption aid*, not a strict consistency guarantee.
+///   A missing or unreadable state file is the normal "first run" condition.
+/// * The `--cursor` / `--line-offset` CLI flags let operators override the
+///   start position without touching the state file, providing a manual escape
+///   hatch when cursor 0 would be wrong.
+/// * Downstream event consumers are expected to tolerate duplicate delivery
+///   (idempotent processing); re-playing already-seen events is recoverable.
+/// * Hard-aborting on every corrupt-state situation would require manual
+///   intervention before any new events could flow, which is worse for
+///   availability than a re-play from the beginning.
+/// * All other "soft" fallbacks in the CLI (e.g. `EventStats::load`) follow
+///   the same warn-and-continue pattern; using `eprintln!` here is consistent
+///   with the rest of the binary's diagnostic output style.
+fn load_cursor_from_state(state_file: &Path, mode: IngestMode) -> Option<u64> {
+    match IngestState::load(state_file, mode) {
+        Ok(Some(state)) => Some(state.cursor),
+        Ok(None) => None, // No state file yet – first run, start from 0.
+        Err(e) => {
+            eprintln!(
+                "Warning: failed to load state from {:?}; starting from cursor 0: {}",
+                state_file, e
+            );
+            None
+        }
+    }
+}
+
 fn build_chronik_url(base: &str) -> Result<url::Url> {
     let mut target_url = url::Url::parse(base).context("Invalid base URL")?;
 
@@ -446,18 +481,9 @@ fn main() -> Result<()> {
                 let mut current_cursor = cursor.unwrap_or(0);
 
                 if cursor.is_none() {
-                    match IngestState::load(&state_file, IngestMode::Chronik) {
-                        Ok(Some(state)) => {
-                            current_cursor = state.cursor;
-                            println!("Resuming from state cursor: {}", current_cursor);
-                        }
-                        Ok(None) => {} // No state file yet, start from 0
-                        Err(e) => {
-                            eprintln!(
-                                "Warning: failed to load state from {:?}; starting from cursor 0: {}",
-                                state_file, e
-                            );
-                        }
+                    if let Some(c) = load_cursor_from_state(&state_file, IngestMode::Chronik) {
+                        current_cursor = c;
+                        println!("Resuming from state cursor: {}", current_cursor);
                     }
                 }
 
@@ -490,18 +516,9 @@ fn main() -> Result<()> {
                 let mut current_cursor = line_offset.unwrap_or(0);
 
                 if line_offset.is_none() {
-                    match IngestState::load(&state_file, IngestMode::File) {
-                        Ok(Some(state)) => {
-                            current_cursor = state.cursor;
-                            println!("Resuming from file offset: {}", current_cursor);
-                        }
-                        Ok(None) => {} // No state file yet, start from 0
-                        Err(e) => {
-                            eprintln!(
-                                "Warning: failed to load state from {:?}; starting from offset 0: {}",
-                                state_file, e
-                            );
-                        }
+                    if let Some(c) = load_cursor_from_state(&state_file, IngestMode::File) {
+                        current_cursor = c;
+                        println!("Resuming from file offset: {}", current_cursor);
                     }
                 }
 
@@ -729,5 +746,83 @@ mod tests {
         // We expect the Protocol Error, NOT the Permission Denied error from saving state
         assert!(err_str.contains("Protocol Error"));
         assert!(!err_str.contains("Permission denied"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Regression tests for Bug 1: fetch_file() must not silently drop I/O
+    // errors that occur on lines before the offset.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn fetch_file_propagates_io_error_on_pre_offset_lines() {
+        // Write a file where line 0 contains an invalid UTF-8 byte (0xFF is
+        // never valid in UTF-8), followed by a valid JSON event on line 1.
+        //
+        // Regression: previously `line?` was placed *after* the
+        // `if idx < offset { continue }` guard, so the I/O error on line 0
+        // was silently discarded when offset=1. The fix moves `line?` before
+        // the guard so errors are always propagated.
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let path = dir.path().join("test.jsonl");
+
+        let mut content: Vec<u8> = vec![0xFF, b'\n']; // invalid UTF-8 on line 0
+        content.extend_from_slice(b"{\"type\":\"link\",\"source\":\"test\"}\n");
+        std::fs::write(&path, &content).expect("write test file");
+
+        // With offset=1 the old code would have continued past line 0 without
+        // ever calling `line?`, silently swallowing the decode error.
+        let result = fetch_file(&path, 1);
+        assert!(
+            result.is_err(),
+            "I/O error on a pre-offset line must not be silently dropped"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Regression tests for Bug 2: load_cursor_from_state() must surface
+    // errors rather than silently ignoring them (the old `if let Ok(Some(..))`)
+    // pattern swallowed every Err variant without any diagnostic).
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn load_cursor_from_state_returns_none_for_corrupt_file() {
+        // A corrupt state file must not produce a silent fallback to cursor 0;
+        // the helper must warn and return None (warn-and-continue semantics).
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let state_file = dir.path().join("state.json");
+        std::fs::write(&state_file, b"{ invalid json }").expect("write corrupt state");
+
+        let result = load_cursor_from_state(&state_file, IngestMode::Chronik);
+        assert!(
+            result.is_none(),
+            "Corrupt state file should yield None (warn-and-continue from cursor 0)"
+        );
+    }
+
+    #[test]
+    fn load_cursor_from_state_returns_cursor_for_valid_state() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let state_file = dir.path().join("state.json");
+
+        let state = IngestState {
+            cursor: 42,
+            mode: IngestMode::Chronik,
+            last_ok: None,
+            last_error: None,
+        };
+        state.save(&state_file).expect("save state");
+
+        let result = load_cursor_from_state(&state_file, IngestMode::Chronik);
+        assert_eq!(result, Some(42));
+    }
+
+    #[test]
+    fn load_cursor_from_state_returns_none_when_file_absent() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let state_file = dir.path().join("nonexistent.json");
+
+        // Missing file is the normal "first run" condition – must not be an error.
+        let result = load_cursor_from_state(&state_file, IngestMode::Chronik);
+        assert!(result.is_none());
     }
 }
