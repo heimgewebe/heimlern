@@ -96,10 +96,16 @@ struct IngestState {
 
 impl IngestState {
     fn load(path: &Path, expected_mode: IngestMode) -> Result<Option<Self>> {
-        if !path.exists() {
-            return Ok(None);
-        }
-        let file = File::open(path)?;
+        // Use File::open() directly instead of Path::exists() so that only a
+        // true NotFound is treated as "no state yet". Any other I/O error
+        // (PermissionDenied, stat failure on a parent directory, etc.) is
+        // propagated as Err — Path::exists() would silently return false for
+        // those cases and cause a spurious Ok(None) / silent cursor reset.
+        let file = match File::open(path) {
+            Ok(f) => f,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(e).context("Failed to open state file"),
+        };
         let state: IngestState = serde_json::from_reader(file)?;
 
         if state.mode != expected_mode {
@@ -824,5 +830,70 @@ mod tests {
         // Missing file is the normal "first run" condition – must not be an error.
         let result = load_cursor_from_state(&state_file, IngestMode::Chronik);
         assert!(result.is_none());
+    }
+
+    /// Regression test: a non-NotFound I/O error in IngestState::load() must
+    /// propagate as Err, not be silently converted to Ok(None).
+    ///
+    /// The old implementation used `Path::exists()` as a gate, which returns
+    /// `false` for *any* error — including PermissionDenied on the parent
+    /// directory — causing a spurious Ok(None) and a silent cursor reset to 0
+    /// without any warning. The fix uses `File::open()` and only maps
+    /// `ErrorKind::NotFound` to Ok(None); everything else propagates.
+    #[test]
+    #[cfg(unix)]
+    fn ingest_state_load_propagates_non_not_found_io_error() {
+        use std::os::unix::fs::PermissionsExt;
+
+        // Create a directory and a valid state file inside it.
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let state_file = dir.path().join("state.json");
+        IngestState {
+            cursor: 7,
+            mode: IngestMode::Chronik,
+            last_ok: None,
+            last_error: None,
+        }
+        .save(&state_file)
+        .expect("save state");
+
+        // Remove the execute bit from the directory so that stat/open of files
+        // inside it fails with EACCES. Mode 0o666 (rw-rw-rw-) keeps read/write
+        // but removes the execute bit, which is what controls directory traversal.
+        // Path::exists() would silently return false here (swallowing the error);
+        // File::open() propagates it as Err(EACCES).
+        let mut perms = std::fs::metadata(dir.path()).unwrap().permissions();
+        perms.set_mode(0o666); // rw-rw-rw- : no execute bit → stat of children fails
+        std::fs::set_permissions(dir.path(), perms).unwrap();
+
+        let actual_mode = std::fs::metadata(dir.path()).unwrap().permissions().mode() & 0o777;
+        if actual_mode != 0o666 {
+            // Some filesystems (e.g. overlay/CI containers) do not enforce
+            // permission bits. The test requires real permission enforcement to
+            // be meaningful, so we skip it rather than produce a false positive.
+            eprintln!(
+                "Warning: Skipping test – filesystem does not enforce permission bits \
+                 (expected 0o666, got 0o{:o}). This is normal in some CI environments.",
+                actual_mode
+            );
+            let mut perms = std::fs::metadata(dir.path()).unwrap().permissions();
+            perms.set_mode(0o700);
+            let _ = std::fs::set_permissions(dir.path(), perms);
+            return;
+        }
+
+        // With the fix: File::open() returns Err(EACCES), propagated as Err.
+        // With the old code: path.exists() returned false → Ok(None) silently.
+        let result = IngestState::load(&state_file, IngestMode::Chronik);
+
+        // Restore permissions so tempdir can clean up.
+        let mut perms = std::fs::metadata(dir.path()).unwrap().permissions();
+        perms.set_mode(0o700);
+        std::fs::set_permissions(dir.path(), perms).unwrap();
+
+        assert!(
+            result.is_err(),
+            "A non-NotFound I/O error must propagate as Err, not silently become Ok(None)"
+        );
     }
 }
