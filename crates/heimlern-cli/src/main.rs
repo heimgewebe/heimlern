@@ -263,9 +263,13 @@ fn load_cursor_from_state(state_file: &Path, mode: IngestMode) -> Option<u64> {
         Ok(Some(state)) => Some(state.cursor),
         Ok(None) => None, // No state file yet – first run, start from 0.
         Err(e) => {
+            let position_label = match mode {
+                IngestMode::Chronik => "cursor 0",
+                IngestMode::File => "offset 0",
+            };
             eprintln!(
-                "Warning: failed to load state from {:?}; starting from cursor 0: {}",
-                state_file, e
+                "Warning: failed to load state from {:?}; starting from {}: {}",
+                state_file, position_label, e
             );
             None
         }
@@ -875,6 +879,28 @@ mod tests {
                 "Warning: Skipping test – filesystem does not enforce permission bits \
                  (expected 0o666, got 0o{:o}). This is normal in some CI environments.",
                 actual_mode
+            );
+            let mut perms = std::fs::metadata(dir.path()).unwrap().permissions();
+            perms.set_mode(0o700);
+            let _ = std::fs::set_permissions(dir.path(), perms);
+            return;
+        }
+
+        // Behavior-based probe: verify that the environment actually denies
+        // access. In privileged environments (e.g. running as root), mode bits
+        // are set correctly but File::open() still succeeds. If the probe does
+        // not produce a real I/O error (or only NotFound), the test cannot be
+        // meaningful, so skip rather than produce a false positive.
+        let probe = std::fs::File::open(&state_file);
+        let skip = match &probe {
+            Ok(_) => true, // root or capabilities let it through – skip
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => true, // unexpected, but skip
+            Err(_) => false, // genuine access error – proceed
+        };
+        if skip {
+            eprintln!(
+                "Warning: Skipping test – environment does not enforce directory \
+                 permission restrictions (running as root or in a privileged container)."
             );
             let mut perms = std::fs::metadata(dir.path()).unwrap().permissions();
             perms.set_mode(0o700);
