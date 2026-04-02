@@ -242,7 +242,7 @@ fn record_state_error(
 /// ## Warn-and-continue rationale
 ///
 /// On state-load failure (corrupt JSON, mode mismatch, I/O error) we emit a
-/// warning to stderr and return `None` (i.e. start from cursor 0) rather than
+/// warning to stderr and return `None` (i.e. start from position 0) rather than
 /// aborting. This is a deliberate, conscious choice:
 ///
 /// * The state file is a *resumption aid*, not a strict consistency guarantee.
