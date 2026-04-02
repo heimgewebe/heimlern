@@ -96,10 +96,16 @@ struct IngestState {
 
 impl IngestState {
     fn load(path: &Path, expected_mode: IngestMode) -> Result<Option<Self>> {
-        if !path.exists() {
-            return Ok(None);
-        }
-        let file = File::open(path)?;
+        // Use File::open() directly instead of Path::exists() so that only a
+        // true NotFound is treated as "no state yet". Any other I/O error
+        // (PermissionDenied, stat failure on a parent directory, etc.) is
+        // propagated as Err — Path::exists() would silently return false for
+        // those cases and cause a spurious Ok(None) / silent cursor reset.
+        let file = match File::open(path) {
+            Ok(f) => f,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(e).context("Failed to open state file"),
+        };
         let state: IngestState = serde_json::from_reader(file)?;
 
         if state.mode != expected_mode {
@@ -231,6 +237,45 @@ fn record_state_error(
     Ok(())
 }
 
+/// Loads the ingest cursor from the state file, falling back to `None` on any error.
+///
+/// ## Warn-and-continue rationale
+///
+/// On state-load failure (corrupt JSON, mode mismatch, I/O error) we emit a
+/// warning to stderr and return `None` (i.e. start from position 0) rather than
+/// aborting. This is a deliberate, conscious choice:
+///
+/// * The state file is a *resumption aid*, not a strict consistency guarantee.
+///   A missing or unreadable state file is the normal "first run" condition.
+/// * The `--cursor` / `--line-offset` CLI flags let operators override the
+///   start position without touching the state file, providing a manual escape
+///   hatch when cursor 0 would be wrong.
+/// * Downstream event consumers are expected to tolerate duplicate delivery
+///   (idempotent processing); re-playing already-seen events is recoverable.
+/// * Hard-aborting on every corrupt-state situation would require manual
+///   intervention before any new events could flow, which is worse for
+///   availability than a re-play from the beginning.
+/// * All other "soft" fallbacks in the CLI (e.g. `EventStats::load`) follow
+///   the same warn-and-continue pattern; using `eprintln!` here is consistent
+///   with the rest of the binary's diagnostic output style.
+fn load_cursor_from_state(state_file: &Path, mode: IngestMode) -> Option<u64> {
+    match IngestState::load(state_file, mode) {
+        Ok(Some(state)) => Some(state.cursor),
+        Ok(None) => None, // No state file yet – first run, start from 0.
+        Err(e) => {
+            let position_label = match mode {
+                IngestMode::Chronik => "cursor 0",
+                IngestMode::File => "offset 0",
+            };
+            eprintln!(
+                "Warning: failed to load state from {:?}; starting from {}: {}",
+                state_file, position_label, e
+            );
+            None
+        }
+    }
+}
+
 fn build_chronik_url(base: &str) -> Result<url::Url> {
     let mut target_url = url::Url::parse(base).context("Invalid base URL")?;
 
@@ -312,10 +357,10 @@ fn fetch_file(path: &Path, offset: u64) -> Result<FetchResult> {
     let mut lines_read = 0;
 
     for (idx, line) in reader.lines().enumerate() {
+        let line = line?;
         if (idx as u64) < offset {
             continue;
         }
-        let line = line?;
         if line.trim().is_empty() {
             lines_read += 1;
             continue;
@@ -446,8 +491,8 @@ fn main() -> Result<()> {
                 let mut current_cursor = cursor.unwrap_or(0);
 
                 if cursor.is_none() {
-                    if let Ok(Some(state)) = IngestState::load(&state_file, IngestMode::Chronik) {
-                        current_cursor = state.cursor;
+                    if let Some(c) = load_cursor_from_state(&state_file, IngestMode::Chronik) {
+                        current_cursor = c;
                         println!("Resuming from state cursor: {}", current_cursor);
                     }
                 }
@@ -481,8 +526,8 @@ fn main() -> Result<()> {
                 let mut current_cursor = line_offset.unwrap_or(0);
 
                 if line_offset.is_none() {
-                    if let Ok(Some(state)) = IngestState::load(&state_file, IngestMode::File) {
-                        current_cursor = state.cursor;
+                    if let Some(c) = load_cursor_from_state(&state_file, IngestMode::File) {
+                        current_cursor = c;
                         println!("Resuming from file offset: {}", current_cursor);
                     }
                 }
@@ -711,5 +756,170 @@ mod tests {
         // We expect the Protocol Error, NOT the Permission Denied error from saving state
         assert!(err_str.contains("Protocol Error"));
         assert!(!err_str.contains("Permission denied"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Regression tests for Bug 1: fetch_file() must not silently drop I/O
+    // errors that occur on lines before the offset.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn fetch_file_propagates_io_error_on_pre_offset_lines() {
+        // Write a file where line 0 contains an invalid UTF-8 byte (0xFF is
+        // never valid in UTF-8), followed by a valid JSON event on line 1.
+        //
+        // Regression: previously `line?` was placed *after* the
+        // `if idx < offset { continue }` guard, so the I/O error on line 0
+        // was silently discarded when offset=1. The fix moves `line?` before
+        // the guard so errors are always propagated.
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let path = dir.path().join("test.jsonl");
+
+        let mut content: Vec<u8> = vec![0xFF, b'\n']; // invalid UTF-8 on line 0
+        content.extend_from_slice(b"{\"type\":\"link\",\"source\":\"test\"}\n");
+        std::fs::write(&path, &content).expect("write test file");
+
+        // With offset=1 the old code would have continued past line 0 without
+        // ever calling `line?`, silently swallowing the decode error.
+        let result = fetch_file(&path, 1);
+        assert!(
+            result.is_err(),
+            "I/O error on a pre-offset line must not be silently dropped"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Regression tests for Bug 2: load_cursor_from_state() must surface
+    // errors rather than silently ignoring them (the old `if let Ok(Some(..))`)
+    // pattern swallowed every Err variant without any diagnostic).
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn load_cursor_from_state_returns_none_for_corrupt_file() {
+        // A corrupt state file must not produce a silent fallback to cursor 0;
+        // the helper must warn and return None (warn-and-continue semantics).
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let state_file = dir.path().join("state.json");
+        std::fs::write(&state_file, b"{ invalid json }").expect("write corrupt state");
+
+        let result = load_cursor_from_state(&state_file, IngestMode::Chronik);
+        assert!(
+            result.is_none(),
+            "Corrupt state file should yield None (warn-and-continue from cursor 0)"
+        );
+    }
+
+    #[test]
+    fn load_cursor_from_state_returns_cursor_for_valid_state() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let state_file = dir.path().join("state.json");
+
+        let state = IngestState {
+            cursor: 42,
+            mode: IngestMode::Chronik,
+            last_ok: None,
+            last_error: None,
+        };
+        state.save(&state_file).expect("save state");
+
+        let result = load_cursor_from_state(&state_file, IngestMode::Chronik);
+        assert_eq!(result, Some(42));
+    }
+
+    #[test]
+    fn load_cursor_from_state_returns_none_when_file_absent() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let state_file = dir.path().join("nonexistent.json");
+
+        // Missing file is the normal "first run" condition – must not be an error.
+        let result = load_cursor_from_state(&state_file, IngestMode::Chronik);
+        assert!(result.is_none());
+    }
+
+    /// Regression test: a non-NotFound I/O error in IngestState::load() must
+    /// propagate as Err, not be silently converted to Ok(None).
+    ///
+    /// The old implementation used `Path::exists()` as a gate, which returns
+    /// `false` for *any* error — including PermissionDenied on the parent
+    /// directory — causing a spurious Ok(None) and a silent cursor reset to 0
+    /// without any warning. The fix uses `File::open()` and only maps
+    /// `ErrorKind::NotFound` to Ok(None); everything else propagates.
+    #[test]
+    #[cfg(unix)]
+    fn ingest_state_load_propagates_non_not_found_io_error() {
+        use std::os::unix::fs::PermissionsExt;
+
+        // Create a directory and a valid state file inside it.
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let state_file = dir.path().join("state.json");
+        IngestState {
+            cursor: 7,
+            mode: IngestMode::Chronik,
+            last_ok: None,
+            last_error: None,
+        }
+        .save(&state_file)
+        .expect("save state");
+
+        // Remove the execute bit from the directory so that stat/open of files
+        // inside it fails with EACCES. Mode 0o666 (rw-rw-rw-) keeps read/write
+        // but removes the execute bit, which is what controls directory traversal.
+        // Path::exists() would silently return false here (swallowing the error);
+        // File::open() propagates it as Err(EACCES).
+        let mut perms = std::fs::metadata(dir.path()).unwrap().permissions();
+        perms.set_mode(0o666); // rw-rw-rw- : no execute bit → stat of children fails
+        std::fs::set_permissions(dir.path(), perms).unwrap();
+
+        let actual_mode = std::fs::metadata(dir.path()).unwrap().permissions().mode() & 0o777;
+        if actual_mode != 0o666 {
+            // Some filesystems (e.g. overlay/CI containers) do not enforce
+            // permission bits. The test requires real permission enforcement to
+            // be meaningful, so we skip it rather than produce a false positive.
+            eprintln!(
+                "Warning: Skipping test – filesystem does not enforce permission bits \
+                 (expected 0o666, got 0o{:o}). This is normal in some CI environments.",
+                actual_mode
+            );
+            let mut perms = std::fs::metadata(dir.path()).unwrap().permissions();
+            perms.set_mode(0o700);
+            let _ = std::fs::set_permissions(dir.path(), perms);
+            return;
+        }
+
+        // Behavior-based probe: verify that the environment actually denies
+        // access. In privileged environments (e.g. running as root), mode bits
+        // are set correctly but File::open() still succeeds. If the probe does
+        // not produce a real I/O error (or only NotFound), the test cannot be
+        // meaningful, so skip rather than produce a false positive.
+        let probe = std::fs::File::open(&state_file);
+        let skip = match &probe {
+            Ok(_) => true, // root or capabilities let it through – skip
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => true, // unexpected, but skip
+            Err(_) => false, // genuine access error – proceed
+        };
+        if skip {
+            eprintln!(
+                "Warning: Skipping test – environment does not enforce directory \
+                 permission restrictions (running as root or in a privileged container)."
+            );
+            let mut perms = std::fs::metadata(dir.path()).unwrap().permissions();
+            perms.set_mode(0o700);
+            let _ = std::fs::set_permissions(dir.path(), perms);
+            return;
+        }
+
+        // With the fix: File::open() returns Err(EACCES), propagated as Err.
+        // With the old code: path.exists() returned false → Ok(None) silently.
+        let result = IngestState::load(&state_file, IngestMode::Chronik);
+
+        // Restore permissions so tempdir can clean up.
+        let mut perms = std::fs::metadata(dir.path()).unwrap().permissions();
+        perms.set_mode(0o700);
+        std::fs::set_permissions(dir.path(), perms).unwrap();
+
+        assert!(
+            result.is_err(),
+            "A non-NotFound I/O error must propagate as Err, not silently become Ok(None)"
+        );
     }
 }
