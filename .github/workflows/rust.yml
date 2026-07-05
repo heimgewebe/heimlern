@@ -59,6 +59,9 @@ jobs:
             python scripts/validate_json.py contracts/operator.routing_outcome.v1.schema.json /tmp/ola-routing-outcome.json
             python scripts/ola_adapter.py --emit decision-outcome "$input" > /tmp/ola-decision-outcome.json
           done
+          python scripts/ola_probe.py --self-test
+          python scripts/ola_probe.py > /tmp/ola-probe.json
+          python -m json.tool /tmp/ola-probe.json >/dev/null
 
       - name: Validate weight adjustment fixture against metarepo contract
         run: |
