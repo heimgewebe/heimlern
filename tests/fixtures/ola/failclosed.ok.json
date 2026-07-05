@@ -1,0 +1,20 @@
+{
+  "decision_id": "gr-failclosed-001",
+  "ts": "2026-07-05T12:03:00Z",
+  "task_class": "safety_slice",
+  "route_used": "typed_tool",
+  "completion_state": "deferred",
+  "ci_state": "not_applicable",
+  "pr_state": "not_applicable",
+  "elapsed_seconds": 30,
+  "rework_count": 0,
+  "friction": [
+    {
+      "kind": "fail_closed_gate",
+      "surface": "runtime_gate",
+      "operation": "preflight",
+      "resolved": true,
+      "fallback": "stopped without mutation"
+    }
+  ]
+}

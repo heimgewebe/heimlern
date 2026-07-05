@@ -54,8 +54,11 @@ jobs:
       - name: Smoke OPLEARN adapter
         run: |
           python scripts/ola_adapter.py --self-test
-          python scripts/ola_adapter.py tests/fixtures/ola/input.ok.json > /tmp/ola-routing-outcome.json
-          python scripts/validate_json.py contracts/operator.routing_outcome.v1.schema.json /tmp/ola-routing-outcome.json
+          for input in tests/fixtures/ola/*.ok.json; do
+            python scripts/ola_adapter.py "$input" > /tmp/ola-routing-outcome.json
+            python scripts/validate_json.py contracts/operator.routing_outcome.v1.schema.json /tmp/ola-routing-outcome.json
+            python scripts/ola_adapter.py --emit decision-outcome "$input" > /tmp/ola-decision-outcome.json
+          done
 
       - name: Validate weight adjustment fixture against metarepo contract
         run: |

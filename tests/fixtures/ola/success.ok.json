@@ -1,0 +1,12 @@
+{
+  "decision_id": "gr-success-001",
+  "ts": "2026-07-05T12:00:00Z",
+  "task_class": "contract_slice",
+  "route_used": "typed_tool",
+  "completion_state": "completed",
+  "ci_state": "pass",
+  "pr_state": "merged",
+  "elapsed_seconds": 60,
+  "rework_count": 0,
+  "friction": []
+}

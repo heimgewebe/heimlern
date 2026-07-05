@@ -1,0 +1,19 @@
+{
+  "decision_id": "gr-failed-001",
+  "ts": "2026-07-05T12:02:00Z",
+  "task_class": "runtime_slice",
+  "route_used": "direct_patch",
+  "completion_state": "failed",
+  "ci_state": "fail",
+  "pr_state": "closed",
+  "elapsed_seconds": 180,
+  "rework_count": 2,
+  "friction": [
+    {
+      "kind": "operator_bug",
+      "surface": "local_tool",
+      "operation": "patch_apply",
+      "resolved": false
+    }
+  ]
+}
