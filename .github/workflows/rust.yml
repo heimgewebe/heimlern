@@ -51,3 +51,11 @@ jobs:
           python scripts/validate_json.py \
           --schemas contracts/ \
           --samples data/samples/
+      - name: Validate weight adjustment fixture against metarepo contract
+        run: |
+          mkdir -p .ci
+          curl -fsSL https://raw.githubusercontent.com/heimgewebe/metarepo/main/contracts/policy.weight_adjustment.v1.schema.json \
+            -o .ci/policy.weight_adjustment.v1.schema.json
+          python scripts/validate_json.py \
+            .ci/policy.weight_adjustment.v1.schema.json \
+            tests/fixtures/feedback/adjustment.ok.json

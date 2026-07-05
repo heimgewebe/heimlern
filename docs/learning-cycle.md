@@ -80,7 +80,7 @@ if let Some(proposal) = analyzer.propose_adjustment("remind-bandit-v1", &outcome
     // - deltas: HashMap<String, DeltaValue>
     // - confidence: f32 (0.0..1.0)
     // - evidence: { decisions_analyzed, failure_rates, patterns }
-    // - reasoning: Vec<String>
+    // - reasoning: String
     // - status: Proposed
     
     // Exportiere als JSON

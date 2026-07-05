@@ -35,7 +35,7 @@ Versionskontrolle oder Objektspeichern abgelegt werden können.
    ```
 2. Automatisierte Prüfung mit dem vorhandenen Validator:
    ```bash
-   python scripts/validate_json.py contracts/policy_snapshot.schema.json /tmp/heimlern_snapshot.json
+   python scripts/validate_json.py contracts/policy.snapshot.schema.json /tmp/heimlern_snapshot.json
    ```
    Alternativ validiert `just schema-validate` sowohl Snapshot als auch
    Feedback-Beispiel in einem Lauf.
