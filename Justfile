@@ -24,6 +24,8 @@ schema-validate: venv
 	. .venv/bin/activate && python scripts/examples.py
 	. .venv/bin/activate && python scripts/validate_json.py contracts/policy.snapshot.schema.json /tmp/heimlern_snapshot.json
 	. .venv/bin/activate && python scripts/validate_json.py contracts/policy.feedback.schema.json /tmp/heimlern_feedback.json
+	python3 -m json.tool contracts/operator.routing_decision.v1.schema.json >/dev/null
+	python3 -m json.tool contracts/operator.routing_outcome.v1.schema.json >/dev/null
 	@echo "✓ alle Beispiel-Dokumente sind valide"
 
 # Lokaler Helper: Schnelltests & Linter – sicher mit Null-Trennung und Quoting
