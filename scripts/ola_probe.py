@@ -1,0 +1,159 @@
+#!/usr/bin/env python3
+"""Probe OPLEARN routing outcomes before any routing proposal is allowed."""
+from __future__ import annotations
+
+import argparse
+import json
+from collections import defaultdict
+from pathlib import Path
+from typing import Any
+
+from ola_adapter import adapt, to_decision_outcome
+
+DEFAULT_MIN_DECISIONS = 10
+DEFAULT_MIN_ACTION_COUNT = 3
+DEFAULT_FAILURE_THRESHOLD = 0.6
+
+
+def ratio(num: int, den: int) -> float:
+    if den == 0:
+        return 0.0
+    return round(num / den, 4)
+
+
+def average(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    return round(sum(values) / len(values), 4)
+
+
+def load_inputs(paths: list[Path]) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for path in paths:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(data, list):
+            records.extend(item for item in data if isinstance(item, dict))
+        elif isinstance(data, dict):
+            records.append(data)
+    return records
+
+
+def summarize(decision_outcomes: list[dict[str, Any]]) -> dict[str, Any]:
+    by_action: dict[str, dict[str, Any]] = defaultdict(lambda: {"total": 0, "successes": 0, "failures": 0, "rewards": []})
+    by_task_class: dict[str, dict[str, Any]] = defaultdict(lambda: {"total": 0, "successes": 0, "failures": 0, "rewards": []})
+    for item in decision_outcomes:
+        action = str(item.get("action") or "unknown")
+        task_class = str((item.get("context") or {}).get("task_class") or "unknown")
+        success = bool(item.get("success"))
+        reward = item.get("reward")
+        for bucket, key in ((by_action, action), (by_task_class, task_class)):
+            bucket[key]["total"] += 1
+            if success:
+                bucket[key]["successes"] += 1
+            else:
+                bucket[key]["failures"] += 1
+            if isinstance(reward, (int, float)):
+                bucket[key]["rewards"].append(float(reward))
+
+    def finalize(bucket: dict[str, dict[str, Any]]) -> dict[str, Any]:
+        output = {}
+        for key, stats in sorted(bucket.items()):
+            output[key] = {
+                "total": stats["total"],
+                "success_rate": ratio(stats["successes"], stats["total"]),
+                "failure_rate": ratio(stats["failures"], stats["total"]),
+                "average_reward": average(stats["rewards"]),
+            }
+        return output
+
+    total = len(decision_outcomes)
+    successes = sum(1 for item in decision_outcomes if item.get("success"))
+    rewards = [float(item["reward"]) for item in decision_outcomes if isinstance(item.get("reward"), (int, float))]
+    return {
+        "total": total,
+        "success_rate": ratio(successes, total),
+        "failure_rate": ratio(total - successes, total),
+        "average_reward": average(rewards),
+        "by_action": finalize(by_action),
+        "by_task_class": finalize(by_task_class),
+    }
+
+
+def maybe_propose(summary: dict[str, Any], min_decisions: int, min_action_count: int, failure_threshold: float) -> dict[str, Any] | None:
+    if summary["total"] < min_decisions:
+        return None
+    deltas: dict[str, Any] = {}
+    evidence: list[dict[str, Any]] = []
+    for action, stats in summary["by_action"].items():
+        if stats["total"] >= min_action_count and stats["failure_rate"] >= failure_threshold:
+            route = action.removeprefix("route.")
+            deltas[f"route.{route}.weight"] = {"kind": "relative", "value": -10.0, "unit": "percent"}
+            evidence.append({"action": action, **stats})
+    if not deltas:
+        return None
+    return {
+        "version": "operator.routing_weight_adjustment.proposed.v0",
+        "status": "proposed",
+        "basis_policy": "grabowski-routing-v0",
+        "deltas": deltas,
+        "evidence": {
+            "decisions_analyzed": summary["total"],
+            "actions": evidence,
+            "method": "heuristic_failure_rate_probe",
+        },
+        "does_not_establish": [
+            "proposal_reviewed",
+            "automatic_rule_change_permission",
+            "causal_route_superiority",
+        ],
+    }
+
+
+def probe(inputs: list[dict[str, Any]], min_decisions: int = DEFAULT_MIN_DECISIONS) -> dict[str, Any]:
+    routing_outcomes = [adapt(item) for item in inputs]
+    decision_outcomes = [to_decision_outcome(item) for item in routing_outcomes]
+    summary = summarize(decision_outcomes)
+    proposal = maybe_propose(summary, min_decisions, DEFAULT_MIN_ACTION_COUNT, DEFAULT_FAILURE_THRESHOLD)
+    return {
+        "schema_version": 1,
+        "kind": "ola_analyzer_probe",
+        "status": "proposal_candidate" if proposal else "insufficient_evidence",
+        "summary": summary,
+        "proposal": proposal,
+        "does_not_establish": [
+            "routing_policy_readiness",
+            "automatic_rule_change_permission",
+            "sample_representativeness",
+        ],
+    }
+
+
+def run_self_test() -> None:
+    fixture_dir = Path("tests/fixtures/ola")
+    report = probe(load_inputs(sorted(fixture_dir.glob("*.ok.json"))))
+    assert report["status"] == "insufficient_evidence"
+    failed = json.loads((fixture_dir / "failed.ok.json").read_text(encoding="utf-8"))
+    amplified = [failed | {"decision_id": f"gr-failed-{i:03d}"} for i in range(10)]
+    proposed = probe(amplified, min_decisions=10)
+    assert proposed["status"] == "proposal_candidate"
+    assert proposed["proposal"] is not None
+    assert "automatic_rule_change_permission" in proposed["proposal"]["does_not_establish"]
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("inputs", nargs="*", type=Path, help="Redacted OPLEARN input JSON files")
+    parser.add_argument("--min-decisions", type=int, default=DEFAULT_MIN_DECISIONS)
+    parser.add_argument("--self-test", action="store_true")
+    args = parser.parse_args()
+    if args.self_test:
+        run_self_test()
+        print("ola-probe self-test ok")
+        return 0
+    paths = args.inputs or sorted(Path("tests/fixtures/ola").glob("*.ok.json"))
+    print(json.dumps(probe(load_inputs(paths), args.min_decisions), indent=2, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
