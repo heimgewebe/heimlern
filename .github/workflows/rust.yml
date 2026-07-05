@@ -84,7 +84,7 @@ jobs:
           from pathlib import Path
           proposal = json.loads(Path("/tmp/ola-proposal.json").read_text(encoding="utf-8"))
           assert "route.direct_patch.weight" in proposal["deltas"]
-          assert all(":" not in key for key in proposal["deltas"])
+          assert all(":" not in key and "/" not in key for key in proposal["deltas"])
           PY
           python scripts/validate_json.py \
             .ci/policy.weight_adjustment.v1.schema.json \
