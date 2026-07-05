@@ -76,6 +76,7 @@ SCHEMA_MAPPING = {
     "policy.snapshot.sample.json": "policy.snapshot.schema.json",
     "policy.feedback.sample.json": "policy.feedback.schema.json",
     "foreign-aussensensor.jsonl": "aussen.event.schema.json",
+    "routing.outcome.sample.json": "operator.routing_outcome.v1.schema.json",
 }
 
 

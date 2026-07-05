@@ -51,6 +51,12 @@ jobs:
           python scripts/validate_json.py \
           --schemas contracts/ \
           --samples data/samples/
+      - name: Smoke OPLEARN adapter
+        run: |
+          python scripts/ola_adapter.py --self-test
+          python scripts/ola_adapter.py tests/fixtures/ola/input.ok.json > /tmp/ola-routing-outcome.json
+          python scripts/validate_json.py contracts/operator.routing_outcome.v1.schema.json /tmp/ola-routing-outcome.json
+
       - name: Validate weight adjustment fixture against metarepo contract
         run: |
           mkdir -p .ci

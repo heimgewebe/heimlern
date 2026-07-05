@@ -1,0 +1,20 @@
+{
+  "decision_id": "gr-example-001",
+  "ts": "2026-07-05T12:00:00Z",
+  "task_class": "contract_slice",
+  "route_used": "typed_tool",
+  "completion_state": "blocked",
+  "ci_state": "unknown",
+  "pr_state": "open",
+  "elapsed_seconds": 120,
+  "rework_count": 0,
+  "friction": [
+    {
+      "kind": "platform_filter",
+      "surface": "chat_tool",
+      "operation": "bounded_write",
+      "resolved": false,
+      "fallback": "narrowed scope and stopped before mutation"
+    }
+  ]
+}
