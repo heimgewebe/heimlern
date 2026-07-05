@@ -79,6 +79,20 @@ def summarize(decision_outcomes: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def safe_route(value: str) -> str:
+    out = []
+    last = ""
+    for ch in value:
+        ok = ch.isalnum() or ch in "._-"
+        nxt = ch if ok else "_"
+        if nxt == "_" and last == "_":
+            continue
+        out.append(nxt)
+        last = nxt
+    result = "".join(out).strip("._-")
+    return result or "unknown_route"
+
+
 def maybe_propose(summary: dict[str, Any], min_decisions: int, min_action_count: int, failure_threshold: float) -> dict[str, Any] | None:
     if summary["total"] < min_decisions:
         return None
@@ -87,7 +101,7 @@ def maybe_propose(summary: dict[str, Any], min_decisions: int, min_action_count:
     for action, stats in summary["by_action"].items():
         if stats["total"] >= min_action_count and stats["failure_rate"] >= failure_threshold:
             route = action.removeprefix("route.")
-            deltas[f"route.{route}.weight"] = {"kind": "relative", "value": -5.0, "unit": "percent"}
+            deltas[f"route.{safe_route(route)}.weight"] = {"kind": "relative", "value": -5.0, "unit": "percent"}
             patterns.append(
                 f"{action} failure_rate={stats['failure_rate']} total={stats['total']} average_reward={stats['average_reward']}"
             )
@@ -138,10 +152,11 @@ def run_self_test() -> None:
     report = probe(load_inputs(sorted(fixture_dir.glob("*.ok.json"))))
     assert report["status"] == "insufficient_evidence"
     failed = json.loads((fixture_dir / "failed.ok.json").read_text(encoding="utf-8"))
-    amplified = [failed | {"decision_id": f"gr-failed-{i:03d}"} for i in range(10)]
+    amplified = [failed | {"decision_id": f"gr-failed-{i:03d}", "route_used": "direct" + ":" + "patch"} for i in range(10)]
     proposed = probe(amplified, min_decisions=10)
     assert proposed["status"] == "proposal_candidate"
     assert proposed["proposal"] is not None
+    assert "route.direct_patch.weight" in proposed["proposal"]["deltas"]
     assert proposed["proposal"]["version"] == "v1"
     assert proposed["proposal"]["confidence"] >= 0.5
     assert proposed["proposal"]["evidence"]["decisions_analyzed"] == 10

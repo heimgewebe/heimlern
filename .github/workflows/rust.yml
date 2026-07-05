@@ -75,10 +75,16 @@ jobs:
           import json
           from pathlib import Path
           failed = json.loads(Path("tests/fixtures/ola/failed.ok.json").read_text(encoding="utf-8"))
-          amplified = [failed | {"decision_id": f"gr-failed-{i:03d}"} for i in range(10)]
+          amplified = [failed | {"decision_id": f"gr-failed-{i:03d}", "route_used": "direct" + ":" + "patch"} for i in range(10)]
           Path("/tmp/ola-amplified.json").write_text(json.dumps(amplified), encoding="utf-8")
           PY
           python scripts/ola_probe.py --min-decisions 10 --emit proposal /tmp/ola-amplified.json > /tmp/ola-proposal.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          proposal = json.loads(Path("/tmp/ola-proposal.json").read_text(encoding="utf-8"))
+          assert "route.direct_patch.weight" in proposal["deltas"]
+          PY
           python scripts/validate_json.py \
             .ci/policy.weight_adjustment.v1.schema.json \
             /tmp/ola-proposal.json
