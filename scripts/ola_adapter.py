@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 OUTCOME_VERSION = "operator.routing_outcome.v1"
+DEFAULT_POLICY_ID = "grabowski-routing-v0"
 VALID_COMPLETION_STATES = {"completed", "blocked", "deferred", "failed", "unknown"}
 VALID_CI_STATES = {"pass", "fail", "pending", "not_applicable", "unknown"}
 VALID_PR_STATES = {"merged", "open", "closed", "not_applicable", "unknown"}
@@ -158,6 +159,30 @@ def adapt(input_record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def to_decision_outcome(routing_outcome: dict[str, Any], policy_id: str = DEFAULT_POLICY_ID) -> dict[str, Any]:
+    outcome = str(routing_outcome.get("outcome") or "unknown")
+    success = outcome == "success"
+    if outcome == "partial":
+        success = bool_from(routing_outcome.get("resolved"))
+    route_used = str(routing_outcome.get("route_used") or "unknown_route")
+    return {
+        "decision_id": str(routing_outcome.get("decision_id") or "unknown-decision"),
+        "ts": str(routing_outcome.get("ts") or iso_now()),
+        "policy_id": policy_id,
+        "action": f"route.{route_used}",
+        "outcome": outcome,
+        "success": success,
+        "reward": routing_outcome.get("reward"),
+        "context": {"task_class": routing_outcome.get("task_class"), "route_used": route_used},
+        "metadata": {
+            "source_version": routing_outcome.get("version"),
+            "metrics": routing_outcome.get("metrics", {}),
+            "friction": routing_outcome.get("friction", []),
+            "does_not_establish": ["routing_policy_readiness", "automatic_rule_change_permission"],
+        },
+    }
+
+
 def run_self_test() -> None:
     sample = {
         "decision_id": "gr-example-001",
@@ -186,6 +211,8 @@ def run_self_test() -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", nargs="?", help="Path to a redacted JSON input record")
+    parser.add_argument("--emit", choices=["routing-outcome", "decision-outcome"], default="routing-outcome")
+    parser.add_argument("--policy-id", default=DEFAULT_POLICY_ID)
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:
@@ -195,7 +222,9 @@ def main() -> int:
     if not args.input:
         parser.error("input path required unless --self-test is used")
     input_record = json.loads(Path(args.input).read_text(encoding="utf-8"))
-    print(json.dumps(adapt(input_record), indent=2, ensure_ascii=False))
+    routing_outcome = adapt(input_record)
+    payload = to_decision_outcome(routing_outcome, args.policy_id) if args.emit == "decision-outcome" else routing_outcome
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0
 
 
