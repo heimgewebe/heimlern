@@ -70,3 +70,10 @@ just schema:validate
 | `policy.weight_adjustment.v1` | Gewichtsanpassungsvorschläge | heimlern | hausKI |
 
 Für Details siehe: [heimgewebe/metarepo/contracts/](https://github.com/heimgewebe/metarepo/tree/main/contracts)
+
+## Operator routing
+
+- `operator.routing_decision.v1.schema.json`: records one bounded operator routing choice before the result is known.
+- `operator.routing_outcome.v1.schema.json`: records the retrospective result, reward and redacted friction metrics.
+
+These files are offline-learning inputs only. They do not authorize live routing changes.
