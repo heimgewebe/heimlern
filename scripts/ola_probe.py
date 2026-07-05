@@ -13,6 +13,7 @@ from ola_adapter import DEFAULT_POLICY_ID, adapt, iso_now, to_decision_outcome
 DEFAULT_MIN_DECISIONS = 10
 DEFAULT_MIN_ACTION_COUNT = 3
 DEFAULT_FAILURE_THRESHOLD = 0.6
+_ALLOWED_DELTA_KEY_CHARS = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-")
 
 
 def ratio(num: int, den: int) -> float:
@@ -81,29 +82,35 @@ def summarize(decision_outcomes: list[dict[str, Any]]) -> dict[str, Any]:
 
 def safe_route(value: str) -> str:
     out = []
-    last = ""
     for ch in value:
-        ok = ch.isalnum() or ch in "._-"
-        nxt = ch if ok else "_"
-        if nxt == "_" and last == "_":
-            continue
-        out.append(nxt)
-        last = nxt
+        out.append(ch if ch in _ALLOWED_DELTA_KEY_CHARS else "_")
     result = "".join(out).strip("._-")
     return result or "unknown_route"
+
+
+def route_delta_key(action: str) -> tuple[str, str]:
+    route = action.removeprefix("route.")
+    return f"route.{safe_route(route)}.weight", route
 
 
 def maybe_propose(summary: dict[str, Any], min_decisions: int, min_action_count: int, failure_threshold: float) -> dict[str, Any] | None:
     if summary["total"] < min_decisions:
         return None
     deltas: dict[str, Any] = {}
+    original_routes_by_key: dict[str, str] = {}
     patterns: list[str] = []
     for action, stats in summary["by_action"].items():
         if stats["total"] >= min_action_count and stats["failure_rate"] >= failure_threshold:
-            route = action.removeprefix("route.")
-            deltas[f"route.{safe_route(route)}.weight"] = {"kind": "relative", "value": -5.0, "unit": "percent"}
+            delta_key, route = route_delta_key(action)
+            previous_route = original_routes_by_key.get(delta_key)
+            if previous_route is not None and previous_route != route:
+                raise ValueError(
+                    f"sanitized route delta key collision: {previous_route!r} and {route!r} both map to {delta_key!r}"
+                )
+            original_routes_by_key[delta_key] = route
+            deltas[delta_key] = {"kind": "relative", "value": -5.0, "unit": "percent"}
             patterns.append(
-                f"{action} failure_rate={stats['failure_rate']} total={stats['total']} average_reward={stats['average_reward']}"
+                f"{action} -> {delta_key} failure_rate={stats['failure_rate']} total={stats['total']} average_reward={stats['average_reward']}"
             )
     if not deltas:
         return None
@@ -148,6 +155,15 @@ def probe(inputs: list[dict[str, Any]], min_decisions: int = DEFAULT_MIN_DECISIO
 
 
 def run_self_test() -> None:
+    assert safe_route("") == "unknown_route"
+    assert safe_route("direct:patch") == "direct_patch"
+    assert safe_route("direct/patch/v2") == "direct_patch_v2"
+    assert safe_route("direct_patch") == "direct_patch"
+    assert safe_route("foo__bar") == "foo__bar"
+    assert safe_route("route.with.dots-and-dashes") == "route.with.dots-and-dashes"
+    assert safe_route("röute") == "r_ute"
+    assert safe_route("中") == "unknown_route"
+
     fixture_dir = Path("tests/fixtures/ola")
     report = probe(load_inputs(sorted(fixture_dir.glob("*.ok.json"))))
     assert report["status"] == "insufficient_evidence"
@@ -157,9 +173,20 @@ def run_self_test() -> None:
     assert proposed["status"] == "proposal_candidate"
     assert proposed["proposal"] is not None
     assert "route.direct_patch.weight" in proposed["proposal"]["deltas"]
+    assert all(":" not in key for key in proposed["proposal"]["deltas"])
     assert proposed["proposal"]["version"] == "v1"
     assert proposed["proposal"]["confidence"] >= 0.5
     assert proposed["proposal"]["evidence"]["decisions_analyzed"] == 10
+
+    colliding = []
+    for index, route in enumerate(["direct" + ":" + "patch", "direct/patch"] * 5):
+        colliding.append(failed | {"decision_id": f"gr-collide-{index:03d}", "route_used": route})
+    try:
+        probe(colliding, min_decisions=10)
+    except ValueError as exc:
+        assert "sanitized route delta key collision" in str(exc)
+    else:
+        raise AssertionError("sanitized route collisions must fail closed")
 
 
 def main() -> int:
