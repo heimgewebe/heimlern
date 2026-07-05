@@ -13,15 +13,15 @@
 //!
 //! *   [`DeltaValue::Absolute`]: "Set-to" semantics. The target parameter should be set exactly to this value.
 //!     Legacy consumers might have interpreted this as additive in the past, but the new standard distinguishes them.
-//! *   [`DeltaValue::Additive`]: "Delta" semantics. The value should be added to the current parameter.
 //! *   [`DeltaValue::Relative`]: Percentage change relative to the current value.
+//! *   [`DeltaValue::Additive`]: Legacy in-memory delta semantics for simulation-only callers. It is not emitted by v1 proposals.
 //!
 //! # Simulation
 //!
 //! This crate can simulate the expected impact of `epsilon` (exploration rate) adjustments using
 //! statistical re-weighting (mixture re-weighting). This requires decision outcomes to carry metadata about
 //! whether they were "explore" or "exploit" decisions. Simulation is supported for
-//! [`DeltaValue::Additive`] and [`DeltaValue::Absolute`] adjustments to `epsilon`.
+//! [`DeltaValue::Relative`], [`DeltaValue::Additive`], and [`DeltaValue::Absolute`] adjustments to `epsilon`.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -50,8 +50,9 @@ const PATTERN_OVERALL_FAILURE_THRESHOLD: f32 = 0.5;
 // Adjustment thresholds
 /// Failure rate threshold (50%) that triggers exploration reduction
 const ADJUSTMENT_FAILURE_THRESHOLD: f32 = 0.5;
-/// Amount to reduce epsilon when failure rate is high
-const ADJUSTMENT_EPSILON_DELTA: f32 = -0.05;
+/// Contract-level percent delta used to reduce epsilon when failure rate is high.
+/// The simulator maps -5 percent to a -0.05 epsilon-fraction shift.
+const ADJUSTMENT_EPSILON_DELTA_PERCENT: f32 = -5.0;
 
 // Fallback constants
 /// Fallback timestamp when formatting fails
@@ -135,7 +136,7 @@ pub struct WeightAdjustmentProposal {
     pub evidence: Evidence,
     /// Human-readable explanations for the adjustments
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub reasoning: Option<Vec<String>>,
+    pub reasoning: Option<String>,
     /// Current status of this proposal
     #[serde(default)]
     pub status: ProposalStatus,
@@ -394,8 +395,9 @@ impl FeedbackAnalyzer {
         if overall_stats.failure_rate() > ADJUSTMENT_FAILURE_THRESHOLD {
             deltas.insert(
                 "epsilon".to_string(),
-                DeltaValue::Additive {
-                    value: ADJUSTMENT_EPSILON_DELTA,
+                DeltaValue::Relative {
+                    value: ADJUSTMENT_EPSILON_DELTA_PERCENT,
+                    unit: "percent".to_string(),
                 },
             );
             reasoning.push("Reduce exploration due to high failure rate".to_string());
@@ -403,14 +405,14 @@ impl FeedbackAnalyzer {
 
         // Simulate improvement using reweighting simulation
         let failure_rate_after_sim =
-            if let Some(DeltaValue::Additive { value }) = deltas.get("epsilon") {
-                1.0 - simulate_epsilon_change(outcomes, *value)
+            if let Some(DeltaValue::Relative { value, unit: _ }) = deltas.get("epsilon") {
+                1.0 - simulate_epsilon_change(outcomes, *value / 100.0)
             } else {
                 overall_stats.failure_rate()
             };
 
         Some(WeightAdjustmentProposal {
-            version: "0.1.0".to_string(),
+            version: "v1".to_string(),
             basis_policy: basis_policy.to_string(),
             ts: iso8601_now(),
             deltas,
@@ -422,7 +424,7 @@ impl FeedbackAnalyzer {
                 simulation_method: Some("reweight_epsilon_simulation".to_string()),
                 patterns: Some(patterns),
             },
-            reasoning: Some(reasoning),
+            reasoning: Some(reasoning.join("; ")),
             status: ProposalStatus::Proposed,
         })
     }
@@ -453,7 +455,13 @@ impl FeedbackAnalyzer {
             match val {
                 DeltaValue::Additive { value } => simulate_epsilon_change(outcomes, *value),
                 DeltaValue::Absolute { value } => simulate_epsilon_absolute(outcomes, *value),
-                _ => {
+                DeltaValue::Relative { value, unit } if unit == "percent" => {
+                    simulate_epsilon_change(outcomes, *value / 100.0)
+                }
+                DeltaValue::Relative { value, unit } if unit == "factor" => {
+                    simulate_epsilon_change(outcomes, *value - 1.0)
+                }
+                DeltaValue::Relative { .. } => {
                     let successes = outcomes.iter().filter(|o| outcome_is_success(o)).count();
                     ratio(successes, outcomes.len())
                 }
@@ -805,12 +813,18 @@ mod tests {
     #[test]
     fn proposal_serializes_to_valid_json() {
         let proposal = WeightAdjustmentProposal {
-            version: "0.1.0".to_string(),
+            version: "v1".to_string(),
             basis_policy: "test-policy".to_string(),
             ts: iso8601_now(),
             deltas: {
                 let mut map = HashMap::new();
-                map.insert("epsilon".to_string(), DeltaValue::Additive { value: -0.1 });
+                map.insert(
+                    "epsilon".to_string(),
+                    DeltaValue::Relative {
+                        value: -5.0,
+                        unit: "percent".to_string(),
+                    },
+                );
                 map
             },
             confidence: 0.68,
@@ -818,10 +832,10 @@ mod tests {
                 decisions_analyzed: 100,
                 failure_rate_before: Some(0.42),
                 failure_rate_after_sim: Some(0.31),
-                simulation_method: None,
+                simulation_method: Some("unit_test".to_string()),
                 patterns: Some(vec!["Test pattern".to_string()]),
             },
-            reasoning: Some(vec!["Test reasoning".to_string()]),
+            reasoning: Some("Test reasoning".to_string()),
             status: ProposalStatus::Proposed,
         };
 
@@ -857,7 +871,7 @@ mod tests {
         deltas.insert("epsilon".to_string(), DeltaValue::Additive { value: -0.1 });
 
         let proposal = WeightAdjustmentProposal {
-            version: "0.1.0".to_string(),
+            version: "legacy-simulation".to_string(),
             basis_policy: "test".to_string(),
             ts: iso8601_now(),
             deltas,
@@ -910,7 +924,7 @@ mod tests {
         deltas.insert("epsilon".to_string(), DeltaValue::Absolute { value: 0.4 });
 
         let proposal = WeightAdjustmentProposal {
-            version: "0.1.0".to_string(),
+            version: "v1".to_string(),
             basis_policy: "test".to_string(),
             ts: iso8601_now(),
             deltas,
@@ -953,7 +967,7 @@ mod tests {
         deltas.insert("epsilon".to_string(), DeltaValue::Absolute { value: 1.5 });
 
         let proposal = WeightAdjustmentProposal {
-            version: "0.1.0".to_string(),
+            version: "v1".to_string(),
             basis_policy: "test".to_string(),
             ts: iso8601_now(),
             deltas,
@@ -1005,7 +1019,7 @@ mod tests {
                 },
                 "recency.half_life": {
                     "kind": "relative",
-                    "value": -20.0,
+                    "value": -5.0,
                     "unit": "percent"
                 }
             },
@@ -1034,7 +1048,7 @@ mod tests {
         }
         if let Some(DeltaValue::Relative { value, unit }) = proposal.deltas.get("recency.half_life")
         {
-            assert!((value + 20.0).abs() < 1e-6);
+            assert!((value + 5.0).abs() < 1e-6);
             assert_eq!(unit, "percent");
         } else {
             panic!("Expected Relative delta for recency.half_life");
@@ -1137,7 +1151,7 @@ mod tests {
         deltas.insert("epsilon".to_string(), DeltaValue::Additive { value: 0.1 });
 
         let proposal = WeightAdjustmentProposal {
-            version: "0.1.0".to_string(),
+            version: "legacy-simulation".to_string(),
             basis_policy: "test".to_string(),
             ts: iso8601_now(),
             deltas,
@@ -1180,7 +1194,7 @@ mod tests {
         deltas.insert("epsilon".to_string(), DeltaValue::Additive { value: 10.0 });
 
         let proposal = WeightAdjustmentProposal {
-            version: "0.1.0".to_string(),
+            version: "legacy-simulation".to_string(),
             basis_policy: "test".to_string(),
             ts: iso8601_now(),
             deltas,
@@ -1214,7 +1228,7 @@ mod tests {
         let mut deltas = HashMap::new();
         deltas.insert("epsilon".to_string(), DeltaValue::Additive { value: -0.1 });
         let proposal = WeightAdjustmentProposal {
-            version: "0.1.0".to_string(),
+            version: "legacy-simulation".to_string(),
             basis_policy: "test".to_string(),
             ts: iso8601_now(),
             deltas,
@@ -1264,7 +1278,7 @@ mod tests {
         let mut deltas = HashMap::new();
         deltas.insert("epsilon".to_string(), DeltaValue::Additive { value: -0.1 });
         let proposal = WeightAdjustmentProposal {
-            version: "0.1.0".to_string(),
+            version: "legacy-simulation".to_string(),
             basis_policy: "test".to_string(),
             ts: iso8601_now(),
             deltas,

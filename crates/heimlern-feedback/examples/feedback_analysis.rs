@@ -96,9 +96,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
             if let Some(reasoning) = &proposal.reasoning {
                 println!("\n  Reasoning:");
-                for r in reasoning {
-                    println!("    • {}", r);
-                }
+                println!("    • {}", reasoning);
             }
 
             // Serialize to JSON (contract format)

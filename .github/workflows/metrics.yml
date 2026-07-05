@@ -7,7 +7,7 @@ on:
     - cron: "0 * * * *"
 
 env:
-  METRICS_SCHEMA_URL: https://raw.githubusercontent.com/heimgewebe/metarepo/contracts-v1/contracts/wgx/metrics.json
+  METRICS_SCHEMA_URL: https://raw.githubusercontent.com/heimgewebe/metarepo/main/contracts/metrics.snapshot.schema.json
   HAUSKI_POST_URL: ${{ secrets.HAUSKI_METRICS_URL }}
 
 jobs:
@@ -25,13 +25,13 @@ jobs:
 
       - name: Snapshot metrics
         run: bash scripts/wgx-metrics-snapshot.sh --json
-      - name: Fetch AJV schema (local file)
+      - name: Fetch AJV metrics schema
         run: |
           mkdir -p .ci
           curl -fsSL "$METRICS_SCHEMA_URL" -o .ci/metrics.schema.json
 
       - name: Validate metrics contract
-        run: npx --yes ajv-cli@5 validate -s .ci/metrics.schema.json -d metrics.json
+        run: npx --yes ajv-cli@5 validate --spec=draft2020 --strict=false -s .ci/metrics.schema.json -d metrics.json
 
       - name: Optional POST to hausKI
         if: ${{ env.HAUSKI_POST_URL && env.HAUSKI_POST_URL != '' }}

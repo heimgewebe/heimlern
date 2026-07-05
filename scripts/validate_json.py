@@ -3,7 +3,7 @@
 Kleiner Validator für heimlern-Contracts.
 Verwendung:
   # Einzelne Datei validieren:
-  python scripts/validate_json.py contracts/policy_snapshot.schema.json /path/to/doc.json
+  python scripts/validate_json.py contracts/policy.snapshot.schema.json /path/to/doc.json
 
   # Batch-Validierung (CI-Modus):
   python scripts/validate_json.py --schemas contracts/ --samples data/samples/
@@ -75,6 +75,7 @@ SCHEMA_MAPPING = {
     "policy.decision.sample.jsonl": "policy.decision.schema.json",
     "policy.snapshot.sample.json": "policy.snapshot.schema.json",
     "policy.feedback.sample.json": "policy.feedback.schema.json",
+    "foreign-aussensensor.jsonl": "aussen.event.schema.json",
 }
 
 
