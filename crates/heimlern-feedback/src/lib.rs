@@ -50,8 +50,8 @@ const PATTERN_OVERALL_FAILURE_THRESHOLD: f32 = 0.5;
 // Adjustment thresholds
 /// Failure rate threshold (50%) that triggers exploration reduction
 const ADJUSTMENT_FAILURE_THRESHOLD: f32 = 0.5;
-/// Contract-level percent delta used to reduce epsilon when failure rate is high.
-/// The simulator maps -5 percent to a -0.05 epsilon-fraction shift.
+/// Contract-level relative percent delta used to reduce epsilon when failure rate is high.
+/// The simulator maps -5 percent to `current_epsilon * 0.95`, not to five percentage points.
 const ADJUSTMENT_EPSILON_DELTA_PERCENT: f32 = -5.0;
 
 // Fallback constants
@@ -405,12 +405,16 @@ impl FeedbackAnalyzer {
 
         // Simulate improvement using reweighting simulation
         let failure_rate_after_sim =
-            if let Some(DeltaValue::Relative { value, unit: _ }) = deltas.get("epsilon") {
-                1.0 - simulate_epsilon_change(outcomes, *value / 100.0)
+            if let Some(DeltaValue::Relative { value, unit }) = deltas.get("epsilon") {
+                let success_rate_after_sim = match unit.as_str() {
+                    "percent" => simulate_epsilon_relative(outcomes, 1.0 + (*value / 100.0)),
+                    "factor" => simulate_epsilon_relative(outcomes, *value),
+                    _ => overall_stats.success_rate(),
+                };
+                1.0 - success_rate_after_sim
             } else {
                 overall_stats.failure_rate()
             };
-
         Some(WeightAdjustmentProposal {
             version: "v1".to_string(),
             basis_policy: basis_policy.to_string(),
@@ -438,8 +442,12 @@ impl FeedbackAnalyzer {
     /// # Parameter Semantics
     ///
     /// *   **epsilon**:
-    ///     *   `DeltaValue::Additive`: Interpreted as a change to the exploration rate.
-    ///     *   `DeltaValue::Absolute`: Interpreted as setting the target exploration probability ($P(explore)$).
+    ///     *   `DeltaValue::Additive`: Legacy simulation-only change to the exploration rate.
+    ///     *   `DeltaValue::Absolute`: Sets the target exploration probability (`P(explore)`).
+    ///     *   `DeltaValue::Relative { unit: "percent" }`: Scales the current exploration fraction
+    ///         by `1.0 + value / 100.0`.
+    ///     *   `DeltaValue::Relative { unit: "factor" }`: Scales the current exploration fraction
+    ///         by `value`.
     #[must_use]
     pub fn simulate_adjustment(
         &self,
@@ -456,10 +464,10 @@ impl FeedbackAnalyzer {
                 DeltaValue::Additive { value } => simulate_epsilon_change(outcomes, *value),
                 DeltaValue::Absolute { value } => simulate_epsilon_absolute(outcomes, *value),
                 DeltaValue::Relative { value, unit } if unit == "percent" => {
-                    simulate_epsilon_change(outcomes, *value / 100.0)
+                    simulate_epsilon_relative(outcomes, 1.0 + (*value / 100.0))
                 }
                 DeltaValue::Relative { value, unit } if unit == "factor" => {
-                    simulate_epsilon_change(outcomes, *value - 1.0)
+                    simulate_epsilon_relative(outcomes, *value)
                 }
                 DeltaValue::Relative { .. } => {
                     let successes = outcomes.iter().filter(|o| outcome_is_success(o)).count();
@@ -610,6 +618,31 @@ fn simulate_epsilon_change(outcomes: &[DecisionOutcome], epsilon_delta: f32) -> 
 
     let current_explore_fraction = ratio(explore_stats.total, known_total);
     let new_explore_fraction = current_explore_fraction + epsilon_delta;
+
+    simulate_reweighting(
+        &exploit_stats,
+        &explore_stats,
+        &unknown_stats,
+        new_explore_fraction,
+    )
+}
+
+/// Estimates the success rate if epsilon were changed by a relative multiplier.
+fn simulate_epsilon_relative(outcomes: &[DecisionOutcome], multiplier: f32) -> f32 {
+    let (exploit_stats, explore_stats, unknown_stats) = collect_strategy_stats(outcomes);
+
+    let known_total = exploit_stats.total + explore_stats.total;
+    if known_total == 0 {
+        return ratio(unknown_stats.successes, unknown_stats.total);
+    }
+
+    let multiplier = if multiplier.is_finite() {
+        multiplier
+    } else {
+        1.0
+    };
+    let current_explore_fraction = ratio(explore_stats.total, known_total);
+    let new_explore_fraction = current_explore_fraction * multiplier;
 
     simulate_reweighting(
         &exploit_stats,
@@ -895,6 +928,51 @@ mod tests {
             "Sim: {:?} Expected: {:?}",
             simulated_rate,
             expected
+        );
+    }
+
+    #[test]
+    fn simulation_relative_percent_scales_current_explore_fraction() {
+        let analyzer = FeedbackAnalyzer::default();
+        let outcomes: Vec<DecisionOutcome> = (0..20)
+            .map(|i| {
+                let is_exploit = i % 2 == 0;
+                let strategy = if is_exploit { "exploit" } else { "explore ε" };
+                create_outcome(
+                    &i.to_string(),
+                    "action",
+                    is_exploit,
+                    if is_exploit { 1.0 } else { 0.0 },
+                    Some(strategy),
+                )
+            })
+            .collect();
+
+        let mut deltas = HashMap::new();
+        deltas.insert(
+            "epsilon".to_string(),
+            DeltaValue::Relative {
+                value: -5.0,
+                unit: "percent".to_string(),
+            },
+        );
+
+        let proposal = WeightAdjustmentProposal {
+            version: "v1".to_string(),
+            basis_policy: "test".to_string(),
+            ts: iso8601_now(),
+            deltas,
+            confidence: 0.7,
+            evidence: Evidence::default(),
+            reasoning: None,
+            status: ProposalStatus::Proposed,
+        };
+
+        let simulated_rate = analyzer.simulate_adjustment(&proposal, &outcomes);
+        let expected = 0.525;
+        assert!(
+            (simulated_rate - expected).abs() < 1e-5,
+            "Expected relative percent scaling to yield {expected}, got {simulated_rate}"
         );
     }
 
