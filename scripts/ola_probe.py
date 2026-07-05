@@ -8,7 +8,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from ola_adapter import adapt, to_decision_outcome
+from ola_adapter import DEFAULT_POLICY_ID, adapt, iso_now, to_decision_outcome
 
 DEFAULT_MIN_DECISIONS = 10
 DEFAULT_MIN_ACTION_COUNT = 3
@@ -83,29 +83,34 @@ def maybe_propose(summary: dict[str, Any], min_decisions: int, min_action_count:
     if summary["total"] < min_decisions:
         return None
     deltas: dict[str, Any] = {}
-    evidence: list[dict[str, Any]] = []
+    patterns: list[str] = []
     for action, stats in summary["by_action"].items():
         if stats["total"] >= min_action_count and stats["failure_rate"] >= failure_threshold:
             route = action.removeprefix("route.")
-            deltas[f"route.{route}.weight"] = {"kind": "relative", "value": -10.0, "unit": "percent"}
-            evidence.append({"action": action, **stats})
+            deltas[f"route.{route}.weight"] = {"kind": "relative", "value": -5.0, "unit": "percent"}
+            patterns.append(
+                f"{action} failure_rate={stats['failure_rate']} total={stats['total']} average_reward={stats['average_reward']}"
+            )
     if not deltas:
         return None
+    sample_confidence = min(summary["total"] / 50.0, 1.0) * 0.4
+    pattern_confidence = 0.6 if len(patterns) >= 2 else 0.45
+    confidence = round(min(0.95, sample_confidence + pattern_confidence), 3)
     return {
-        "version": "operator.routing_weight_adjustment.proposed.v0",
-        "status": "proposed",
-        "basis_policy": "grabowski-routing-v0",
+        "version": "v1",
+        "basis_policy": DEFAULT_POLICY_ID,
+        "ts": iso_now(),
         "deltas": deltas,
+        "confidence": confidence,
         "evidence": {
             "decisions_analyzed": summary["total"],
-            "actions": evidence,
-            "method": "heuristic_failure_rate_probe",
+            "failure_rate_before": summary["failure_rate"],
+            "failure_rate_after_sim": summary["failure_rate"],
+            "simulation_method": "heuristic_failure_rate_probe_no_replay",
+            "patterns": patterns,
         },
-        "does_not_establish": [
-            "proposal_reviewed",
-            "automatic_rule_change_permission",
-            "causal_route_superiority",
-        ],
+        "reasoning": "Candidate only: reduce routes whose observed failure rate exceeds the review threshold; no automatic rule change is authorized.",
+        "status": "proposed",
     }
 
 
@@ -137,13 +142,16 @@ def run_self_test() -> None:
     proposed = probe(amplified, min_decisions=10)
     assert proposed["status"] == "proposal_candidate"
     assert proposed["proposal"] is not None
-    assert "automatic_rule_change_permission" in proposed["proposal"]["does_not_establish"]
+    assert proposed["proposal"]["version"] == "v1"
+    assert proposed["proposal"]["confidence"] >= 0.5
+    assert proposed["proposal"]["evidence"]["decisions_analyzed"] == 10
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("inputs", nargs="*", type=Path, help="Redacted OPLEARN input JSON files")
     parser.add_argument("--min-decisions", type=int, default=DEFAULT_MIN_DECISIONS)
+    parser.add_argument("--emit", choices=["report", "proposal"], default="report")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:
@@ -151,7 +159,14 @@ def main() -> int:
         print("ola-probe self-test ok")
         return 0
     paths = args.inputs or sorted(Path("tests/fixtures/ola").glob("*.ok.json"))
-    print(json.dumps(probe(load_inputs(paths), args.min_decisions), indent=2, ensure_ascii=False))
+    report = probe(load_inputs(paths), args.min_decisions)
+    if args.emit == "proposal":
+        if report["proposal"] is None:
+            parser.error("no proposal candidate was produced")
+        payload = report["proposal"]
+    else:
+        payload = report
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0
 
 
