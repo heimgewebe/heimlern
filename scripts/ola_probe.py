@@ -89,6 +89,8 @@ def safe_route(value: str) -> str:
 
 
 def route_delta_key(action: str) -> tuple[str, str]:
+    if not action.startswith("route."):
+        raise ValueError(f"route action must start with 'route.': {action!r}")
     route = action.removeprefix("route.")
     return f"route.{safe_route(route)}.weight", route
 
@@ -139,7 +141,26 @@ def probe(inputs: list[dict[str, Any]], min_decisions: int = DEFAULT_MIN_DECISIO
     routing_outcomes = [adapt(item) for item in inputs]
     decision_outcomes = [to_decision_outcome(item) for item in routing_outcomes]
     summary = summarize(decision_outcomes)
-    proposal = maybe_propose(summary, min_decisions, DEFAULT_MIN_ACTION_COUNT, DEFAULT_FAILURE_THRESHOLD)
+    try:
+        proposal = maybe_propose(summary, min_decisions, DEFAULT_MIN_ACTION_COUNT, DEFAULT_FAILURE_THRESHOLD)
+    except ValueError as exc:
+        message = str(exc)
+        return {
+            "schema_version": 1,
+            "kind": "ola_analyzer_probe",
+            "status": "proposal_blocked",
+            "summary": summary,
+            "proposal": None,
+            "blocked_reason": {
+                "kind": "route_delta_key_collision" if "collision" in message else "route_delta_key_invalid",
+                "message": message,
+            },
+            "does_not_establish": [
+                "routing_policy_readiness",
+                "automatic_rule_change_permission",
+                "sample_representativeness",
+            ],
+        }
     return {
         "schema_version": 1,
         "kind": "ola_analyzer_probe",
@@ -164,6 +185,13 @@ def run_self_test() -> None:
     assert safe_route("röute") == "r_ute"
     assert safe_route("中") == "unknown_route"
 
+    try:
+        route_delta_key("direct_patch")
+    except ValueError as exc:
+        assert "route action must start with 'route.'" in str(exc)
+    else:
+        raise AssertionError("route actions without route. prefix must fail closed")
+
     fixture_dir = Path("tests/fixtures/ola")
     report = probe(load_inputs(sorted(fixture_dir.glob("*.ok.json"))))
     assert report["status"] == "insufficient_evidence"
@@ -181,12 +209,11 @@ def run_self_test() -> None:
     colliding = []
     for index, route in enumerate(["direct" + ":" + "patch", "direct/patch"] * 5):
         colliding.append(failed | {"decision_id": f"gr-collide-{index:03d}", "route_used": route})
-    try:
-        probe(colliding, min_decisions=10)
-    except ValueError as exc:
-        assert "sanitized route delta key collision" in str(exc)
-    else:
-        raise AssertionError("sanitized route collisions must fail closed")
+    blocked = probe(colliding, min_decisions=10)
+    assert blocked["status"] == "proposal_blocked"
+    assert blocked["proposal"] is None
+    assert blocked["blocked_reason"]["kind"] == "route_delta_key_collision"
+    assert "sanitized route delta key collision" in blocked["blocked_reason"]["message"]
 
 
 def main() -> int:
