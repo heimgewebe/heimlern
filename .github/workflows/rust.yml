@@ -54,7 +54,7 @@ jobs:
       - name: Validate weight adjustment fixture against metarepo contract
         run: |
           mkdir -p .ci
-          curl -fsSL https://raw.githubusercontent.com/heimgewebe/metarepo/main/contracts/policy.weight_adjustment.v1.schema.json \
+          curl -fsSL https://raw.githubusercontent.com/heimgewebe/metarepo/a1984186a98a1e4214769f87649c5affc9686a53/contracts/policy.weight_adjustment.v1.schema.json \
             -o .ci/policy.weight_adjustment.v1.schema.json
           python scripts/validate_json.py \
             .ci/policy.weight_adjustment.v1.schema.json \

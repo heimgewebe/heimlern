@@ -7,7 +7,7 @@ on:
     - cron: "0 * * * *"
 
 env:
-  METRICS_SCHEMA_URL: https://raw.githubusercontent.com/heimgewebe/metarepo/main/contracts/metrics.snapshot.schema.json
+  METRICS_SCHEMA_URL: https://raw.githubusercontent.com/heimgewebe/metarepo/a1984186a98a1e4214769f87649c5affc9686a53/contracts/metrics.snapshot.schema.json
   HAUSKI_POST_URL: ${{ secrets.HAUSKI_METRICS_URL }}
 
 jobs:
