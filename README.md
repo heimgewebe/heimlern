@@ -1,11 +1,17 @@
 # heimlern
 
+## Operator ecosystem correction
+
+Heimlern is the retrospective learning and policy-adaptation proposal engine in the new operator ecosystem. It may read Chronik history, outcomes, metrics and explicit feedback, then produce auditable learning reports or weight-adjustment proposals. It must not silently apply policy, own tasks, execute operations, or become the source of event history. Bureau owns commitments, Grabowski owns local execution, Chronik owns history, and Leitstand may display learning outputs.
+
+This correction supersedes older wording that frames heimlern mainly as a household reminder or autonomous policy engine.
+
 [![rust (cached)](https://github.com/heimgewebe/heimlern/actions/workflows/rust.yml/badge.svg)](https://github.com/heimgewebe/heimlern/actions/workflows/rust.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Siehe auch: **Policy-Lifecycle**: `docs/policy-lifecycle.md` und **Contracts** in `contracts/`.
 
-`heimlern` ist ein kleines Experimentierfeld für lernfähige Policies im häuslichen Umfeld. Das Repository besteht aus einem schlanken Kern mit gemeinsam genutzten Traits sowie einer Beispiel-Implementierung eines Bandit-Agenten, die zusammen zeigen, wie Erinnerungs-Policies modelliert, ausgeführt und persistiert werden können.
+`heimlern` ist ein retrospektiver Lern- und Policy-Adaptionsmotor für den Heimgewebe-Organismus. Das Repository hält Rust-Kerne, Feedback-Analyse und auditable Vorschlagsformate bereit, damit Outcomes aus Chronik, Metriken und explizitem Feedback zu nachvollziehbaren Anpassungsvorschlägen werden.
 
 ## Inhaltsverzeichnis
 
@@ -34,9 +40,10 @@ cargo run --example integrate_hauski
 
 ## Architekturüberblick
 
-* **Policies** sind Strategien, die auf Basis eines `Context` Entscheidungen (`Decision`) treffen und über Feedback lernen.
-* **Snapshots** sichern und laden den internen Zustand einer Policy als JSON, sodass Agenten zwischen Sessions fortgeführt werden können.
-* **Bandit-Implementierungen** kombinieren Exploration (Zufall) und Exploitation (Heuristik), um passende Erinnerungs-Slots zu wählen.
+* **Feedback-Analyse** wertet Outcomes und Kontextdaten retrospektiv aus.
+* **Policy-Snapshots** bleiben reproduzierbare Zustandsartefakte, aber ihre Anwendung braucht einen expliziten Gate.
+* **Bandit-Implementierungen** bleiben Beispiele für lernfähige Strategien; sie sind nicht selbst die Operator-Autorität.
+* **Weight-Adjustment-Proposals** sind prüfbare Vorschläge, keine stillen Mutationen.
 
 Die zentralen Entwurfsentscheidungen sind in den [Architecture Decision Records](docs/adr/README.md) dokumentiert.
 
@@ -135,7 +142,7 @@ In einem Binary kann ein einfacher Subscriber gesetzt werden:
 Dieses Repository ist Teil des **Heimgewebe-Organismus**.
 
 Die übergeordnete Architektur, Achsen, Rollen und Contracts sind zentral beschrieben im  
-👉 [`metarepo/docs/heimgewebe-organismus.md`](https://github.com/heimgewebe/metarepo/blob/main/docs/heimgewebe-organismus.md)  
+👉 [`metarepo/docs/system/heimgewebe-organismus.md`](https://github.com/heimgewebe/metarepo/blob/main/docs/heimgewebe-organismus.md)  
 sowie im Zielbild  
 👉 [`metarepo/docs/heimgewebe-zielbild.md`](https://github.com/heimgewebe/metarepo/blob/main/docs/heimgewebe-zielbild.md).
 

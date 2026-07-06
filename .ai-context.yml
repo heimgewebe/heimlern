@@ -9,8 +9,8 @@ ai_context_version: 1.1
 
 project:
   name: heimlern
-  summary: Reinforcement-/Bandit-Policy-Framework (Rust)
-  role: policy_engine
+  summary: Retrospective learning and policy-adaptation proposal engine (Rust)
+  role: learning_proposal_engine
   primary_language: rust
   visibility: internal
 
@@ -30,8 +30,8 @@ interfaces:
     - "event.line"
     - "contracts"
   produces:
-    - "decisions"
-    - "signals"
+    - "learning_reports"
+    - "weight_adjustment_proposals"
 
 contracts:
   schemas:
@@ -77,6 +77,8 @@ boundaries:
     - "Defining canonical schemas (metarepo/contracts do that)."
   dangerous_assumptions:
     - "Treat style as policy without explicit rule."
+    - "Treat a learning proposal as an applied policy change."
+    - "Let heimlern own tasks, execution or event history."
 
 conventions:
   branching: "main, feature/*"
