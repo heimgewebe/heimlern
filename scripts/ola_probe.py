@@ -13,6 +13,25 @@ from ola_adapter import DEFAULT_POLICY_ID, adapt, iso_now, to_decision_outcome
 DEFAULT_MIN_DECISIONS = 10
 DEFAULT_MIN_ACTION_COUNT = 3
 DEFAULT_FAILURE_THRESHOLD = 0.6
+_ALLOWED_DELTA_KEY_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-")
+_ROUTE_DELTA_KEY_INVALID = "route_delta_key_invalid"
+_ROUTE_DELTA_KEY_COLLISION = "route_delta_key_collision"
+_ROUTE_DELTA_KEY_ERROR_KINDS = frozenset({_ROUTE_DELTA_KEY_INVALID, _ROUTE_DELTA_KEY_COLLISION})
+_DOES_NOT_ESTABLISH = (
+    "routing_policy_readiness",
+    "automatic_rule_change_permission",
+    "sample_representativeness",
+)
+
+
+class RouteDeltaKeyError(ValueError):
+    """Raised when a routing action cannot be mapped to a safe delta key."""
+
+    def __init__(self, kind: str, message: str) -> None:
+        if kind not in _ROUTE_DELTA_KEY_ERROR_KINDS:
+            raise ValueError(f"unknown route delta key error kind: {kind!r}")
+        super().__init__(message)
+        self.kind = kind
 
 
 def ratio(num: int, den: int) -> float:
@@ -79,17 +98,42 @@ def summarize(decision_outcomes: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def safe_route(value: str) -> str:
+    out = []
+    for ch in value:
+        out.append(ch if ch in _ALLOWED_DELTA_KEY_CHARS else "_")
+    result = "".join(out).strip("._-")
+    return result or "unknown_route"
+
+
+def route_delta_key(action: str) -> tuple[str, str]:
+    if not action.startswith("route."):
+        raise RouteDeltaKeyError(_ROUTE_DELTA_KEY_INVALID, f"route action must start with 'route.': {action!r}")
+    route = action.removeprefix("route.")
+    if route == "":
+        raise RouteDeltaKeyError(_ROUTE_DELTA_KEY_INVALID, f"route action has empty route: {action!r}")
+    return f"route.{safe_route(route)}.weight", route
+
+
 def maybe_propose(summary: dict[str, Any], min_decisions: int, min_action_count: int, failure_threshold: float) -> dict[str, Any] | None:
     if summary["total"] < min_decisions:
         return None
     deltas: dict[str, Any] = {}
+    original_routes_by_key: dict[str, str] = {}
     patterns: list[str] = []
     for action, stats in summary["by_action"].items():
         if stats["total"] >= min_action_count and stats["failure_rate"] >= failure_threshold:
-            route = action.removeprefix("route.")
-            deltas[f"route.{route}.weight"] = {"kind": "relative", "value": -5.0, "unit": "percent"}
+            delta_key, route = route_delta_key(action)
+            previous_route = original_routes_by_key.get(delta_key)
+            if previous_route is not None and previous_route != route:
+                raise RouteDeltaKeyError(
+                    _ROUTE_DELTA_KEY_COLLISION,
+                    f"sanitized route delta key collision: {previous_route!r} and {route!r} both map to {delta_key!r}",
+                )
+            original_routes_by_key[delta_key] = route
+            deltas[delta_key] = {"kind": "relative", "value": -5.0, "unit": "percent"}
             patterns.append(
-                f"{action} failure_rate={stats['failure_rate']} total={stats['total']} average_reward={stats['average_reward']}"
+                f"{action} -> {delta_key} failure_rate={stats['failure_rate']} total={stats['total']} average_reward={stats['average_reward']}"
             )
     if not deltas:
         return None
@@ -118,33 +162,82 @@ def probe(inputs: list[dict[str, Any]], min_decisions: int = DEFAULT_MIN_DECISIO
     routing_outcomes = [adapt(item) for item in inputs]
     decision_outcomes = [to_decision_outcome(item) for item in routing_outcomes]
     summary = summarize(decision_outcomes)
-    proposal = maybe_propose(summary, min_decisions, DEFAULT_MIN_ACTION_COUNT, DEFAULT_FAILURE_THRESHOLD)
+    try:
+        proposal = maybe_propose(summary, min_decisions, DEFAULT_MIN_ACTION_COUNT, DEFAULT_FAILURE_THRESHOLD)
+    except RouteDeltaKeyError as exc:
+        return {
+            "schema_version": 1,
+            "kind": "ola_analyzer_probe",
+            "status": "proposal_blocked",
+            "summary": summary,
+            "proposal": None,
+            "blocked_reason": {
+                "kind": exc.kind,
+                "message": str(exc),
+            },
+            "does_not_establish": list(_DOES_NOT_ESTABLISH),
+        }
     return {
         "schema_version": 1,
         "kind": "ola_analyzer_probe",
         "status": "proposal_candidate" if proposal else "insufficient_evidence",
         "summary": summary,
         "proposal": proposal,
-        "does_not_establish": [
-            "routing_policy_readiness",
-            "automatic_rule_change_permission",
-            "sample_representativeness",
-        ],
+        "does_not_establish": list(_DOES_NOT_ESTABLISH),
     }
 
 
 def run_self_test() -> None:
+    assert safe_route("") == "unknown_route"
+    assert safe_route("direct:patch") == "direct_patch"
+    assert safe_route("direct/patch/v2") == "direct_patch_v2"
+    assert safe_route("direct_patch") == "direct_patch"
+    assert safe_route("foo__bar") == "foo__bar"
+    assert safe_route("route.with.dots-and-dashes") == "route.with.dots-and-dashes"
+    assert safe_route("röute") == "r_ute"
+    assert safe_route("中") == "unknown_route"
+    assert route_delta_key("route.direct:patch") == ("route.direct_patch.weight", "direct:patch")
+    assert route_delta_key("route.foo__bar") == ("route.foo__bar.weight", "foo__bar")
+    assert route_delta_key("route.röute") == ("route.r_ute.weight", "röute")
+
+    try:
+        route_delta_key("direct_patch")
+    except RouteDeltaKeyError as exc:
+        assert exc.kind == _ROUTE_DELTA_KEY_INVALID
+        assert "route action must start with 'route.'" in str(exc)
+    else:
+        raise AssertionError("route actions without route. prefix must fail closed")
+
+    try:
+        route_delta_key("route.")
+    except RouteDeltaKeyError as exc:
+        assert exc.kind == _ROUTE_DELTA_KEY_INVALID
+        assert "route action has empty route" in str(exc)
+    else:
+        raise AssertionError("route actions with empty route must fail closed")
+
     fixture_dir = Path("tests/fixtures/ola")
     report = probe(load_inputs(sorted(fixture_dir.glob("*.ok.json"))))
     assert report["status"] == "insufficient_evidence"
     failed = json.loads((fixture_dir / "failed.ok.json").read_text(encoding="utf-8"))
-    amplified = [failed | {"decision_id": f"gr-failed-{i:03d}"} for i in range(10)]
+    amplified = [failed | {"decision_id": f"gr-failed-{i:03d}", "route_used": "direct" + ":" + "patch"} for i in range(10)]
     proposed = probe(amplified, min_decisions=10)
     assert proposed["status"] == "proposal_candidate"
     assert proposed["proposal"] is not None
+    assert set(proposed["proposal"]["deltas"]) == {"route.direct_patch.weight"}
+    assert all(set(key) <= _ALLOWED_DELTA_KEY_CHARS for key in proposed["proposal"]["deltas"])
     assert proposed["proposal"]["version"] == "v1"
     assert proposed["proposal"]["confidence"] >= 0.5
     assert proposed["proposal"]["evidence"]["decisions_analyzed"] == 10
+
+    colliding = []
+    for index, route in enumerate(["direct" + ":" + "patch", "direct/patch"] * 5):
+        colliding.append(failed | {"decision_id": f"gr-collide-{index:03d}", "route_used": route})
+    blocked = probe(colliding, min_decisions=10)
+    assert blocked["status"] == "proposal_blocked"
+    assert blocked["proposal"] is None
+    assert blocked["blocked_reason"]["kind"] == _ROUTE_DELTA_KEY_COLLISION
+    assert "sanitized route delta key collision" in blocked["blocked_reason"]["message"]
 
 
 def main() -> int:
