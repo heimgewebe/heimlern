@@ -25,10 +25,33 @@ heimgewebe:
     profile_expected: true
     guard_smoke_expected: true
 
+role_contract:
+  name: learning_proposal_engine
+  authority: retrospective_analysis_only
+  owns:
+    - learning_reports
+    - weight_adjustment_proposals
+    - reproducibility_metadata
+  consumes:
+    - historical_outcomes
+    - completion_truth
+    - run_receipts
+    - metrics
+  produces:
+    - gated_learning_reports
+    - non_applying_weight_proposals
+  limits:
+    - no_task_ownership
+    - no_ledger_writes
+    - no_silent_weight_changes
+  unavailable_effect: existing_rules_remain_static
+
 interfaces:
   consumes:
     - "event.line"
     - "contracts"
+    - "historical outcomes"
+    - "completion truth and run receipts"
   produces:
     - "learning_reports"
     - "weight_adjustment_proposals"
@@ -75,6 +98,8 @@ architecture:
 boundaries:
   not_responsible_for:
     - "Defining canonical schemas (metarepo/contracts do that)."
+    - "Applying policy or weight changes without an explicit gate."
+    - "Owning tasks, execution, leases or event history."
   dangerous_assumptions:
     - "Treat style as policy without explicit rule."
     - "Treat a learning proposal as an applied policy change."
