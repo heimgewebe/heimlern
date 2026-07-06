@@ -14,6 +14,9 @@ DEFAULT_MIN_DECISIONS = 10
 DEFAULT_MIN_ACTION_COUNT = 3
 DEFAULT_FAILURE_THRESHOLD = 0.6
 _ALLOWED_DELTA_KEY_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-")
+_ROUTE_DELTA_KEY_INVALID = "route_delta_key_invalid"
+_ROUTE_DELTA_KEY_COLLISION = "route_delta_key_collision"
+_ROUTE_DELTA_KEY_ERROR_KINDS = frozenset({_ROUTE_DELTA_KEY_INVALID, _ROUTE_DELTA_KEY_COLLISION})
 _DOES_NOT_ESTABLISH = (
     "routing_policy_readiness",
     "automatic_rule_change_permission",
@@ -25,6 +28,8 @@ class RouteDeltaKeyError(ValueError):
     """Raised when a routing action cannot be mapped to a safe delta key."""
 
     def __init__(self, kind: str, message: str) -> None:
+        if kind not in _ROUTE_DELTA_KEY_ERROR_KINDS:
+            raise ValueError(f"unknown route delta key error kind: {kind!r}")
         super().__init__(message)
         self.kind = kind
 
@@ -103,8 +108,10 @@ def safe_route(value: str) -> str:
 
 def route_delta_key(action: str) -> tuple[str, str]:
     if not action.startswith("route."):
-        raise RouteDeltaKeyError("route_delta_key_invalid", f"route action must start with 'route.': {action!r}")
+        raise RouteDeltaKeyError(_ROUTE_DELTA_KEY_INVALID, f"route action must start with 'route.': {action!r}")
     route = action.removeprefix("route.")
+    if route == "":
+        raise RouteDeltaKeyError(_ROUTE_DELTA_KEY_INVALID, f"route action has empty route: {action!r}")
     return f"route.{safe_route(route)}.weight", route
 
 
@@ -120,7 +127,7 @@ def maybe_propose(summary: dict[str, Any], min_decisions: int, min_action_count:
             previous_route = original_routes_by_key.get(delta_key)
             if previous_route is not None and previous_route != route:
                 raise RouteDeltaKeyError(
-                    "route_delta_key_collision",
+                    _ROUTE_DELTA_KEY_COLLISION,
                     f"sanitized route delta key collision: {previous_route!r} and {route!r} both map to {delta_key!r}",
                 )
             original_routes_by_key[delta_key] = route
@@ -191,14 +198,23 @@ def run_self_test() -> None:
     assert safe_route("中") == "unknown_route"
     assert route_delta_key("route.direct:patch") == ("route.direct_patch.weight", "direct:patch")
     assert route_delta_key("route.foo__bar") == ("route.foo__bar.weight", "foo__bar")
+    assert route_delta_key("route.röute") == ("route.r_ute.weight", "röute")
 
     try:
         route_delta_key("direct_patch")
     except RouteDeltaKeyError as exc:
-        assert exc.kind == "route_delta_key_invalid"
+        assert exc.kind == _ROUTE_DELTA_KEY_INVALID
         assert "route action must start with 'route.'" in str(exc)
     else:
         raise AssertionError("route actions without route. prefix must fail closed")
+
+    try:
+        route_delta_key("route.")
+    except RouteDeltaKeyError as exc:
+        assert exc.kind == _ROUTE_DELTA_KEY_INVALID
+        assert "route action has empty route" in str(exc)
+    else:
+        raise AssertionError("route actions with empty route must fail closed")
 
     fixture_dir = Path("tests/fixtures/ola")
     report = probe(load_inputs(sorted(fixture_dir.glob("*.ok.json"))))
@@ -209,7 +225,7 @@ def run_self_test() -> None:
     assert proposed["status"] == "proposal_candidate"
     assert proposed["proposal"] is not None
     assert set(proposed["proposal"]["deltas"]) == {"route.direct_patch.weight"}
-    assert all(":" not in key and "/" not in key for key in proposed["proposal"]["deltas"])
+    assert all(set(key) <= _ALLOWED_DELTA_KEY_CHARS for key in proposed["proposal"]["deltas"])
     assert proposed["proposal"]["version"] == "v1"
     assert proposed["proposal"]["confidence"] >= 0.5
     assert proposed["proposal"]["evidence"]["decisions_analyzed"] == 10
@@ -220,7 +236,7 @@ def run_self_test() -> None:
     blocked = probe(colliding, min_decisions=10)
     assert blocked["status"] == "proposal_blocked"
     assert blocked["proposal"] is None
-    assert blocked["blocked_reason"]["kind"] == "route_delta_key_collision"
+    assert blocked["blocked_reason"]["kind"] == _ROUTE_DELTA_KEY_COLLISION
     assert "sanitized route delta key collision" in blocked["blocked_reason"]["message"]
 
 
