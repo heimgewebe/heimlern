@@ -46,7 +46,7 @@ in Vertragsschärfe, Redundanz, einer Funktionslücke und bewussten Tuning-Entsc
 | Audit-Befund | Status heute | Beleg |
 | --- | --- | --- |
 | A3 Metrics-Workflow durch Schema-Pfad-Drift kaputt | **erledigt** | `metrics.yml` nutzt gepinnte `METRICS_SCHEMA_URL` (Commit-SHA statt `contracts-v1`) |
-| A4 `policy.weight_adjustment.v1` driftet | **erledigt + CI-erzwungen** | `version="v1"`, `reasoning: String`, Delta-Varianten `absolute`/`relative`/`additive`; CI validiert Fixture gegen Metarepo-Contract |
+| A4 `policy.weight_adjustment.v1` driftet | **für Emission/CI stabilisiert; additive-Vertragsfrage offen** | `version="v1"`, `reasoning: String`, Delta-Varianten `absolute`/`relative`/`additive`; CI validiert Fixture gegen Metarepo-Contract. **Aber:** Bureau führt `OPERATOR-LEARNING-AXIS-V1-T002` („Decide additive contract follow-up path", state `planned`) noch offen — siehe §2.1 |
 | A6 Sample-Mapping unvollständig | **erledigt** | `foreign-aussensensor.jsonl` ist in `SCHEMA_MAPPING` gemappt |
 | A8 Doc-Namensdrift `policy_snapshot` | **effektiv erledigt** | Verweis existiert nur noch im Audit-Doc selbst |
 | **A5 `policy.feedback.schema.json` fast leer** | **offen** | Schema ist nur `{"type":"object"}` — akzeptiert alles |
@@ -59,6 +59,25 @@ Neu seit v1 (nicht im Audit adressiert):
 * Operator-Routing-Contracts (`operator.routing_decision.v1`,
   `operator.routing_outcome.v1`).
 * Operator-Role-Contract-Overlay in den Docs.
+
+### 2.1 Offene Anschlusswahrheit: A4 ist nicht vollständig abgeschlossen
+
+A4 ist **für die aktuelle Emission und CI stabilisiert** — der Code erzeugt
+`v1`-konforme Proposals und die CI validiert sie gegen das gepinnte
+Metarepo-Contract. Die **grundsätzliche `additive`-Vertragsfrage** ist damit
+aber **nicht** geschlossen: Bureau führt weiterhin den Task
+
+> `OPERATOR-LEARNING-AXIS-V1-T002` — „Decide additive contract follow-up path"
+> (state `planned`). Akzeptanz: Entscheidung, ob `additive`-Deltas in den
+> Shared Contract aufgenommen oder aus der contract-bound Emission
+> herausgehalten werden.
+
+Solange dieser Task offen steht, gilt: **entweder** ist Bureau veraltet und
+T002 muss als erledigt/obsolet markiert werden, **oder** der Abschluss von A4
+wird überschätzt. Dieser Plan behauptet deshalb bewusst **nicht**, dass A4
+endgültig erledigt ist. Der Abgleich mit Bureau (T002 schließen oder explizit
+offen halten) ist Vorbedingung, bevor irgendeine additive-bezogene
+Contract-Änderung erfolgt — siehe Reihenfolge §4.
 
 ## 3. Optimierungsachsen
 
@@ -174,8 +193,17 @@ per RepoBrief auditiert wird.
 | PR 5 | Python/Rust-Kohärenz | O4 | M | PR 3 |
 | PR 6 | Claim-Evidence-Registry | O6 | S | — |
 
-Empfohlener Erststart: **PR 1** (billig, schließt A5) und **PR 2** (reine,
-testgedeckte Simplification). **PR 3** liefert den größten strukturellen Nutzen.
+**Empfohlene Reihenfolge — sequenziell, nicht gebündelt:**
+
+1. **O1 allein zuerst** (PR 1). Billig, schließt A5, hoher Sicherheitsgewinn.
+   Contract-Härtung wird **nicht** mit einem Refactor in denselben
+   Implementierungsgriff gemischt — sonst vermischen sich Verhaltens- und
+   Vertragsänderung in einem Diff und der Blast-Radius wird unnötig groß.
+2. **Dann O2** (PR 2), rein testgedeckte Simplification, isoliert reviewbar.
+3. **Dann O3** (PR 3), der größte strukturelle Nutzen.
+
+Vor jeder additive-bezogenen Contract-Änderung steht der Bureau-Abgleich zu
+`OPERATOR-LEARNING-AXIS-V1-T002` (§2.1).
 
 ## 5. Nicht-Ziele (bewusst nicht zuerst)
 
@@ -196,7 +224,12 @@ testgedeckte Simplification). **PR 3** liefert den größten strukturellen Nutze
 ## 7. Entscheidung
 
 heimlern ist code-seitig gesund und contract-seitig deutlich stabiler als zum
-Audit v1. Der beste nächste Griff ist die Kombination aus **PR 1**
-(Vertragsschärfe schließt A5) und **PR 2** (Entdopplung senkt Drift-Risiko im
-Kern), gefolgt von **PR 3**, das den Lernkreis erstmals als auditierbares
-Rust-Artefakt schließt.
+Audit v1. Der beste nächste Griff ist **O1 allein** (PR 1, Vertragsschärfe
+schließt A5) — **nicht** gebündelt mit O2. Danach **O2** (Entdopplung senkt
+Drift-Risiko im Kern) und **O3** (schließt den Lernkreis erstmals als
+auditierbares Rust-Artefakt).
+
+A4 gilt als für Emission/CI stabilisiert, **nicht** als endgültig erledigt:
+die additive-Vertragsfrage bleibt an Bureau `OPERATOR-LEARNING-AXIS-V1-T002`
+gebunden (§2.1) und ist dort zu schließen oder explizit offen zu halten,
+bevor eine additive-bezogene Contract-Änderung erfolgt.
