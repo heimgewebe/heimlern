@@ -8,7 +8,9 @@
   "required": [
     "feedback_id",
     "decision_id",
-    "reward"
+    "reward",
+    "source",
+    "ts"
   ],
   "properties": {
     "feedback_id": {
