@@ -2,5 +2,10 @@
   "feedback_id": "fb-123",
   "decision_id": "dec-456",
   "reward": 1.0,
-  "comment": "Good job"
+  "source": "operator",
+  "ts": "2026-07-07T11:34:00Z",
+  "comment": "Good job",
+  "metadata": {
+    "task": "HEIMLERN-OPTIMIZATION-V1-T001"
+  }
 }

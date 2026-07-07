@@ -8,16 +8,22 @@
   "required": [
     "feedback_id",
     "decision_id",
-    "reward"
+    "reward",
+    "source",
+    "ts"
   ],
   "properties": {
     "feedback_id": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^fb-[A-Za-z0-9._:-]+$"
     },
     "decision_id": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^dec-[A-Za-z0-9._:-]+$"
     },
     "reward": {
       "type": "number",
@@ -26,18 +32,31 @@
     },
     "comment": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "maxLength": 2000
     },
     "source": {
       "type": "string",
-      "minLength": 1
+      "minLength": 2,
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9._-]*$"
     },
     "ts": {
       "type": "string",
       "format": "date-time"
     },
     "metadata": {
-      "type": "object"
+      "type": "object",
+      "maxProperties": 20,
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "integer",
+          "boolean",
+          "null"
+        ]
+      }
     }
   }
 }
