@@ -7,7 +7,7 @@ on:
     - cron: "0 * * * *"
 
 env:
-  METRICS_SCHEMA_URL: https://raw.githubusercontent.com/heimgewebe/metarepo/a1984186a98a1e4214769f87649c5affc9686a53/contracts/metrics.snapshot.schema.json
+  METRICS_SCHEMA_PATH: contracts/metrics.snapshot.schema.json
   HAUSKI_POST_URL: ${{ secrets.HAUSKI_METRICS_URL }}
 
 jobs:
@@ -25,10 +25,14 @@ jobs:
 
       - name: Snapshot metrics
         run: bash scripts/wgx-metrics-snapshot.sh --json
-      - name: Fetch AJV metrics schema
+      - name: Resolve AJV metrics schema
         run: |
           mkdir -p .ci
-          curl -fsSL "$METRICS_SCHEMA_URL" -o .ci/metrics.schema.json
+          if [ ! -f "$METRICS_SCHEMA_PATH" ]; then
+            echo "::error::Metrics schema not found at $METRICS_SCHEMA_PATH"
+            exit 1
+          fi
+          cp "$METRICS_SCHEMA_PATH" .ci/metrics.schema.json
 
       - name: Validate metrics contract
         run: npx --yes ajv-cli@5 validate --spec=draft2020 --strict=false -s .ci/metrics.schema.json -d metrics.json
