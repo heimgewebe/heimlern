@@ -1,0 +1,5 @@
+{
+  "feedback_id": "fb-bad-001",
+  "reward": 2.0,
+  "comment": "missing decision_id and out-of-range reward"
+}
