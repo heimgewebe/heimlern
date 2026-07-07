@@ -205,6 +205,21 @@ impl OutcomeStatistics {
         1.0 - self.success_rate()
     }
 
+    /// Record one decision outcome into this aggregate.
+    pub fn record(&mut self, outcome: &DecisionOutcome) {
+        self.total += 1;
+        if outcome_is_success(outcome) {
+            self.successes += 1;
+        } else {
+            self.failures += 1;
+        }
+        if let Some(reward) = outcome.reward {
+            if reward.is_finite() {
+                self.total_reward += f64::from(reward);
+            }
+        }
+    }
+
     /// Calculate average reward.
     #[must_use]
     pub fn average_reward(&self) -> f32 {
@@ -268,18 +283,7 @@ impl FeedbackAnalyzer {
 
         for outcome in outcomes {
             if let Some(key) = key_fn(outcome) {
-                let entry = stats.entry(key).or_default();
-                entry.total += 1;
-                if outcome_is_success(outcome) {
-                    entry.successes += 1;
-                } else {
-                    entry.failures += 1;
-                }
-                if let Some(reward) = outcome.reward {
-                    if reward.is_finite() {
-                        entry.total_reward += f64::from(reward);
-                    }
-                }
+                stats.entry(key).or_default().record(outcome);
             }
         }
 
@@ -290,17 +294,7 @@ impl FeedbackAnalyzer {
         let mut stats = OutcomeStatistics::default();
 
         for outcome in outcomes {
-            stats.total += 1;
-            if outcome_is_success(outcome) {
-                stats.successes += 1;
-            } else {
-                stats.failures += 1;
-            }
-            if let Some(reward) = outcome.reward {
-                if reward.is_finite() {
-                    stats.total_reward += f64::from(reward);
-                }
-            }
+            stats.record(outcome);
         }
 
         stats
@@ -403,18 +397,9 @@ impl FeedbackAnalyzer {
             reasoning.push("Reduce exploration due to high failure rate".to_string());
         }
 
-        // Simulate improvement using reweighting simulation
-        let failure_rate_after_sim =
-            if let Some(DeltaValue::Relative { value, unit }) = deltas.get("epsilon") {
-                let success_rate_after_sim = match unit.as_str() {
-                    "percent" => simulate_epsilon_relative(outcomes, 1.0 + (*value / 100.0)),
-                    "factor" => simulate_epsilon_relative(outcomes, *value),
-                    _ => overall_stats.success_rate(),
-                };
-                1.0 - success_rate_after_sim
-            } else {
-                overall_stats.failure_rate()
-            };
+        let success_rate_after_sim =
+            Self::simulate_delta_success_rate(&deltas, outcomes, overall_stats.success_rate());
+        let failure_rate_after_sim = 1.0 - success_rate_after_sim;
         Some(WeightAdjustmentProposal {
             version: "v1".to_string(),
             basis_policy: basis_policy.to_string(),
@@ -448,18 +433,16 @@ impl FeedbackAnalyzer {
     ///         by `1.0 + value / 100.0`.
     ///     *   `DeltaValue::Relative { unit: "factor" }`: Scales the current exploration fraction
     ///         by `value`.
-    #[must_use]
-    pub fn simulate_adjustment(
-        &self,
-        proposal: &WeightAdjustmentProposal,
+    fn simulate_delta_success_rate(
+        deltas: &HashMap<String, DeltaValue>,
         outcomes: &[DecisionOutcome],
+        baseline_success_rate: f32,
     ) -> f32 {
         if outcomes.is_empty() {
             return 0.0;
         }
 
-        // If epsilon is modified, simulate it.
-        if let Some(val) = proposal.deltas.get("epsilon") {
+        if let Some(val) = deltas.get("epsilon") {
             match val {
                 DeltaValue::Additive { value } => simulate_epsilon_change(outcomes, *value),
                 DeltaValue::Absolute { value } => simulate_epsilon_absolute(outcomes, *value),
@@ -469,16 +452,21 @@ impl FeedbackAnalyzer {
                 DeltaValue::Relative { value, unit } if unit == "factor" => {
                     simulate_epsilon_relative(outcomes, *value)
                 }
-                DeltaValue::Relative { .. } => {
-                    let successes = outcomes.iter().filter(|o| outcome_is_success(o)).count();
-                    ratio(successes, outcomes.len())
-                }
+                DeltaValue::Relative { .. } => baseline_success_rate,
             }
         } else {
-            // Simple simulation: calculate baseline success rate
-            let successes = outcomes.iter().filter(|o| outcome_is_success(o)).count();
-            ratio(successes, outcomes.len())
+            baseline_success_rate
         }
+    }
+
+    #[must_use]
+    pub fn simulate_adjustment(
+        &self,
+        proposal: &WeightAdjustmentProposal,
+        outcomes: &[DecisionOutcome],
+    ) -> f32 {
+        let baseline_stats = self.summarize_outcomes(outcomes);
+        Self::simulate_delta_success_rate(&proposal.deltas, outcomes, baseline_stats.success_rate())
     }
 }
 
@@ -524,31 +512,15 @@ fn collect_strategy_stats(
     let mut unknown_stats = OutcomeStatistics::default();
 
     for outcome in outcomes {
-        let is_success = outcome_is_success(outcome);
         match get_strategy(outcome) {
             Strategy::Exploit => {
-                exploit_stats.total += 1;
-                if is_success {
-                    exploit_stats.successes += 1;
-                } else {
-                    exploit_stats.failures += 1;
-                }
+                exploit_stats.record(outcome);
             }
             Strategy::Explore => {
-                explore_stats.total += 1;
-                if is_success {
-                    explore_stats.successes += 1;
-                } else {
-                    explore_stats.failures += 1;
-                }
+                explore_stats.record(outcome);
             }
             Strategy::Unknown => {
-                unknown_stats.total += 1;
-                if is_success {
-                    unknown_stats.successes += 1;
-                } else {
-                    unknown_stats.failures += 1;
-                }
+                unknown_stats.record(outcome);
             }
         }
     }
@@ -749,6 +721,22 @@ mod tests {
     }
 
     #[test]
+    fn outcome_statistics_record_counts_outcome() {
+        let mut stats = OutcomeStatistics::default();
+        let ok = create_outcome("1", "action", true, 1.0, None);
+        let fail = create_outcome("2", "action", false, 0.0, None);
+        stats.record(&ok);
+        stats.record(&fail);
+        assert_eq!(stats.total, 2);
+        assert_eq!(stats.successes, 1);
+        assert_eq!(stats.failures, 1);
+        #[allow(clippy::float_cmp)]
+        {
+            assert_eq!(stats.total_reward, 1.0);
+        }
+    }
+
+    #[test]
     fn analyzer_aggregates_outcomes_by_action() {
         let analyzer = FeedbackAnalyzer::default();
         let outcomes = vec![
@@ -841,6 +829,30 @@ mod tests {
         assert_eq!(proposal.basis_policy, "test-policy");
         assert_eq!(proposal.evidence.decisions_analyzed, 15);
         assert!(proposal.confidence >= 0.5);
+    }
+
+    #[test]
+    fn proposal_simulation_consistent() {
+        let analyzer = FeedbackAnalyzer::new(10, 0.5);
+        let outcomes: Vec<DecisionOutcome> = (0..20)
+            .map(|i| {
+                create_outcome(
+                    &i.to_string(),
+                    "action",
+                    i < 7,
+                    if i < 7 { 1.0 } else { 0.0 },
+                    Some(if i < 7 { "exploit" } else { "explore" }),
+                )
+            })
+            .collect();
+        let Some(p) = analyzer.propose_adjustment("test-policy", &outcomes) else {
+            panic!("proposal missing")
+        };
+        let from_public = 1.0 - analyzer.simulate_adjustment(&p, &outcomes);
+        let Some(from_evidence) = p.evidence.failure_rate_after_sim else {
+            panic!("evidence missing")
+        };
+        assert!((from_public - from_evidence).abs() < 1e-5);
     }
 
     #[test]
