@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.heimgewebe.org/contracts/metrics.snapshot.schema.json",
+  "title": "WGX Metrics Snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ts",
+    "host",
+    "updates",
+    "backup",
+    "drift"
+  ],
+  "properties": {
+    "ts": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "host": {
+      "type": "string",
+      "minLength": 1
+    },
+    "updates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "os",
+        "pkg",
+        "flatpak"
+      ],
+      "properties": {
+        "os": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pkg": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "flatpak": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "backup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "last_ok",
+        "age_days"
+      ],
+      "properties": {
+        "last_ok": {
+          "type": "string"
+        },
+        "age_days": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "drift": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "templates"
+      ],
+      "properties": {
+        "templates": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

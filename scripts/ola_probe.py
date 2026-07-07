@@ -225,6 +225,8 @@ def run_self_test() -> None:
     assert proposed["status"] == "proposal_candidate"
     assert proposed["proposal"] is not None
     assert set(proposed["proposal"]["deltas"]) == {"route.direct_patch.weight"}
+    assert all(delta["kind"] != "additive" for delta in proposed["proposal"]["deltas"].values())
+    assert all(delta["kind"] == "relative" for delta in proposed["proposal"]["deltas"].values())
     assert all(set(key) <= _ALLOWED_DELTA_KEY_CHARS for key in proposed["proposal"]["deltas"])
     assert proposed["proposal"]["version"] == "v1"
     assert proposed["proposal"]["confidence"] >= 0.5
