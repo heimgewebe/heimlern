@@ -1,0 +1,21 @@
+name: validate-feedback-schema
+permissions:
+  contents: read
+on:
+  pull_request:
+    paths:
+      - "contracts/policy.feedback.schema.json"
+      - "data/samples/policy.feedback.sample.json"
+      - "tests/fixtures/feedback/policy.feedback.bad.json"
+      - "tests/validate_feedback_schema.py"
+      - ".github/workflows/validate-feedback-schema.yml"
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - run: python3 -m pip install --user -r requirements-tools.txt
+      - run: python3 tests/validate_feedback_schema.py
