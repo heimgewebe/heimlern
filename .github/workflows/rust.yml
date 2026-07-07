@@ -51,6 +51,12 @@ jobs:
           python scripts/validate_json.py \
           --schemas contracts/ \
           --samples data/samples/
+      - name: Reject invalid feedback fixture
+        run: |
+          if python scripts/validate_json.py contracts/policy.feedback.schema.json data/samples/policy.feedback.rejected.json; then
+            echo "::error::policy.feedback.rejected.json was accepted unexpectedly"
+            exit 1
+          fi
       - name: Smoke OPLEARN adapter
         run: |
           python scripts/ola_adapter.py --self-test

@@ -1,5 +1,43 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.heimgewebe.org/contracts/policy.feedback.schema.json",
   "title": "Policy Feedback",
-  "type": "object"
+  "description": "Feedback zu einer dokumentierten Policy-Entscheidung. Heimlern konsumiert dieses Feedback als Evidenz; es ändert keine Live-Policy automatisch.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "feedback_id",
+    "decision_id",
+    "reward"
+  ],
+  "properties": {
+    "feedback_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decision_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reward": {
+      "type": "number",
+      "minimum": -1.0,
+      "maximum": 1.0
+    },
+    "comment": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "metadata": {
+      "type": "object"
+    }
+  }
 }
