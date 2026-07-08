@@ -76,3 +76,5 @@ jobs:
             -o .ci/policy.weight_adjustment.v1.schema.json
           python scripts/validate_weight_adjustment_coherence.py \
             --schema .ci/policy.weight_adjustment.v1.schema.json
+          python scripts/ola_circle_smoke.py \
+            --schema .ci/policy.weight_adjustment.v1.schema.json
