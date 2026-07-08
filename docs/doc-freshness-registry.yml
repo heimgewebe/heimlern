@@ -1,0 +1,146 @@
+# Heimlern doc-freshness registry v1
+#
+# Minimal, hand-authored Claim-Evidence surface for RepoBrief/rLens.
+# This file tracks only load-bearing, agent-relevant claims from the
+# heimlern RepoBrief audit plan. It is not a general documentation index.
+
+kind: heimlern.doc_freshness_registry
+version: "1.0"
+authority: diagnostic_signal
+risk_class: diagnostic
+scope: audited_agent_relevant_claims_only
+does_not_prove:
+  - "a listed claim is complete or sufficient for production use"
+  - "all heimlern documentation is current"
+  - "runtime correctness"
+  - "task completion"
+  - "merge readiness"
+  - "RepoBrief or rLens is a source of task truth"
+
+entries:
+  - id: contract-ownership-boundary
+    doc: contracts/README.md
+    locator: "Contract Ownership & Architecture"
+    claim: "heimlern owns its local policy, feedback and aussen schemas while consuming decision.outcome.v1 and policy.weight_adjustment.v1 from metarepo."
+    status: done
+    normative: true
+    owner: contracts
+    last_verified: "2026-07-08"
+    evidence:
+      - kind: text
+        target: "contracts/README.md::Contract Ownership & Architecture"
+      - kind: file
+        target: "contracts/policy.snapshot.schema.json"
+      - kind: file
+        target: "contracts/policy.decision.schema.json"
+      - kind: file
+        target: "contracts/policy.feedback.schema.json"
+      - kind: file
+        target: "contracts/aussen.event.schema.json"
+    notes: >-
+      The consumed metarepo contracts are referenced as external authority; this
+      repo does not become their schema owner.
+
+  - id: learning-cycle-proposal-gate
+    doc: docs/learning-cycle.md
+    locator: "Phasen 1-8"
+    claim: "heimlern sits in a delayed evidence-to-proposal learning loop between outcomes and a separate hausKI or human decision gate."
+    status: done
+    normative: true
+    owner: learning-cycle
+    last_verified: "2026-07-08"
+    evidence:
+      - kind: text
+        target: "docs/learning-cycle.md::Phasen"
+      - kind: text
+        target: "docs/operator-ecosystem-alignment.md::evidence -> outcome analysis -> auditable proposal -> separate decision gate"
+    notes: >-
+      This describes the intended control loop and does not prove that the
+      end-to-end runtime path is deployed.
+
+  - id: no-auto-apply-boundary
+    doc: docs/learning-cycle.md
+    locator: "Sicherheitsmechanismen / No Auto-Apply"
+    claim: "heimlern must not silently apply live policy or routing changes; it analyzes and proposes only."
+    status: done
+    normative: true
+    owner: safety
+    last_verified: "2026-07-08"
+    evidence:
+      - kind: text
+        target: "docs/learning-cycle.md::No Auto-Apply"
+      - kind: text
+        target: "docs/operator-ecosystem-alignment.md::Heimlern may propose adjustments; it must not silently apply them."
+      - kind: text
+        target: "crates/heimlern-feedback/README.md::No Direct Weight Modification"
+      - kind: text
+        target: "scripts/ola_probe.py::automatic_rule_change_permission"
+    notes: >-
+      This is a boundary claim. It does not by itself prove all future code paths
+      preserve the boundary.
+
+  - id: weight-adjustment-output
+    doc: crates/heimlern-feedback/README.md
+    locator: "Output / Contracts"
+    claim: "heimlern-feedback emits evidence-backed weight adjustment proposals for review rather than mutating live weights."
+    status: done
+    normative: true
+    owner: heimlern-feedback
+    last_verified: "2026-07-08"
+    evidence:
+      - kind: symbol
+        target: "crates/heimlern-feedback/src/lib.rs::WeightAdjustmentProposal"
+      - kind: symbol
+        target: "crates/heimlern-feedback/src/lib.rs::Evidence"
+      - kind: text
+        target: "crates/heimlern-feedback/README.md::Weight Adjustment Proposals"
+      - kind: fixture
+        target: "tests/fixtures/feedback/adjustment.ok.json"
+      - kind: test
+        target: "scripts/validate_weight_adjustment_coherence.py"
+    notes: >-
+      This proves the proposal surface exists and is bounded by evidence; it does
+      not prove proposal quality or suitability for automatic application.
+
+  - id: chronik-routing-outcome-ingest
+    doc: docs/operator-ecosystem-alignment.md
+    locator: "Operator ecosystem alignment"
+    claim: "heimlern can consume redacted Grabowski or Chronik-style outcomes as offline learning inputs without receiving live routing authority."
+    status: done
+    normative: false
+    owner: operator-learning-axis
+    last_verified: "2026-07-08"
+    evidence:
+      - kind: symbol
+        target: "scripts/ola_adapter.py::adapt"
+      - kind: symbol
+        target: "scripts/ola_adapter.py::to_decision_outcome"
+      - kind: symbol
+        target: "scripts/ola_probe.py::probe"
+      - kind: fixture
+        target: "tests/fixtures/ola/success.ok.json"
+      - kind: fixture
+        target: "tests/fixtures/ola/failed.ok.json"
+      - kind: fixture
+        target: "tests/fixtures/ola/failclosed.ok.json"
+    notes: >-
+      This is an offline observation/proposal path, not live routing control.
+
+  - id: metrics-workflow-local-contract
+    doc: .github/workflows/metrics.yml
+    locator: "Metrics Snapshot & Validation"
+    claim: "The metrics workflow generates metrics.json and validates it against the repository-local metrics.snapshot schema."
+    status: done
+    normative: false
+    owner: metrics
+    last_verified: "2026-07-08"
+    evidence:
+      - kind: workflow
+        target: ".github/workflows/metrics.yml"
+      - kind: script
+        target: "scripts/wgx-metrics-snapshot.sh"
+      - kind: schema
+        target: "contracts/metrics.snapshot.schema.json"
+    notes: >-
+      This verifies local workflow wiring only. It does not prove scheduled GitHub
+      execution, remote posting or production monitoring quality.
