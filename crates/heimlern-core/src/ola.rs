@@ -10,27 +10,10 @@ use std::fmt;
 
 pub const OUTCOME_VERSION: &str = "operator.routing_outcome.v1";
 pub const DEFAULT_POLICY_ID: &str = "grabowski-routing-v0";
-pub const VALID_COMPLETION_STATES: &[&str] = &[
-    "completed",
-    "blocked",
-    "deferred",
-    "failed",
-    "unknown",
-];
-pub const VALID_CI_STATES: &[&str] = &[
-    "pass",
-    "fail",
-    "pending",
-    "not_applicable",
-    "unknown",
-];
-pub const VALID_PR_STATES: &[&str] = &[
-    "merged",
-    "open",
-    "closed",
-    "not_applicable",
-    "unknown",
-];
+pub const VALID_COMPLETION_STATES: &[&str] =
+    &["completed", "blocked", "deferred", "failed", "unknown"];
+pub const VALID_CI_STATES: &[&str] = &["pass", "fail", "pending", "not_applicable", "unknown"];
+pub const VALID_PR_STATES: &[&str] = &["merged", "open", "closed", "not_applicable", "unknown"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -421,7 +404,10 @@ mod tests {
             normalized_state(Some("bogus"), VALID_COMPLETION_STATES, "unknown"),
             "unknown"
         );
-        assert_eq!(normalized_state(None, VALID_COMPLETION_STATES, "unknown"), "unknown");
+        assert_eq!(
+            normalized_state(None, VALID_COMPLETION_STATES, "unknown"),
+            "unknown"
+        );
     }
 
     #[test]
