@@ -1,191 +1,125 @@
 #!/usr/bin/env python3
-"""Convert redacted Grabowski friction summaries into routing outcome records."""
+"""Python wrapper for Rust-owned OLA routing outcome normalization.
+
+The transformation contract lives in `heimlern_core::ola` and the
+`heimlern-ola` CLI. This script remains as a compatibility wrapper for probes
+and fixtures.
+"""
 from __future__ import annotations
 
 import argparse
 import json
+import subprocess
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 OUTCOME_VERSION = "operator.routing_outcome.v1"
 DEFAULT_POLICY_ID = "grabowski-routing-v0"
-VALID_COMPLETION_STATES = {"completed", "blocked", "deferred", "failed", "unknown"}
-VALID_CI_STATES = {"pass", "fail", "pending", "not_applicable", "unknown"}
-VALID_PR_STATES = {"merged", "open", "closed", "not_applicable", "unknown"}
+_ROUTE_DELTA_KEY_INVALID = "route_delta_key_invalid"
+_ROUTE_DELTA_KEY_COLLISION = "route_delta_key_collision"
+_ROUTE_DELTA_KEY_ERROR_KINDS = frozenset({_ROUTE_DELTA_KEY_INVALID, _ROUTE_DELTA_KEY_COLLISION})
+
+
+class RouteDeltaKeyError(ValueError):
+    """Raised when Rust rejects a routing action to delta-key mapping."""
+
+    def __init__(self, kind: str, message: str) -> None:
+        if kind not in _ROUTE_DELTA_KEY_ERROR_KINDS:
+            raise ValueError(f"unknown route delta key error kind: {kind!r}")
+        super().__init__(message)
+        self.kind = kind
+
+
+def repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
 
 
 def iso_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def clamp_reward(value: float) -> float:
-    return max(-1.0, min(1.0, round(value, 3)))
+def _json_from_text(text: str) -> dict[str, Any]:
+    start = text.find("{")
+    if start == -1:
+        raise ValueError(f"no JSON object in command output: {text!r}")
+    return json.loads(text[start:])
 
 
-def normalized_state(value: Any, allowed: set[str], fallback: str = "unknown") -> str:
-    if isinstance(value, str) and value in allowed:
-        return value
-    return fallback
+def _run_ola(args: list[str]) -> dict[str, Any]:
+    cmd = ["cargo", "run", "-q", "-p", "heimlern-cli", "--bin", "heimlern-ola", "--", *args]
+    result = subprocess.run(
+        cmd,
+        cwd=repo_root(),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or result.stdout.strip() or f"heimlern-ola exited {result.returncode}")
+    return _json_from_text(result.stdout)
 
 
-def bool_from(value: Any) -> bool:
-    return bool(value) if isinstance(value, bool) else False
-
-
-def normalized_friction(raw_items: Any) -> list[dict[str, Any]]:
-    if not isinstance(raw_items, list):
-        return []
-    items: list[dict[str, Any]] = []
-    for raw in raw_items:
-        if not isinstance(raw, dict):
-            continue
-        item = {
-            "kind": str(raw.get("kind") or "unknown"),
-            "surface": str(raw.get("surface") or "unknown"),
-            "resolved": bool_from(raw.get("resolved")),
-        }
-        operation = raw.get("operation")
-        if isinstance(operation, str) and operation:
-            item["operation"] = operation[:160]
-        fallback = raw.get("fallback")
-        if isinstance(fallback, str) and fallback:
-            item["fallback"] = fallback[:500]
-        items.append(item)
-    return items
-
-
-def classify_outcome(completion_state: str, unresolved_friction: int) -> str:
-    if completion_state == "completed":
-        return "success"
-    if completion_state == "failed":
-        return "failure"
-    if completion_state in {"blocked", "deferred"}:
-        return "partial"
-    if unresolved_friction > 0:
-        return "partial"
-    return "unknown"
-
-
-def compute_reward(
-    completion_state: str,
-    friction_count: int,
-    unresolved_friction: int,
-    blocked_by_platform_filter: bool,
-    manual_operator_needed: bool,
-    ci_state: str,
-    pr_state: str,
-    rework_count: int,
-) -> float:
-    reward = {
-        "completed": 0.7,
-        "blocked": -0.35,
-        "deferred": -0.1,
-        "failed": -0.75,
-        "unknown": 0.0,
-    }.get(completion_state, 0.0)
-    reward -= min(friction_count, 5) * 0.05
-    reward -= min(unresolved_friction, 5) * 0.1
-    if blocked_by_platform_filter:
-        reward -= 0.1
-    if manual_operator_needed:
-        reward -= 0.15
-    if ci_state == "pass":
-        reward += 0.1
-    elif ci_state == "fail":
-        reward -= 0.2
-    if pr_state == "merged":
-        reward += 0.1
-    elif pr_state == "closed":
-        reward -= 0.1
-    reward -= min(max(rework_count, 0), 5) * 0.05
-    return clamp_reward(reward)
+def _with_temp_json(payload: dict[str, Any], args: list[str]) -> dict[str, Any]:
+    with tempfile.NamedTemporaryFile("w", suffix=".json", encoding="utf-8", delete=True) as tmp:
+        json.dump(payload, tmp, ensure_ascii=False)
+        tmp.flush()
+        return _run_ola([*args, "--input", tmp.name])
 
 
 def adapt(input_record: dict[str, Any]) -> dict[str, Any]:
-    friction = normalized_friction(input_record.get("friction"))
-    friction_count = len(friction)
-    unresolved_friction = sum(1 for item in friction if not item.get("resolved"))
-    completion_state = normalized_state(
-        input_record.get("completion_state"), VALID_COMPLETION_STATES
-    )
-    ci_state = normalized_state(input_record.get("ci_state"), VALID_CI_STATES, "unknown")
-    pr_state = normalized_state(input_record.get("pr_state"), VALID_PR_STATES, "unknown")
-    blocked_by_platform_filter = any(
-        item.get("kind") == "platform_filter" for item in friction
-    )
-    manual_operator_needed = bool_from(input_record.get("manual_operator_needed")) or any(
-        item.get("kind") == "user_input" for item in friction
-    )
-    rework_count = int(input_record.get("rework_count") or 0)
-    metrics = {
-        "completion_state": completion_state,
-        "friction_count": friction_count,
-        "blocked_by_platform_filter": blocked_by_platform_filter,
-        "manual_operator_needed": manual_operator_needed,
-        "ci_state": ci_state,
-        "pr_state": pr_state,
-        "rework_count": rework_count,
-    }
-    elapsed = input_record.get("elapsed_seconds")
-    if isinstance(elapsed, int) and elapsed >= 0:
-        metrics["elapsed_seconds"] = elapsed
-    outcome = classify_outcome(completion_state, unresolved_friction)
-    return {
-        "version": OUTCOME_VERSION,
-        "decision_id": str(input_record.get("decision_id") or "unknown-decision"),
-        "ts": str(input_record.get("ts") or iso_now()),
-        "task_class": str(input_record.get("task_class") or "unknown_task"),
-        "route_used": str(input_record.get("route_used") or "unknown_route"),
-        "outcome": outcome,
-        "resolved": completion_state == "completed" and unresolved_friction == 0,
-        "reward": compute_reward(
-            completion_state,
-            friction_count,
-            unresolved_friction,
-            blocked_by_platform_filter,
-            manual_operator_needed,
-            ci_state,
-            pr_state,
-            rework_count,
-        ),
-        "metrics": metrics,
-        "friction": friction,
-        "does_not_establish": [
-            "causal_route_superiority",
-            "routing_policy_readiness",
-            "auto_apply_permission",
-        ],
-    }
+    return _with_temp_json(input_record, ["adapt"])
 
 
 def to_decision_outcome(routing_outcome: dict[str, Any], policy_id: str = DEFAULT_POLICY_ID) -> dict[str, Any]:
-    outcome = str(routing_outcome.get("outcome") or "unknown")
-    success = outcome == "success"
-    if outcome == "partial":
-        success = bool_from(routing_outcome.get("resolved"))
-    route_used = str(routing_outcome.get("route_used") or "unknown_route")
-    return {
-        "decision_id": str(routing_outcome.get("decision_id") or "unknown-decision"),
-        "ts": str(routing_outcome.get("ts") or iso_now()),
-        "policy_id": policy_id,
-        "action": f"route.{route_used}",
-        "outcome": outcome,
-        "success": success,
-        "reward": routing_outcome.get("reward"),
-        "context": {"task_class": routing_outcome.get("task_class"), "route_used": route_used},
-        "metadata": {
-            "source_version": routing_outcome.get("version"),
-            "metrics": routing_outcome.get("metrics", {}),
-            "friction": routing_outcome.get("friction", []),
-            "does_not_establish": ["routing_policy_readiness", "automatic_rule_change_permission"],
-        },
-    }
+    return _with_temp_json(routing_outcome, ["decision-outcome", "--policy-id", policy_id])
+
+
+def route_delta_key(action: str) -> tuple[str, str]:
+    cmd = [
+        "cargo",
+        "run",
+        "-q",
+        "-p",
+        "heimlern-cli",
+        "--bin",
+        "heimlern-ola",
+        "--",
+        "route-delta-key",
+        action,
+    ]
+    result = subprocess.run(
+        cmd,
+        cwd=repo_root(),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if result.returncode != 0:
+        try:
+            payload = _json_from_text(result.stderr)
+            kind = str(payload.get("kind") or _ROUTE_DELTA_KEY_INVALID)
+            message = str(payload.get("message") or result.stderr.strip())
+        except Exception:
+            kind = _ROUTE_DELTA_KEY_INVALID
+            message = result.stderr.strip() or result.stdout.strip() or f"heimlern-ola exited {result.returncode}"
+        raise RouteDeltaKeyError(kind, message)
+    payload = _json_from_text(result.stdout)
+    return str(payload["delta_key"]), str(payload["route"])
 
 
 def run_self_test() -> None:
+    subprocess.run(
+        ["cargo", "test", "-q", "-p", "heimlern-core", "ola::"],
+        cwd=repo_root(),
+        check=True,
+    )
     sample = {
         "decision_id": "gr-example-001",
+        "ts": "2026-07-08T18:00:00Z",
         "task_class": "contract_slice",
         "route_used": "typed_tool",
         "completion_state": "blocked",
@@ -206,6 +140,7 @@ def run_self_test() -> None:
     assert outcome["metrics"]["friction_count"] == 1
     assert outcome["metrics"]["blocked_by_platform_filter"] is True
     assert outcome["reward"] < 0.0
+    assert route_delta_key("route.direct:patch") == ("route.direct_patch.weight", "direct:patch")
 
 
 def main() -> int:
@@ -217,13 +152,14 @@ def main() -> int:
     args = parser.parse_args()
     if args.self_test:
         run_self_test()
-        print("ola-adapter self-test ok")
+        print("ola-adapter wrapper self-test ok")
         return 0
     if not args.input:
         parser.error("input path required unless --self-test is used")
-    input_record = json.loads(Path(args.input).read_text(encoding="utf-8"))
-    routing_outcome = adapt(input_record)
-    payload = to_decision_outcome(routing_outcome, args.policy_id) if args.emit == "decision-outcome" else routing_outcome
+    if args.emit == "decision-outcome":
+        payload = _run_ola(["adapt", "--emit", "decision-outcome", "--policy-id", args.policy_id, "--input", args.input])
+    else:
+        payload = _run_ola(["adapt", "--emit", "routing-outcome", "--input", args.input])
     print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0
 
