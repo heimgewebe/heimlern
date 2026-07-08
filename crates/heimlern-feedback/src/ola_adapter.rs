@@ -234,14 +234,8 @@ mod tests {
 
     #[test]
     fn states_normalize_with_unknown_fallback() {
-        assert_eq!(
-            normalize_completion_state(Some("completed")),
-            CompletionState::Completed
-        );
-        assert_eq!(
-            normalize_completion_state(Some("bogus")),
-            CompletionState::Unknown
-        );
+        assert_eq!(normalize_completion_state(Some("completed")), CompletionState::Completed);
+        assert_eq!(normalize_completion_state(Some("bogus")), CompletionState::Unknown);
         assert_eq!(normalize_ci_state(Some("pass")), CiState::Pass);
         assert_eq!(normalize_ci_state(None), CiState::Unknown);
         assert_eq!(normalize_pr_state(Some("merged")), PrState::Merged);
@@ -250,26 +244,11 @@ mod tests {
 
     #[test]
     fn outcome_classification_matches_probe_boundary() {
-        assert_eq!(
-            classify_outcome(CompletionState::Completed, 0),
-            OutcomeType::Success
-        );
-        assert_eq!(
-            classify_outcome(CompletionState::Failed, 0),
-            OutcomeType::Failure
-        );
-        assert_eq!(
-            classify_outcome(CompletionState::Blocked, 0),
-            OutcomeType::Partial
-        );
-        assert_eq!(
-            classify_outcome(CompletionState::Unknown, 1),
-            OutcomeType::Partial
-        );
-        assert_eq!(
-            classify_outcome(CompletionState::Unknown, 0),
-            OutcomeType::Unknown
-        );
+        assert_eq!(classify_outcome(CompletionState::Completed, 0), OutcomeType::Success);
+        assert_eq!(classify_outcome(CompletionState::Failed, 0), OutcomeType::Failure);
+        assert_eq!(classify_outcome(CompletionState::Blocked, 0), OutcomeType::Partial);
+        assert_eq!(classify_outcome(CompletionState::Unknown, 1), OutcomeType::Partial);
+        assert_eq!(classify_outcome(CompletionState::Unknown, 0), OutcomeType::Unknown);
     }
 
     #[test]
