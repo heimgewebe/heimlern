@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Convert redacted Grabowski friction summaries into routing outcome records."""
+"""Convert redacted Grabowski friction summaries into routing outcome records.
+
+Boundary: this Python module is a CLI/probe compatibility surface. The adapter
+invariants for route-key construction, reward clamping and state normalization
+are represented with regression coverage in the Rust feedback core at
+``crates/heimlern-feedback/src/ola_adapter.rs``. Changes here must preserve that
+Rust-owned contract instead of making Python the only authority for the
+transformation rules.
+"""
 from __future__ import annotations
 
 import argparse
