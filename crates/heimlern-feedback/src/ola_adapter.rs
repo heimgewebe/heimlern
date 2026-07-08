@@ -87,7 +87,10 @@ pub fn route_delta_key(action: &str) -> Result<(String, String), RouteDeltaKeyEr
     if route.is_empty() {
         return Err(RouteDeltaKeyError::EmptyRoute);
     }
-    Ok((format!("route.{}.weight", safe_route(route)), route.to_string()))
+    Ok((
+        format!("route.{}.weight", safe_route(route)),
+        route.to_string(),
+    ))
 }
 
 /// Clamp finite rewards to the contract boundary and round to three decimals.
@@ -194,7 +197,10 @@ mod tests {
         assert_eq!(safe_route("direct/patch/v2"), "direct_patch_v2");
         assert_eq!(safe_route("direct_patch"), "direct_patch");
         assert_eq!(safe_route("foo__bar"), "foo__bar");
-        assert_eq!(safe_route("route.with.dots-and-dashes"), "route.with.dots-and-dashes");
+        assert_eq!(
+            safe_route("route.with.dots-and-dashes"),
+            "route.with.dots-and-dashes"
+        );
         assert_eq!(safe_route("röute"), "r_ute");
         assert_eq!(safe_route("中"), "unknown_route");
     }
@@ -203,7 +209,10 @@ mod tests {
     fn route_delta_key_fails_closed() {
         assert_eq!(
             route_delta_key("route.direct:patch"),
-            Ok(("route.direct_patch.weight".to_string(), "direct:patch".to_string()))
+            Ok((
+                "route.direct_patch.weight".to_string(),
+                "direct:patch".to_string()
+            ))
         );
         assert_eq!(
             route_delta_key("direct_patch"),
@@ -222,8 +231,14 @@ mod tests {
 
     #[test]
     fn states_normalize_with_unknown_fallback() {
-        assert_eq!(normalize_completion_state(Some("completed")), CompletionState::Completed);
-        assert_eq!(normalize_completion_state(Some("bogus")), CompletionState::Unknown);
+        assert_eq!(
+            normalize_completion_state(Some("completed")),
+            CompletionState::Completed
+        );
+        assert_eq!(
+            normalize_completion_state(Some("bogus")),
+            CompletionState::Unknown
+        );
         assert_eq!(normalize_ci_state(Some("pass")), CiState::Pass);
         assert_eq!(normalize_ci_state(None), CiState::Unknown);
         assert_eq!(normalize_pr_state(Some("merged")), PrState::Merged);
@@ -232,11 +247,26 @@ mod tests {
 
     #[test]
     fn outcome_classification_matches_probe_boundary() {
-        assert_eq!(classify_outcome(CompletionState::Completed, 0), OutcomeType::Success);
-        assert_eq!(classify_outcome(CompletionState::Failed, 0), OutcomeType::Failure);
-        assert_eq!(classify_outcome(CompletionState::Blocked, 0), OutcomeType::Partial);
-        assert_eq!(classify_outcome(CompletionState::Unknown, 1), OutcomeType::Partial);
-        assert_eq!(classify_outcome(CompletionState::Unknown, 0), OutcomeType::Unknown);
+        assert_eq!(
+            classify_outcome(CompletionState::Completed, 0),
+            OutcomeType::Success
+        );
+        assert_eq!(
+            classify_outcome(CompletionState::Failed, 0),
+            OutcomeType::Failure
+        );
+        assert_eq!(
+            classify_outcome(CompletionState::Blocked, 0),
+            OutcomeType::Partial
+        );
+        assert_eq!(
+            classify_outcome(CompletionState::Unknown, 1),
+            OutcomeType::Partial
+        );
+        assert_eq!(
+            classify_outcome(CompletionState::Unknown, 0),
+            OutcomeType::Unknown
+        );
     }
 
     #[test]
