@@ -8,6 +8,7 @@
 //! APIs, Persistenzschichten oder Tests eingebettet werden können.
 
 pub mod event;
+pub mod ola;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
