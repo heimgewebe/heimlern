@@ -36,3 +36,7 @@ lint:
     printf '%s\0' "${files[@]}" | xargs -0 bash -n; \
     shfmt -d -i 2 -ci -sr -- "${files[@]}"; \
     shellcheck -S style -- "${files[@]}"
+
+# ---- Release-Profil Benchmark ----
+release-profile-bench:
+	python3 scripts/benchmark_release_profiles.py --out docs/benchmarks/release-profile-comparison.latest.json

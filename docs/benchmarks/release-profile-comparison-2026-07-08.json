@@ -1,0 +1,190 @@
+{
+  "command": {
+    "fill_cap": 1000,
+    "iterations": 200000,
+    "profiles": [
+      "z",
+      "s",
+      "3"
+    ],
+    "replay_iterations": 5000,
+    "samples": 3,
+    "warmup": 1000
+  },
+  "decision_inputs": {
+    "fastest_existing_slot_profile": "3",
+    "smallest_binary_profile": "s"
+  },
+  "does_not_establish": [
+    "production_runtime_performance",
+    "all_workload_performance",
+    "cross_machine_reproducibility",
+    "policy_quality",
+    "learning_quality"
+  ],
+  "generated_at": "2026-07-08T16:31:48Z",
+  "git_dirty": true,
+  "git_head": "cbcf03fa09ff40846bdf0f76286ade72268dea5c",
+  "host": {
+    "platform": "Linux-7.0.11-76070011-generic-x86_64-with-glibc2.35",
+    "processor": "x86_64",
+    "python": "3.10.12"
+  },
+  "kind": "heimlern.release_profile_benchmark.v1",
+  "results": [
+    {
+      "benchmark": {
+        "benchmark": "heimlern-bandits.feedback_paths.v1",
+        "cap": 1000,
+        "fill_cap": 1000,
+        "iterations": 200000,
+        "replay_iterations": 5000,
+        "samples": [
+          {
+            "existing_slot_ns_per_call": 35.716955,
+            "existing_slot_total_ns": 7143391,
+            "filling_slots_ns_per_call": 1558.249,
+            "filling_slots_total_ns": 1558249,
+            "sample": 1,
+            "snapshot_replay_ns_per_call": 355398.278,
+            "snapshot_replay_total_ns": 1776991390
+          },
+          {
+            "existing_slot_ns_per_call": 30.39397,
+            "existing_slot_total_ns": 6078794,
+            "filling_slots_ns_per_call": 1296.308,
+            "filling_slots_total_ns": 1296308,
+            "sample": 2,
+            "snapshot_replay_ns_per_call": 284688.445,
+            "snapshot_replay_total_ns": 1423442225
+          },
+          {
+            "existing_slot_ns_per_call": 30.489175,
+            "existing_slot_total_ns": 6097835,
+            "filling_slots_ns_per_call": 1339.547,
+            "filling_slots_total_ns": 1339547,
+            "sample": 3,
+            "snapshot_replay_ns_per_call": 284473.3458,
+            "snapshot_replay_total_ns": 1422366729
+          }
+        ],
+        "warmup": 1000
+      },
+      "binary": "target/release-profile-bench/z/release/examples/bench_feedback",
+      "binary_size_bytes": 538056,
+      "build_seconds": 2.3108553989441134,
+      "build_stderr_tail": "   Compiling heimlern-bandits v0.1.0 (/home/alex/repos/.heimlern-worktrees/opt-profile-benchmark-v1/crates/heimlern-bandits)\n    Finished `release` profile [optimized] target(s) in 2.27s",
+      "cargo_profile_release_opt_level": "z",
+      "profile": "z",
+      "summary": {
+        "existing_slot_ns_per_call_median": 30.489175,
+        "filling_slots_ns_per_call_median": 1339.547,
+        "snapshot_replay_ns_per_call_median": 284688.445
+      },
+      "target_dir": "target/release-profile-bench/z"
+    },
+    {
+      "benchmark": {
+        "benchmark": "heimlern-bandits.feedback_paths.v1",
+        "cap": 1000,
+        "fill_cap": 1000,
+        "iterations": 200000,
+        "replay_iterations": 5000,
+        "samples": [
+          {
+            "existing_slot_ns_per_call": 21.777275,
+            "existing_slot_total_ns": 4355455,
+            "filling_slots_ns_per_call": 1489.238,
+            "filling_slots_total_ns": 1489238,
+            "sample": 1,
+            "snapshot_replay_ns_per_call": 307381.717,
+            "snapshot_replay_total_ns": 1536908585
+          },
+          {
+            "existing_slot_ns_per_call": 20.41042,
+            "existing_slot_total_ns": 4082084,
+            "filling_slots_ns_per_call": 1320.167,
+            "filling_slots_total_ns": 1320167,
+            "sample": 2,
+            "snapshot_replay_ns_per_call": 237552.617,
+            "snapshot_replay_total_ns": 1187763085
+          },
+          {
+            "existing_slot_ns_per_call": 21.674825,
+            "existing_slot_total_ns": 4334965,
+            "filling_slots_ns_per_call": 1401.828,
+            "filling_slots_total_ns": 1401828,
+            "sample": 3,
+            "snapshot_replay_ns_per_call": 235578.2636,
+            "snapshot_replay_total_ns": 1177891318
+          }
+        ],
+        "warmup": 1000
+      },
+      "binary": "target/release-profile-bench/s/release/examples/bench_feedback",
+      "binary_size_bytes": 535680,
+      "build_seconds": 2.3984037109767087,
+      "build_stderr_tail": "   Compiling heimlern-bandits v0.1.0 (/home/alex/repos/.heimlern-worktrees/opt-profile-benchmark-v1/crates/heimlern-bandits)\n    Finished `release` profile [optimized] target(s) in 2.36s",
+      "cargo_profile_release_opt_level": "s",
+      "profile": "s",
+      "summary": {
+        "existing_slot_ns_per_call_median": 21.674825,
+        "filling_slots_ns_per_call_median": 1401.828,
+        "snapshot_replay_ns_per_call_median": 237552.617
+      },
+      "target_dir": "target/release-profile-bench/s"
+    },
+    {
+      "benchmark": {
+        "benchmark": "heimlern-bandits.feedback_paths.v1",
+        "cap": 1000,
+        "fill_cap": 1000,
+        "iterations": 200000,
+        "replay_iterations": 5000,
+        "samples": [
+          {
+            "existing_slot_ns_per_call": 20.84122,
+            "existing_slot_total_ns": 4168244,
+            "filling_slots_ns_per_call": 1440.558,
+            "filling_slots_total_ns": 1440558,
+            "sample": 1,
+            "snapshot_replay_ns_per_call": 285718.3568,
+            "snapshot_replay_total_ns": 1428591784
+          },
+          {
+            "existing_slot_ns_per_call": 19.73496,
+            "existing_slot_total_ns": 3946992,
+            "filling_slots_ns_per_call": 1341.778,
+            "filling_slots_total_ns": 1341778,
+            "sample": 2,
+            "snapshot_replay_ns_per_call": 218003.675,
+            "snapshot_replay_total_ns": 1090018375
+          },
+          {
+            "existing_slot_ns_per_call": 19.64421,
+            "existing_slot_total_ns": 3928842,
+            "filling_slots_ns_per_call": 1362.578,
+            "filling_slots_total_ns": 1362578,
+            "sample": 3,
+            "snapshot_replay_ns_per_call": 217404.4736,
+            "snapshot_replay_total_ns": 1087022368
+          }
+        ],
+        "warmup": 1000
+      },
+      "binary": "target/release-profile-bench/3/release/examples/bench_feedback",
+      "binary_size_bytes": 579272,
+      "build_seconds": 2.789217390003614,
+      "build_stderr_tail": "   Compiling heimlern-bandits v0.1.0 (/home/alex/repos/.heimlern-worktrees/opt-profile-benchmark-v1/crates/heimlern-bandits)\n    Finished `release` profile [optimized] target(s) in 2.75s",
+      "cargo_profile_release_opt_level": "3",
+      "profile": "3",
+      "summary": {
+        "existing_slot_ns_per_call_median": 19.73496,
+        "filling_slots_ns_per_call_median": 1362.578,
+        "snapshot_replay_ns_per_call_median": 218003.675
+      },
+      "target_dir": "target/release-profile-bench/3"
+    }
+  ],
+  "schema_version": 1
+}
