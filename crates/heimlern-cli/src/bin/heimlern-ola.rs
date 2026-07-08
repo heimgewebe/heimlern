@@ -25,7 +25,7 @@ enum Commands {
         #[arg(long, value_enum, default_value_t = Emit::RoutingOutcome)]
         emit: Emit,
         /// Policy id to embed when emitting a decision outcome.
-        #[arg(long, default_value = ola::DEFAULT_POLICY_ID)]
+        #[arg(long, default_value = "grabowski-routing-v0")]
         policy_id: String,
     },
     /// Convert a routing outcome JSON record into decision-outcome JSON.
@@ -34,7 +34,7 @@ enum Commands {
         #[arg(long)]
         input: PathBuf,
         /// Policy id to embed in the decision outcome.
-        #[arg(long, default_value = ola::DEFAULT_POLICY_ID)]
+        #[arg(long, default_value = "grabowski-routing-v0")]
         policy_id: String,
     },
     /// Derive the safe policy delta key for a route action.
