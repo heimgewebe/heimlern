@@ -108,3 +108,9 @@ python scripts/validate_weight_adjustment_coherence.py \
 Gilt, wenn der Metarepo-Pin bewusst aktualisiert wird: Erst den Pin ändern, dann
 den Kohärenz-Wächter laufen lassen. Ein Schema-Drift darf nicht durch getrennte
 Rust- und Python-Annahmen geglättet werden.
+
+Die Delta-Semantik ist in [ADR-0005](adr/0005-additive-delta-contract-boundary.md)
+festgelegt: `additive` bleibt intern für Simulationen erlaubt, wird aber nicht
+als `policy.weight_adjustment.v1`-Proposal emittiert. Wenn additive Semantik
+später extern gebraucht wird, braucht das einen separaten Contract-Follow-up
+statt einer stillen Umdeutung von `absolute` oder `relative`.
