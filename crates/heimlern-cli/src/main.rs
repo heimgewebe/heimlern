@@ -29,6 +29,17 @@ enum Commands {
         #[command(subcommand)]
         source: IngestSource,
     },
+    /// Emit read-only learning path artifacts
+    LearningPath {
+        #[command(subcommand)]
+        path: LearningPathCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum LearningPathCommand {
+    /// Emit the offline learning path JSON artifact to stdout
+    Offline,
 }
 
 #[derive(Subcommand)]
@@ -77,6 +88,56 @@ enum IngestSource {
         #[arg(long, default_value = "data/heimlern.stats.json")]
         stats_file: PathBuf,
     },
+}
+
+#[derive(Serialize, Debug)]
+struct OfflineLearningPathArtifact {
+    schema_version: u8,
+    artifact: String,
+    mode: String,
+    generated_by: String,
+    writes_production: bool,
+    steps: Vec<OfflineLearningPathStep>,
+}
+
+#[derive(Serialize, Debug)]
+struct OfflineLearningPathStep {
+    id: String,
+    title: String,
+    command: String,
+    read_only: bool,
+}
+
+fn offline_learning_path_artifact() -> OfflineLearningPathArtifact {
+    OfflineLearningPathArtifact {
+        schema_version: 1,
+        artifact: "heimlern.offline_learning_path.v1".to_string(),
+        mode: "offline".to_string(),
+        generated_by: "heimlern-cli".to_string(),
+        writes_production: false,
+        steps: vec![
+            OfflineLearningPathStep {
+                id: "validate-contracts".to_string(),
+                title: "Validate checked-in contracts and samples".to_string(),
+                command:
+                    "python3 scripts/validate_json.py --schemas contracts --samples data/samples"
+                        .to_string(),
+                read_only: true,
+            },
+            OfflineLearningPathStep {
+                id: "run-rust-tests".to_string(),
+                title: "Run the Rust workspace test suite".to_string(),
+                command: "cargo test".to_string(),
+                read_only: true,
+            },
+            OfflineLearningPathStep {
+                id: "inspect-feedback-proposals".to_string(),
+                title: "Inspect generated feedback proposals without applying them".to_string(),
+                command: "cargo run -p heimlern-feedback --example feedback_analysis".to_string(),
+                read_only: true,
+            },
+        ],
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Copy)]
@@ -478,6 +539,12 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
+        Commands::LearningPath { path } => match path {
+            LearningPathCommand::Offline => {
+                let artifact = offline_learning_path_artifact();
+                println!("{}", serde_json::to_string_pretty(&artifact)?);
+            }
+        },
         Commands::Ingest { source } => match source {
             IngestSource::Chronik {
                 cursor,

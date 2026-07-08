@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.heimgewebe.org/contracts/heimlern.offline_learning_path.v1.schema.json",
+  "title": "Offline Learning Path",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact", "mode", "generated_by", "writes_production", "steps"],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "artifact": {"type": "string", "const": "heimlern.offline_learning_path.v1"},
+    "mode": {"type": "string", "const": "offline"},
+    "generated_by": {"type": "string", "const": "heimlern-cli"},
+    "writes_production": {"type": "boolean", "const": false},
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title", "command", "read_only"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "title": {"type": "string", "minLength": 1},
+          "command": {"type": "string", "minLength": 1},
+          "read_only": {"type": "boolean", "const": true}
+        }
+      }
+    }
+  }
+}
