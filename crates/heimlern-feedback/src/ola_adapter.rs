@@ -144,7 +144,10 @@ pub fn normalize_pr_state(value: Option<&str>) -> PrState {
 
 /// Classify a normalized OLA completion state into a decision outcome.
 #[must_use]
-pub fn classify_outcome(completion_state: CompletionState, unresolved_friction: u8) -> OutcomeType {
+pub fn classify_outcome(
+    completion_state: CompletionState,
+    unresolved_friction: u8,
+) -> OutcomeType {
     match completion_state {
         CompletionState::Completed => OutcomeType::Success,
         CompletionState::Failed => OutcomeType::Failure,
