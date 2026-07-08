@@ -69,30 +69,10 @@ jobs:
           python scripts/ola_probe.py > /tmp/ola-probe.json
           python -m json.tool /tmp/ola-probe.json >/dev/null
 
-      - name: Validate weight adjustment fixture against metarepo contract
+      - name: Validate weight adjustment coherence against metarepo contract
         run: |
           mkdir -p .ci
           curl -fsSL https://raw.githubusercontent.com/heimgewebe/metarepo/a1984186a98a1e4214769f87649c5affc9686a53/contracts/policy.weight_adjustment.v1.schema.json \
             -o .ci/policy.weight_adjustment.v1.schema.json
-          python scripts/validate_json.py \
-            .ci/policy.weight_adjustment.v1.schema.json \
-            tests/fixtures/feedback/adjustment.ok.json
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          failed = json.loads(Path("tests/fixtures/ola/failed.ok.json").read_text(encoding="utf-8"))
-          amplified = [failed | {"decision_id": f"gr-failed-{i:03d}", "route_used": "direct" + ":" + "patch"} for i in range(10)]
-          Path("/tmp/ola-amplified.json").write_text(json.dumps(amplified), encoding="utf-8")
-          PY
-          python scripts/ola_probe.py --min-decisions 10 --emit proposal /tmp/ola-amplified.json > /tmp/ola-proposal.json
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          allowed_delta_key_chars = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-")
-          proposal = json.loads(Path("/tmp/ola-proposal.json").read_text(encoding="utf-8"))
-          assert set(proposal["deltas"]) == {"route.direct_patch.weight"}
-          assert all(set(key) <= allowed_delta_key_chars for key in proposal["deltas"])
-          PY
-          python scripts/validate_json.py \
-            .ci/policy.weight_adjustment.v1.schema.json \
-            /tmp/ola-proposal.json
+          python scripts/validate_weight_adjustment_coherence.py \
+            --schema .ci/policy.weight_adjustment.v1.schema.json
