@@ -68,7 +68,7 @@ Dokumente im JSON-Lines-Format. Sie können direkt gegen den
 [Außensensor-Contract](../contracts/aussen.event.schema.json) geprüft werden:
 
 ```bash
-python scripts/validate_json.py contracts/aussen.event.schema.json data/samples/foreign-aussensor.jsonl
+python scripts/validate_json.py contracts/aussen.event.schema.json data/samples/foreign-aussensensor.jsonl
 ```
 
 Der Validator liest jede Zeile, validiert sie einzeln und gibt ein ✓ je Zeile
