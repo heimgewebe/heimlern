@@ -214,7 +214,7 @@ mod tests {
             route_delta_key("route.direct:patch"),
             Ok((
                 "route.direct_patch.weight".to_string(),
-                "direct:patch".to_string()
+                "direct:patch".to_string(),
             ))
         );
         assert_eq!(
