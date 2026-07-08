@@ -1,0 +1,192 @@
+[
+  {
+    "decision_id": "gr-fail-closed-000",
+    "ts": "2026-07-08T18:02:00Z",
+    "task_class": "runtime_slice",
+    "route_used": "direct:patch",
+    "completion_state": "failed",
+    "ci_state": "fail",
+    "pr_state": "closed",
+    "elapsed_seconds": 180,
+    "rework_count": 2,
+    "friction": [
+      {
+        "kind": "operator_bug",
+        "surface": "local_tool",
+        "operation": "patch_apply",
+        "resolved": false
+      }
+    ]
+  },
+  {
+    "decision_id": "gr-fail-closed-001",
+    "ts": "2026-07-08T18:02:00Z",
+    "task_class": "runtime_slice",
+    "route_used": "direct/patch",
+    "completion_state": "failed",
+    "ci_state": "fail",
+    "pr_state": "closed",
+    "elapsed_seconds": 180,
+    "rework_count": 2,
+    "friction": [
+      {
+        "kind": "operator_bug",
+        "surface": "local_tool",
+        "operation": "patch_apply",
+        "resolved": false
+      }
+    ]
+  },
+  {
+    "decision_id": "gr-fail-closed-002",
+    "ts": "2026-07-08T18:02:00Z",
+    "task_class": "runtime_slice",
+    "route_used": "direct:patch",
+    "completion_state": "failed",
+    "ci_state": "fail",
+    "pr_state": "closed",
+    "elapsed_seconds": 180,
+    "rework_count": 2,
+    "friction": [
+      {
+        "kind": "operator_bug",
+        "surface": "local_tool",
+        "operation": "patch_apply",
+        "resolved": false
+      }
+    ]
+  },
+  {
+    "decision_id": "gr-fail-closed-003",
+    "ts": "2026-07-08T18:02:00Z",
+    "task_class": "runtime_slice",
+    "route_used": "direct/patch",
+    "completion_state": "failed",
+    "ci_state": "fail",
+    "pr_state": "closed",
+    "elapsed_seconds": 180,
+    "rework_count": 2,
+    "friction": [
+      {
+        "kind": "operator_bug",
+        "surface": "local_tool",
+        "operation": "patch_apply",
+        "resolved": false
+      }
+    ]
+  },
+  {
+    "decision_id": "gr-fail-closed-004",
+    "ts": "2026-07-08T18:02:00Z",
+    "task_class": "runtime_slice",
+    "route_used": "direct:patch",
+    "completion_state": "failed",
+    "ci_state": "fail",
+    "pr_state": "closed",
+    "elapsed_seconds": 180,
+    "rework_count": 2,
+    "friction": [
+      {
+        "kind": "operator_bug",
+        "surface": "local_tool",
+        "operation": "patch_apply",
+        "resolved": false
+      }
+    ]
+  },
+  {
+    "decision_id": "gr-fail-closed-005",
+    "ts": "2026-07-08T18:02:00Z",
+    "task_class": "runtime_slice",
+    "route_used": "direct/patch",
+    "completion_state": "failed",
+    "ci_state": "fail",
+    "pr_state": "closed",
+    "elapsed_seconds": 180,
+    "rework_count": 2,
+    "friction": [
+      {
+        "kind": "operator_bug",
+        "surface": "local_tool",
+        "operation": "patch_apply",
+        "resolved": false
+      }
+    ]
+  },
+  {
+    "decision_id": "gr-fail-closed-006",
+    "ts": "2026-07-08T18:02:00Z",
+    "task_class": "runtime_slice",
+    "route_used": "direct:patch",
+    "completion_state": "failed",
+    "ci_state": "fail",
+    "pr_state": "closed",
+    "elapsed_seconds": 180,
+    "rework_count": 2,
+    "friction": [
+      {
+        "kind": "operator_bug",
+        "surface": "local_tool",
+        "operation": "patch_apply",
+        "resolved": false
+      }
+    ]
+  },
+  {
+    "decision_id": "gr-fail-closed-007",
+    "ts": "2026-07-08T18:02:00Z",
+    "task_class": "runtime_slice",
+    "route_used": "direct/patch",
+    "completion_state": "failed",
+    "ci_state": "fail",
+    "pr_state": "closed",
+    "elapsed_seconds": 180,
+    "rework_count": 2,
+    "friction": [
+      {
+        "kind": "operator_bug",
+        "surface": "local_tool",
+        "operation": "patch_apply",
+        "resolved": false
+      }
+    ]
+  },
+  {
+    "decision_id": "gr-fail-closed-008",
+    "ts": "2026-07-08T18:02:00Z",
+    "task_class": "runtime_slice",
+    "route_used": "direct:patch",
+    "completion_state": "failed",
+    "ci_state": "fail",
+    "pr_state": "closed",
+    "elapsed_seconds": 180,
+    "rework_count": 2,
+    "friction": [
+      {
+        "kind": "operator_bug",
+        "surface": "local_tool",
+        "operation": "patch_apply",
+        "resolved": false
+      }
+    ]
+  },
+  {
+    "decision_id": "gr-fail-closed-009",
+    "ts": "2026-07-08T18:02:00Z",
+    "task_class": "runtime_slice",
+    "route_used": "direct/patch",
+    "completion_state": "failed",
+    "ci_state": "fail",
+    "pr_state": "closed",
+    "elapsed_seconds": 180,
+    "rework_count": 2,
+    "friction": [
+      {
+        "kind": "operator_bug",
+        "surface": "local_tool",
+        "operation": "patch_apply",
+        "resolved": false
+      }
+    ]
+  }
+]
