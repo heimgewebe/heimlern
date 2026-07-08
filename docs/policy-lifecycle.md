@@ -68,7 +68,7 @@ Dokumente im JSON-Lines-Format. Sie können direkt gegen den
 [Außensensor-Contract](../contracts/aussen.event.schema.json) geprüft werden:
 
 ```bash
-python scripts/validate_json.py contracts/aussen.event.schema.json data/samples/foreign-aussensensor.jsonl
+python scripts/validate_json.py contracts/aussen.event.schema.json data/samples/foreign-aussensor.jsonl
 ```
 
 Der Validator liest jede Zeile, validiert sie einzeln und gibt ein ✓ je Zeile
@@ -82,3 +82,29 @@ cargo run -p heimlern-core --example ingest_events -- data/samples/foreign-ausse
 
 Damit steht für Sensorsamples der gleiche Qualitäts-Check zur Verfügung wie
 für Policy-Snapshots.
+
+## Weight-Adjustment-Kohärenz
+
+Weight-Adjustment-Proposals haben genau einen Contract-Owner: den gepinnten
+Metarepo-Contract `policy.weight_adjustment.v1.schema.json`. Heimlern erzeugt
+keinen zweiten Contract, sondern hält zwei prüfbare Flächen daran:
+
+1. Rust: `tests/fixtures/feedback/adjustment.ok.json` bleibt die Serde- und
+   Feedback-Fixture für `WeightAdjustmentProposal`.
+2. Python: `scripts/ola_probe.py` bleibt Probe/Adapter und emittiert nur
+   Kandidaten, die gegen denselben Contract validiert werden.
+
+Der gemeinsame Drift-Wächter validiert beide Flächen gegen dieselbe Schema-Datei
+und prüft zusätzlich, dass die Python-Probe nur sichere Routing-Deltas emittiert:
+
+```bash
+mkdir -p .ci
+curl -fsSL https://raw.githubusercontent.com/heimgewebe/metarepo/a1984186a98a1e4214769f87649c5affc9686a53/contracts/policy.weight_adjustment.v1.schema.json \
+  -o .ci/policy.weight_adjustment.v1.schema.json
+python scripts/validate_weight_adjustment_coherence.py \
+  --schema .ci/policy.weight_adjustment.v1.schema.json
+```
+
+Gilt, wenn der Metarepo-Pin bewusst aktualisiert wird: Erst den Pin ändern, dann
+den Kohärenz-Wächter laufen lassen. Ein Schema-Drift darf nicht durch getrennte
+Rust- und Python-Annahmen geglättet werden.
