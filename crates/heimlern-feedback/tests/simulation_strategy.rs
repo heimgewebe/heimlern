@@ -64,7 +64,8 @@ fn simulation_handles_unknown_strategies() {
         })
         .collect();
 
-    let simulated_rate = analyzer.simulate_adjustment(&additive_epsilon_proposal(-0.1), &outcomes);
+    let simulated_rate =
+        analyzer.simulate_adjustment(&additive_epsilon_proposal(-0.1), &outcomes);
     assert!((simulated_rate - 0.5).abs() < 1e-5);
 }
 
@@ -88,7 +89,8 @@ fn simulation_handles_mixed_known_unknown() {
         outcomes.push(create_outcome(&i.to_string(), "b", true, 1.0, None));
     }
 
-    let simulated_rate = analyzer.simulate_adjustment(&additive_epsilon_proposal(-0.1), &outcomes);
+    let simulated_rate =
+        analyzer.simulate_adjustment(&additive_epsilon_proposal(-0.1), &outcomes);
     assert!(
         (simulated_rate - 0.8).abs() < 1e-5,
         "Expected 0.8, got {simulated_rate}"
