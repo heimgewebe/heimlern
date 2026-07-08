@@ -8,7 +8,12 @@ use std::fs::File;
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(author, version, about = "Rust-owned OLA adapter normalization", long_about = None)]
+#[command(
+    author,
+    version,
+    about = "Rust-owned OLA adapter normalization",
+    long_about = None
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
