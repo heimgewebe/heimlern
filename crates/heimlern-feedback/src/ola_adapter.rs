@@ -87,10 +87,8 @@ pub fn route_delta_key(action: &str) -> Result<(String, String), RouteDeltaKeyEr
     if route.is_empty() {
         return Err(RouteDeltaKeyError::EmptyRoute);
     }
-    Ok((
-        format!("route.{}.weight", safe_route(route)),
-        route.to_string(),
-    ))
+    let key = format!("route.{}.weight", safe_route(route));
+    Ok((key, route.to_string()))
 }
 
 /// Clamp finite rewards to the contract boundary and round to three decimals.
@@ -200,23 +198,16 @@ mod tests {
         assert_eq!(safe_route("direct/patch/v2"), "direct_patch_v2");
         assert_eq!(safe_route("direct_patch"), "direct_patch");
         assert_eq!(safe_route("foo__bar"), "foo__bar");
-        assert_eq!(
-            safe_route("route.with.dots-and-dashes"),
-            "route.with.dots-and-dashes"
-        );
+        let dotted_route = "route.with.dots-and-dashes";
+        assert_eq!(safe_route(dotted_route), dotted_route);
         assert_eq!(safe_route("röute"), "r_ute");
         assert_eq!(safe_route("中"), "unknown_route");
     }
 
     #[test]
     fn route_delta_key_fails_closed() {
-        assert_eq!(
-            route_delta_key("route.direct:patch"),
-            Ok((
-                "route.direct_patch.weight".to_string(),
-                "direct:patch".to_string(),
-            ))
-        );
+        let expected = ("route.direct_patch.weight".to_string(), "direct:patch".to_string());
+        assert_eq!(route_delta_key("route.direct:patch"), Ok(expected));
         assert_eq!(
             route_delta_key("direct_patch"),
             Err(RouteDeltaKeyError::InvalidActionPrefix)
