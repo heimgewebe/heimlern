@@ -1,4 +1,7 @@
-use heimlern_feedback::{DecisionOutcome, DeltaValue, Evidence, FeedbackAnalyzer, OutcomeType, ProposalStatus, WeightAdjustmentProposal};
+use heimlern_feedback::{
+    DecisionOutcome, DeltaValue, Evidence, FeedbackAnalyzer, OutcomeType, ProposalStatus,
+    WeightAdjustmentProposal,
+};
 use std::collections::HashMap;
 
 fn create_outcome(
