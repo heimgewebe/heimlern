@@ -22,9 +22,9 @@
     "policy_quality",
     "learning_quality"
   ],
-  "generated_at": "2026-07-08T16:31:48Z",
-  "git_dirty": true,
-  "git_head": "cbcf03fa09ff40846bdf0f76286ade72268dea5c",
+  "generated_at": "2026-07-08T16:38:52Z",
+  "git_dirty": false,
+  "git_head": "a7017773b1c4cc86a085cbc4246ab49845d026e1",
   "host": {
     "platform": "Linux-7.0.11-76070011-generic-x86_64-with-glibc2.35",
     "processor": "x86_64",
@@ -41,45 +41,45 @@
         "replay_iterations": 5000,
         "samples": [
           {
-            "existing_slot_ns_per_call": 35.716955,
-            "existing_slot_total_ns": 7143391,
-            "filling_slots_ns_per_call": 1558.249,
-            "filling_slots_total_ns": 1558249,
+            "existing_slot_ns_per_call": 32.156275,
+            "existing_slot_total_ns": 6431255,
+            "filling_slots_ns_per_call": 1382.137,
+            "filling_slots_total_ns": 1382137,
             "sample": 1,
-            "snapshot_replay_ns_per_call": 355398.278,
-            "snapshot_replay_total_ns": 1776991390
+            "snapshot_replay_ns_per_call": 354940.3242,
+            "snapshot_replay_total_ns": 1774701621
           },
           {
-            "existing_slot_ns_per_call": 30.39397,
-            "existing_slot_total_ns": 6078794,
-            "filling_slots_ns_per_call": 1296.308,
-            "filling_slots_total_ns": 1296308,
+            "existing_slot_ns_per_call": 30.336965,
+            "existing_slot_total_ns": 6067393,
+            "filling_slots_ns_per_call": 1326.547,
+            "filling_slots_total_ns": 1326547,
             "sample": 2,
-            "snapshot_replay_ns_per_call": 284688.445,
-            "snapshot_replay_total_ns": 1423442225
+            "snapshot_replay_ns_per_call": 287113.0042,
+            "snapshot_replay_total_ns": 1435565021
           },
           {
-            "existing_slot_ns_per_call": 30.489175,
-            "existing_slot_total_ns": 6097835,
-            "filling_slots_ns_per_call": 1339.547,
-            "filling_slots_total_ns": 1339547,
+            "existing_slot_ns_per_call": 30.52042,
+            "existing_slot_total_ns": 6104084,
+            "filling_slots_ns_per_call": 1324.027,
+            "filling_slots_total_ns": 1324027,
             "sample": 3,
-            "snapshot_replay_ns_per_call": 284473.3458,
-            "snapshot_replay_total_ns": 1422366729
+            "snapshot_replay_ns_per_call": 287508.6284,
+            "snapshot_replay_total_ns": 1437543142
           }
         ],
         "warmup": 1000
       },
       "binary": "target/release-profile-bench/z/release/examples/bench_feedback",
       "binary_size_bytes": 538056,
-      "build_seconds": 2.3108553989441134,
-      "build_stderr_tail": "   Compiling heimlern-bandits v0.1.0 (/home/alex/repos/.heimlern-worktrees/opt-profile-benchmark-v1/crates/heimlern-bandits)\n    Finished `release` profile [optimized] target(s) in 2.27s",
+      "build_seconds": 5.244847441033926,
+      "build_stderr_tail": "   Compiling serde v1.0.228\n   Compiling memchr v2.7.6\n   Compiling thiserror v1.0.69\n   Compiling powerfmt v0.2.0\n   Compiling ryu v1.0.20\n   Compiling num-conv v0.2.0\n   Compiling time-core v0.1.8\n   Compiling deranged v0.5.5\n   Compiling syn v2.0.106\n   Compiling getrandom v0.2.16\n   Compiling rand_core v0.6.4\n   Compiling time v0.3.47\n   Compiling ppv-lite86 v0.2.21\n   Compiling rand_chacha v0.3.1\n   Compiling rand v0.8.5\n   Compiling serde_derive v1.0.228\n   Compiling thiserror-impl v1.0.69\n   Compiling heimlern-core v0.1.0 (/home/alex/repos/heimlern/crates/heimlern-core)\n   Compiling heimlern-bandits v0.1.0 (/home/alex/repos/heimlern/crates/heimlern-bandits)\n    Finished `release` profile [optimized] target(s) in 5.20s",
       "cargo_profile_release_opt_level": "z",
       "profile": "z",
       "summary": {
-        "existing_slot_ns_per_call_median": 30.489175,
-        "filling_slots_ns_per_call_median": 1339.547,
-        "snapshot_replay_ns_per_call_median": 284688.445
+        "existing_slot_ns_per_call_median": 30.52042,
+        "filling_slots_ns_per_call_median": 1326.547,
+        "snapshot_replay_ns_per_call_median": 287508.6284
       },
       "target_dir": "target/release-profile-bench/z"
     },
@@ -92,45 +92,45 @@
         "replay_iterations": 5000,
         "samples": [
           {
-            "existing_slot_ns_per_call": 21.777275,
-            "existing_slot_total_ns": 4355455,
-            "filling_slots_ns_per_call": 1489.238,
-            "filling_slots_total_ns": 1489238,
+            "existing_slot_ns_per_call": 20.47781,
+            "existing_slot_total_ns": 4095562,
+            "filling_slots_ns_per_call": 1436.358,
+            "filling_slots_total_ns": 1436358,
             "sample": 1,
-            "snapshot_replay_ns_per_call": 307381.717,
-            "snapshot_replay_total_ns": 1536908585
+            "snapshot_replay_ns_per_call": 304487.847,
+            "snapshot_replay_total_ns": 1522439235
           },
           {
-            "existing_slot_ns_per_call": 20.41042,
-            "existing_slot_total_ns": 4082084,
-            "filling_slots_ns_per_call": 1320.167,
-            "filling_slots_total_ns": 1320167,
+            "existing_slot_ns_per_call": 20.669315,
+            "existing_slot_total_ns": 4133863,
+            "filling_slots_ns_per_call": 1373.007,
+            "filling_slots_total_ns": 1373007,
             "sample": 2,
-            "snapshot_replay_ns_per_call": 237552.617,
-            "snapshot_replay_total_ns": 1187763085
+            "snapshot_replay_ns_per_call": 237648.9024,
+            "snapshot_replay_total_ns": 1188244512
           },
           {
-            "existing_slot_ns_per_call": 21.674825,
-            "existing_slot_total_ns": 4334965,
-            "filling_slots_ns_per_call": 1401.828,
-            "filling_slots_total_ns": 1401828,
+            "existing_slot_ns_per_call": 20.38966,
+            "existing_slot_total_ns": 4077932,
+            "filling_slots_ns_per_call": 1358.628,
+            "filling_slots_total_ns": 1358628,
             "sample": 3,
-            "snapshot_replay_ns_per_call": 235578.2636,
-            "snapshot_replay_total_ns": 1177891318
+            "snapshot_replay_ns_per_call": 235858.8026,
+            "snapshot_replay_total_ns": 1179294013
           }
         ],
         "warmup": 1000
       },
       "binary": "target/release-profile-bench/s/release/examples/bench_feedback",
       "binary_size_bytes": 535680,
-      "build_seconds": 2.3984037109767087,
-      "build_stderr_tail": "   Compiling heimlern-bandits v0.1.0 (/home/alex/repos/.heimlern-worktrees/opt-profile-benchmark-v1/crates/heimlern-bandits)\n    Finished `release` profile [optimized] target(s) in 2.36s",
+      "build_seconds": 5.410121782973874,
+      "build_stderr_tail": "   Compiling serde v1.0.228\n   Compiling ryu v1.0.20\n   Compiling memchr v2.7.6\n   Compiling thiserror v1.0.69\n   Compiling powerfmt v0.2.0\n   Compiling num-conv v0.2.0\n   Compiling time-core v0.1.8\n   Compiling deranged v0.5.5\n   Compiling syn v2.0.106\n   Compiling getrandom v0.2.16\n   Compiling rand_core v0.6.4\n   Compiling time v0.3.47\n   Compiling ppv-lite86 v0.2.21\n   Compiling rand_chacha v0.3.1\n   Compiling rand v0.8.5\n   Compiling serde_derive v1.0.228\n   Compiling thiserror-impl v1.0.69\n   Compiling heimlern-core v0.1.0 (/home/alex/repos/heimlern/crates/heimlern-core)\n   Compiling heimlern-bandits v0.1.0 (/home/alex/repos/heimlern/crates/heimlern-bandits)\n    Finished `release` profile [optimized] target(s) in 5.37s",
       "cargo_profile_release_opt_level": "s",
       "profile": "s",
       "summary": {
-        "existing_slot_ns_per_call_median": 21.674825,
-        "filling_slots_ns_per_call_median": 1401.828,
-        "snapshot_replay_ns_per_call_median": 237552.617
+        "existing_slot_ns_per_call_median": 20.47781,
+        "filling_slots_ns_per_call_median": 1373.007,
+        "snapshot_replay_ns_per_call_median": 237648.9024
       },
       "target_dir": "target/release-profile-bench/s"
     },
@@ -143,45 +143,45 @@
         "replay_iterations": 5000,
         "samples": [
           {
-            "existing_slot_ns_per_call": 20.84122,
-            "existing_slot_total_ns": 4168244,
-            "filling_slots_ns_per_call": 1440.558,
-            "filling_slots_total_ns": 1440558,
+            "existing_slot_ns_per_call": 19.85316,
+            "existing_slot_total_ns": 3970632,
+            "filling_slots_ns_per_call": 1406.338,
+            "filling_slots_total_ns": 1406338,
             "sample": 1,
-            "snapshot_replay_ns_per_call": 285718.3568,
-            "snapshot_replay_total_ns": 1428591784
+            "snapshot_replay_ns_per_call": 285199.6758,
+            "snapshot_replay_total_ns": 1425998379
           },
           {
-            "existing_slot_ns_per_call": 19.73496,
-            "existing_slot_total_ns": 3946992,
-            "filling_slots_ns_per_call": 1341.778,
-            "filling_slots_total_ns": 1341778,
+            "existing_slot_ns_per_call": 19.625605,
+            "existing_slot_total_ns": 3925121,
+            "filling_slots_ns_per_call": 1337.487,
+            "filling_slots_total_ns": 1337487,
             "sample": 2,
-            "snapshot_replay_ns_per_call": 218003.675,
-            "snapshot_replay_total_ns": 1090018375
+            "snapshot_replay_ns_per_call": 216744.3704,
+            "snapshot_replay_total_ns": 1083721852
           },
           {
-            "existing_slot_ns_per_call": 19.64421,
-            "existing_slot_total_ns": 3928842,
-            "filling_slots_ns_per_call": 1362.578,
-            "filling_slots_total_ns": 1362578,
+            "existing_slot_ns_per_call": 19.99016,
+            "existing_slot_total_ns": 3998032,
+            "filling_slots_ns_per_call": 1338.237,
+            "filling_slots_total_ns": 1338237,
             "sample": 3,
-            "snapshot_replay_ns_per_call": 217404.4736,
-            "snapshot_replay_total_ns": 1087022368
+            "snapshot_replay_ns_per_call": 216996.9018,
+            "snapshot_replay_total_ns": 1084984509
           }
         ],
         "warmup": 1000
       },
       "binary": "target/release-profile-bench/3/release/examples/bench_feedback",
       "binary_size_bytes": 579272,
-      "build_seconds": 2.789217390003614,
-      "build_stderr_tail": "   Compiling heimlern-bandits v0.1.0 (/home/alex/repos/.heimlern-worktrees/opt-profile-benchmark-v1/crates/heimlern-bandits)\n    Finished `release` profile [optimized] target(s) in 2.75s",
+      "build_seconds": 6.098668218997773,
+      "build_stderr_tail": "   Compiling itoa v1.0.15\n   Compiling powerfmt v0.2.0\n   Compiling memchr v2.7.6\n   Compiling ryu v1.0.20\n   Compiling thiserror v1.0.69\n   Compiling num-conv v0.2.0\n   Compiling time-core v0.1.8\n   Compiling deranged v0.5.5\n   Compiling syn v2.0.106\n   Compiling getrandom v0.2.16\n   Compiling rand_core v0.6.4\n   Compiling time v0.3.47\n   Compiling ppv-lite86 v0.2.21\n   Compiling rand_chacha v0.3.1\n   Compiling serde_derive v1.0.228\n   Compiling thiserror-impl v1.0.69\n   Compiling rand v0.8.5\n   Compiling heimlern-core v0.1.0 (/home/alex/repos/heimlern/crates/heimlern-core)\n   Compiling heimlern-bandits v0.1.0 (/home/alex/repos/heimlern/crates/heimlern-bandits)\n    Finished `release` profile [optimized] target(s) in 6.05s",
       "cargo_profile_release_opt_level": "3",
       "profile": "3",
       "summary": {
-        "existing_slot_ns_per_call_median": 19.73496,
-        "filling_slots_ns_per_call_median": 1362.578,
-        "snapshot_replay_ns_per_call_median": 218003.675
+        "existing_slot_ns_per_call_median": 19.85316,
+        "filling_slots_ns_per_call_median": 1338.237,
+        "snapshot_replay_ns_per_call_median": 216996.9018
       },
       "target_dir": "target/release-profile-bench/3"
     }
