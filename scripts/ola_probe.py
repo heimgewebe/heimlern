@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Probe OPLEARN routing outcomes before any routing proposal is allowed."""
+"""Probe OPLEARN routing outcomes before any routing proposal is allowed.
+
+Normalization and route-key derivation are delegated to Rust via ola_adapter.py.
+This script remains an analyzer/proposal probe; it does not own adapter invariants.
+"""
 from __future__ import annotations
 
 import argparse
@@ -8,30 +12,25 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from ola_adapter import DEFAULT_POLICY_ID, adapt, iso_now, to_decision_outcome
+from ola_adapter import (
+    DEFAULT_POLICY_ID,
+    RouteDeltaKeyError,
+    adapt,
+    iso_now,
+    route_delta_key,
+    to_decision_outcome,
+)
 
 DEFAULT_MIN_DECISIONS = 10
 DEFAULT_MIN_ACTION_COUNT = 3
 DEFAULT_FAILURE_THRESHOLD = 0.6
-_ALLOWED_DELTA_KEY_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-")
 _ROUTE_DELTA_KEY_INVALID = "route_delta_key_invalid"
 _ROUTE_DELTA_KEY_COLLISION = "route_delta_key_collision"
-_ROUTE_DELTA_KEY_ERROR_KINDS = frozenset({_ROUTE_DELTA_KEY_INVALID, _ROUTE_DELTA_KEY_COLLISION})
 _DOES_NOT_ESTABLISH = (
     "routing_policy_readiness",
     "automatic_rule_change_permission",
     "sample_representativeness",
 )
-
-
-class RouteDeltaKeyError(ValueError):
-    """Raised when a routing action cannot be mapped to a safe delta key."""
-
-    def __init__(self, kind: str, message: str) -> None:
-        if kind not in _ROUTE_DELTA_KEY_ERROR_KINDS:
-            raise ValueError(f"unknown route delta key error kind: {kind!r}")
-        super().__init__(message)
-        self.kind = kind
 
 
 def ratio(num: int, den: int) -> float:
@@ -96,23 +95,6 @@ def summarize(decision_outcomes: list[dict[str, Any]]) -> dict[str, Any]:
         "by_action": finalize(by_action),
         "by_task_class": finalize(by_task_class),
     }
-
-
-def safe_route(value: str) -> str:
-    out = []
-    for ch in value:
-        out.append(ch if ch in _ALLOWED_DELTA_KEY_CHARS else "_")
-    result = "".join(out).strip("._-")
-    return result or "unknown_route"
-
-
-def route_delta_key(action: str) -> tuple[str, str]:
-    if not action.startswith("route."):
-        raise RouteDeltaKeyError(_ROUTE_DELTA_KEY_INVALID, f"route action must start with 'route.': {action!r}")
-    route = action.removeprefix("route.")
-    if route == "":
-        raise RouteDeltaKeyError(_ROUTE_DELTA_KEY_INVALID, f"route action has empty route: {action!r}")
-    return f"route.{safe_route(route)}.weight", route
 
 
 def maybe_propose(summary: dict[str, Any], min_decisions: int, min_action_count: int, failure_threshold: float) -> dict[str, Any] | None:
@@ -188,14 +170,6 @@ def probe(inputs: list[dict[str, Any]], min_decisions: int = DEFAULT_MIN_DECISIO
 
 
 def run_self_test() -> None:
-    assert safe_route("") == "unknown_route"
-    assert safe_route("direct:patch") == "direct_patch"
-    assert safe_route("direct/patch/v2") == "direct_patch_v2"
-    assert safe_route("direct_patch") == "direct_patch"
-    assert safe_route("foo__bar") == "foo__bar"
-    assert safe_route("route.with.dots-and-dashes") == "route.with.dots-and-dashes"
-    assert safe_route("röute") == "r_ute"
-    assert safe_route("中") == "unknown_route"
     assert route_delta_key("route.direct:patch") == ("route.direct_patch.weight", "direct:patch")
     assert route_delta_key("route.foo__bar") == ("route.foo__bar.weight", "foo__bar")
     assert route_delta_key("route.röute") == ("route.r_ute.weight", "röute")
@@ -227,7 +201,6 @@ def run_self_test() -> None:
     assert set(proposed["proposal"]["deltas"]) == {"route.direct_patch.weight"}
     assert all(delta["kind"] != "additive" for delta in proposed["proposal"]["deltas"].values())
     assert all(delta["kind"] == "relative" for delta in proposed["proposal"]["deltas"].values())
-    assert all(set(key) <= _ALLOWED_DELTA_KEY_CHARS for key in proposed["proposal"]["deltas"])
     assert proposed["proposal"]["version"] == "v1"
     assert proposed["proposal"]["confidence"] >= 0.5
     assert proposed["proposal"]["evidence"]["decisions_analyzed"] == 10
