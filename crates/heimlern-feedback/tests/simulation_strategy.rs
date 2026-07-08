@@ -1,7 +1,10 @@
-use heimlern_feedback::{
-    DecisionOutcome, DeltaValue, Evidence, FeedbackAnalyzer, OutcomeType, ProposalStatus,
-    WeightAdjustmentProposal,
-};
+use heimlern_feedback::DecisionOutcome;
+use heimlern_feedback::DeltaValue;
+use heimlern_feedback::Evidence;
+use heimlern_feedback::FeedbackAnalyzer;
+use heimlern_feedback::OutcomeType;
+use heimlern_feedback::ProposalStatus;
+use heimlern_feedback::WeightAdjustmentProposal;
 use std::collections::HashMap;
 
 fn create_outcome(
@@ -54,17 +57,14 @@ fn simulation_handles_unknown_strategies() {
     let analyzer = FeedbackAnalyzer::default();
     let outcomes: Vec<DecisionOutcome> = (0..10)
         .map(|i| {
-            create_outcome(
-                &i.to_string(),
-                "action",
-                i % 2 == 0,
-                if i % 2 == 0 { 1.0 } else { 0.0 },
-                None,
-            )
+            let success = i % 2 == 0;
+            let reward = if success { 1.0 } else { 0.0 };
+            create_outcome(&i.to_string(), "action", success, reward, None)
         })
         .collect();
 
-    let simulated_rate = analyzer.simulate_adjustment(&additive_epsilon_proposal(-0.1), &outcomes);
+    let proposal = additive_epsilon_proposal(-0.1);
+    let simulated_rate = analyzer.simulate_adjustment(&proposal, &outcomes);
     assert!((simulated_rate - 0.5).abs() < 1e-5);
 }
 
@@ -75,12 +75,14 @@ fn simulation_handles_mixed_known_unknown() {
 
     for i in 0..10 {
         let is_exploit = i % 2 == 0;
+        let strategy = if is_exploit { "exploit" } else { "explore ε" };
+        let reward = if is_exploit { 1.0 } else { 0.0 };
         outcomes.push(create_outcome(
             &i.to_string(),
             "a",
             is_exploit,
-            if is_exploit { 1.0 } else { 0.0 },
-            Some(if is_exploit { "exploit" } else { "explore ε" }),
+            reward,
+            Some(strategy),
         ));
     }
 
@@ -88,9 +90,7 @@ fn simulation_handles_mixed_known_unknown() {
         outcomes.push(create_outcome(&i.to_string(), "b", true, 1.0, None));
     }
 
-    let simulated_rate = analyzer.simulate_adjustment(&additive_epsilon_proposal(-0.1), &outcomes);
-    assert!(
-        (simulated_rate - 0.8).abs() < 1e-5,
-        "Expected 0.8, got {simulated_rate}"
-    );
+    let proposal = additive_epsilon_proposal(-0.1);
+    let simulated_rate = analyzer.simulate_adjustment(&proposal, &outcomes);
+    assert!((simulated_rate - 0.8).abs() < 1e-5);
 }
