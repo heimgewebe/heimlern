@@ -10,9 +10,27 @@ use std::fmt;
 
 pub const OUTCOME_VERSION: &str = "operator.routing_outcome.v1";
 pub const DEFAULT_POLICY_ID: &str = "grabowski-routing-v0";
-pub const VALID_COMPLETION_STATES: &[&str] = &["completed", "blocked", "deferred", "failed", "unknown"];
-pub const VALID_CI_STATES: &[&str] = &["pass", "fail", "pending", "not_applicable", "unknown"];
-pub const VALID_PR_STATES: &[&str] = &["merged", "open", "closed", "not_applicable", "unknown"];
+pub const VALID_COMPLETION_STATES: &[&str] = &[
+    "completed",
+    "blocked",
+    "deferred",
+    "failed",
+    "unknown",
+];
+pub const VALID_CI_STATES: &[&str] = &[
+    "pass",
+    "fail",
+    "pending",
+    "not_applicable",
+    "unknown",
+];
+pub const VALID_PR_STATES: &[&str] = &[
+    "merged",
+    "open",
+    "closed",
+    "not_applicable",
+    "unknown",
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -74,7 +92,13 @@ pub fn is_allowed_delta_key_char(ch: char) -> bool {
 pub fn safe_route(value: &str) -> String {
     let mapped: String = value
         .chars()
-        .map(|ch| if is_allowed_delta_key_char(ch) { ch } else { '_' })
+        .map(|ch| {
+            if is_allowed_delta_key_char(ch) {
+                ch
+            } else {
+                '_'
+            }
+        })
         .collect();
     let trimmed = mapped.trim_matches(|ch| matches!(ch, '.' | '_' | '-'));
     if trimmed.is_empty() {
@@ -148,12 +172,18 @@ pub fn normalized_friction(raw_items: Option<&Value>) -> Vec<Value> {
     let mut output = Vec::new();
     for raw in items.iter().filter(|item| item.is_object()) {
         let mut item = Map::new();
-        item.insert("kind".to_string(), Value::String(string_field(raw, "kind", "unknown")));
+        item.insert(
+            "kind".to_string(),
+            Value::String(string_field(raw, "kind", "unknown")),
+        );
         item.insert(
             "surface".to_string(),
             Value::String(string_field(raw, "surface", "unknown")),
         );
-        item.insert("resolved".to_string(), Value::Bool(bool_from(raw.get("resolved"))));
+        item.insert(
+            "resolved".to_string(),
+            Value::Bool(bool_from(raw.get("resolved"))),
+        );
         if let Some(operation) = optional_limited_string(raw, "operation", 160) {
             item.insert("operation".to_string(), Value::String(operation));
         }
@@ -191,7 +221,6 @@ pub fn compute_reward(
         "blocked" => -0.35,
         "deferred" => -0.1,
         "failed" => -0.75,
-        "unknown" => 0.0,
         _ => 0.0,
     };
     reward -= friction_count.min(5) as f64 * 0.05;
@@ -212,7 +241,7 @@ pub fn compute_reward(
         "closed" => reward -= 0.1,
         _ => {}
     }
-    reward -= rework_count.max(0).min(5) as f64 * 0.05;
+    reward -= rework_count.clamp(0, 5) as f64 * 0.05;
     clamp_reward(reward)
 }
 
@@ -251,7 +280,10 @@ pub fn adapt(input_record: &Value) -> Value {
         .unwrap_or(0);
 
     let mut metrics = Map::new();
-    metrics.insert("completion_state".to_string(), Value::String(completion_state.clone()));
+    metrics.insert(
+        "completion_state".to_string(),
+        Value::String(completion_state.clone()),
+    );
     metrics.insert("friction_count".to_string(), json!(friction_count));
     metrics.insert(
         "blocked_by_platform_filter".to_string(),
@@ -302,10 +334,11 @@ pub fn adapt(input_record: &Value) -> Value {
 
 pub fn to_decision_outcome(routing_outcome: &Value, policy_id: &str) -> Value {
     let outcome = string_field(routing_outcome, "outcome", "unknown");
-    let mut success = outcome == "success";
-    if outcome == "partial" {
-        success = bool_from(routing_outcome.get("resolved"));
-    }
+    let success = match outcome.as_str() {
+        "success" => true,
+        "partial" => bool_from(routing_outcome.get("resolved")),
+        _ => false,
+    };
     let route_used = string_field(routing_outcome, "route_used", "unknown_route");
     json!({
         "decision_id": string_field(routing_outcome, "decision_id", "unknown-decision"),
@@ -323,7 +356,10 @@ pub fn to_decision_outcome(routing_outcome: &Value, policy_id: &str) -> Value {
             "source_version": routing_outcome.get("version").cloned().unwrap_or(Value::Null),
             "metrics": routing_outcome.get("metrics").cloned().unwrap_or_else(|| json!({})),
             "friction": routing_outcome.get("friction").cloned().unwrap_or_else(|| json!([])),
-            "does_not_establish": ["routing_policy_readiness", "automatic_rule_change_permission"]
+            "does_not_establish": [
+                "routing_policy_readiness",
+                "automatic_rule_change_permission"
+            ]
         }
     })
 }
@@ -331,6 +367,7 @@ pub fn to_decision_outcome(routing_outcome: &Value, policy_id: &str) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn safe_route_matches_legacy_cases() {
@@ -339,20 +376,35 @@ mod tests {
         assert_eq!(safe_route("direct/patch/v2"), "direct_patch_v2");
         assert_eq!(safe_route("direct_patch"), "direct_patch");
         assert_eq!(safe_route("foo__bar"), "foo__bar");
-        assert_eq!(safe_route("route.with.dots-and-dashes"), "route.with.dots-and-dashes");
+        assert_eq!(
+            safe_route("route.with.dots-and-dashes"),
+            "route.with.dots-and-dashes"
+        );
         assert_eq!(safe_route("röute"), "r_ute");
         assert_eq!(safe_route("中"), "unknown_route");
     }
 
     #[test]
     fn route_delta_key_fails_closed() {
+        let route_key = match route_delta_key("route.direct:patch") {
+            Ok(route_key) => route_key,
+            Err(err) => panic!("unexpected route key error: {err}"),
+        };
+        assert_eq!(route_key.delta_key, "route.direct_patch.weight");
+
+        let no_prefix = match route_delta_key("direct_patch") {
+            Ok(route_key) => panic!("unexpected route key: {route_key:?}"),
+            Err(err) => err,
+        };
         assert_eq!(
-            route_delta_key("route.direct:patch").expect("route key").delta_key,
-            "route.direct_patch.weight"
+            no_prefix.kind(),
+            RouteDeltaKeyErrorKind::RouteDeltaKeyInvalid
         );
-        let no_prefix = route_delta_key("direct_patch").expect_err("missing prefix must fail");
-        assert_eq!(no_prefix.kind(), RouteDeltaKeyErrorKind::RouteDeltaKeyInvalid);
-        let empty = route_delta_key("route.").expect_err("empty route must fail");
+
+        let empty = match route_delta_key("route.") {
+            Ok(route_key) => panic!("unexpected route key: {route_key:?}"),
+            Err(err) => err,
+        };
         assert_eq!(empty.kind(), RouteDeltaKeyErrorKind::RouteDeltaKeyInvalid);
     }
 
@@ -361,8 +413,14 @@ mod tests {
         assert_eq!(clamp_reward(2.5), 1.0);
         assert_eq!(clamp_reward(-2.5), -1.0);
         assert_eq!(clamp_reward(0.12349), 0.123);
-        assert_eq!(normalized_state(Some("completed"), VALID_COMPLETION_STATES, "unknown"), "completed");
-        assert_eq!(normalized_state(Some("bogus"), VALID_COMPLETION_STATES, "unknown"), "unknown");
+        assert_eq!(
+            normalized_state(Some("completed"), VALID_COMPLETION_STATES, "unknown"),
+            "completed"
+        );
+        assert_eq!(
+            normalized_state(Some("bogus"), VALID_COMPLETION_STATES, "unknown"),
+            "unknown"
+        );
         assert_eq!(normalized_state(None, VALID_COMPLETION_STATES, "unknown"), "unknown");
     }
 
@@ -410,6 +468,6 @@ mod tests {
         let decision = to_decision_outcome(&routing, DEFAULT_POLICY_ID);
         assert_eq!(decision["policy_id"], DEFAULT_POLICY_ID);
         assert_eq!(decision["action"], "route.direct:patch");
-        assert_eq!(decision["success"], true);
+        assert!(decision["success"].as_bool().unwrap_or_default());
     }
 }
