@@ -22,7 +22,7 @@ enum Commands {
         #[arg(long)]
         input: PathBuf,
         /// Output shape.
-        #[arg(long, value_enum, default_value_t = Emit::RoutingOutcome)]
+        #[arg(long, value_enum, default_value = "routing-outcome")]
         emit: Emit,
         /// Policy id to embed when emitting a decision outcome.
         #[arg(long, default_value = "grabowski-routing-v0")]
