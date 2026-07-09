@@ -32,13 +32,14 @@ def main() -> None:
         "epsilon": 0.1,
         "seed": 42,
     }
+    feedback_suffix = str(int(time.time()))
     feedback = {
-        "version": "0.1.0",
-        "policy_id": "example-policy",
-        "ts": iso_now(),
-        "decision_id": "dec-" + str(int(time.time())),
+        "feedback_id": "fb-" + feedback_suffix,
+        "decision_id": "dec-" + feedback_suffix,
         "reward": 1.0,
-        "notes": "first feedback",
+        "comment": "first feedback",
+        "source": "examples",
+        "ts": iso_now(),
     }
 
     write(Path("/tmp/heimlern_snapshot.json"), snapshot)
