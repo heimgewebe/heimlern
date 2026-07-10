@@ -1,6 +1,7 @@
 # Heimlern doc-freshness registry
 
 `docs/doc-freshness-registry.yml` is a minimal RepoBrief/rLens claim-evidence surface for heimlern.
+It uses the shared `lenskit.doc_freshness_registry` v1 contract. The contract kind identifies the format, not ownership of the claims; Heimlern remains the producer and owner of every entry.
 
 It records only audited, agent-relevant claims from the RepoBrief audit plan:
 
