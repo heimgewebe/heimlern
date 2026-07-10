@@ -1,2 +1,3 @@
 jsonschema>=4.22,<5
 PyYAML
+pytest>=8,<9

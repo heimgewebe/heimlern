@@ -4,11 +4,10 @@
 # This file tracks only load-bearing, agent-relevant claims from the
 # heimlern RepoBrief audit plan. It is not a general documentation index.
 
-kind: heimlern.doc_freshness_registry
+kind: lenskit.doc_freshness_registry
 version: "1.0"
 authority: diagnostic_signal
 risk_class: diagnostic
-scope: audited_agent_relevant_claims_only
 does_not_prove:
   - "a listed claim is complete or sufficient for production use"
   - "all heimlern documentation is current"
@@ -25,7 +24,7 @@ entries:
     status: done
     normative: true
     owner: contracts
-    last_verified: "2026-07-08"
+    last_verified: "2026-07-10"
     evidence:
       - kind: text
         target: "contracts/README.md::Contract Ownership & Architecture"
@@ -48,7 +47,7 @@ entries:
     status: done
     normative: true
     owner: learning-cycle
-    last_verified: "2026-07-08"
+    last_verified: "2026-07-10"
     evidence:
       - kind: text
         target: "docs/learning-cycle.md::Phasen"
@@ -65,7 +64,7 @@ entries:
     status: done
     normative: true
     owner: safety
-    last_verified: "2026-07-08"
+    last_verified: "2026-07-10"
     evidence:
       - kind: text
         target: "docs/learning-cycle.md::No Auto-Apply"
@@ -86,7 +85,7 @@ entries:
     status: done
     normative: true
     owner: heimlern-feedback
-    last_verified: "2026-07-08"
+    last_verified: "2026-07-10"
     evidence:
       - kind: symbol
         target: "crates/heimlern-feedback/src/lib.rs::WeightAdjustmentProposal"
@@ -94,7 +93,7 @@ entries:
         target: "crates/heimlern-feedback/src/lib.rs::Evidence"
       - kind: text
         target: "crates/heimlern-feedback/README.md::Weight Adjustment Proposals"
-      - kind: fixture
+      - kind: file
         target: "tests/fixtures/feedback/adjustment.ok.json"
       - kind: test
         target: "scripts/validate_weight_adjustment_coherence.py"
@@ -109,7 +108,7 @@ entries:
     status: done
     normative: false
     owner: operator-learning-axis
-    last_verified: "2026-07-08"
+    last_verified: "2026-07-10"
     evidence:
       - kind: symbol
         target: "scripts/ola_adapter.py::adapt"
@@ -117,11 +116,11 @@ entries:
         target: "scripts/ola_adapter.py::to_decision_outcome"
       - kind: symbol
         target: "scripts/ola_probe.py::probe"
-      - kind: fixture
+      - kind: file
         target: "tests/fixtures/ola/success.ok.json"
-      - kind: fixture
+      - kind: file
         target: "tests/fixtures/ola/failed.ok.json"
-      - kind: fixture
+      - kind: file
         target: "tests/fixtures/ola/failclosed.ok.json"
     notes: >-
       This is an offline observation/proposal path, not live routing control.
@@ -133,13 +132,13 @@ entries:
     status: done
     normative: false
     owner: metrics
-    last_verified: "2026-07-08"
+    last_verified: "2026-07-10"
     evidence:
-      - kind: workflow
+      - kind: file
         target: ".github/workflows/metrics.yml"
-      - kind: script
+      - kind: file
         target: "scripts/wgx-metrics-snapshot.sh"
-      - kind: schema
+      - kind: file
         target: "contracts/metrics.snapshot.schema.json"
     notes: >-
       This verifies local workflow wiring only. It does not prove scheduled GitHub

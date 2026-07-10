@@ -14,17 +14,7 @@ EXPECTED_IDS = {
     "chronik-routing-outcome-ingest",
     "metrics-workflow-local-contract",
 }
-ALLOWED_EVIDENCE_KINDS = {
-    "file",
-    "fixture",
-    "sample",
-    "schema",
-    "script",
-    "symbol",
-    "test",
-    "text",
-    "workflow",
-}
+ALLOWED_EVIDENCE_KINDS = {"absent_text", "file", "proof", "symbol", "test", "text"}
 
 
 def _load_registry() -> dict:
@@ -37,11 +27,11 @@ def _load_registry() -> dict:
 def test_doc_freshness_registry_shape_and_scope() -> None:
     data = _load_registry()
 
-    assert data["kind"] == "heimlern.doc_freshness_registry"
+    assert data["kind"] == "lenskit.doc_freshness_registry"
     assert data["version"] == "1.0"
     assert data["authority"] == "diagnostic_signal"
     assert data["risk_class"] == "diagnostic"
-    assert data["scope"] == "audited_agent_relevant_claims_only"
+    assert "scope" not in data
     assert "RepoBrief or rLens is a source of task truth" in data["does_not_prove"]
 
     entries = data["entries"]

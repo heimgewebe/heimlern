@@ -26,7 +26,8 @@ schema-validate: venv
 	. .venv/bin/activate && python scripts/validate_json.py contracts/policy.feedback.schema.json /tmp/heimlern_feedback.json
 	python3 -m json.tool contracts/operator.routing_decision.v1.schema.json >/dev/null
 	python3 -m json.tool contracts/operator.routing_outcome.v1.schema.json >/dev/null
-	@echo "✓ alle Beispiel-Dokumente sind valide"
+	. .venv/bin/activate && python -m pytest -q tests/test_doc_freshness_registry.py
+	@echo "✓ alle Beispiel-Dokumente und das RepoBrief-Register sind valide"
 
 # Lokaler Helper: Schnelltests & Linter – sicher mit Null-Trennung und Quoting
 lint:
