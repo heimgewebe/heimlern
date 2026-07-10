@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://heimgewebe.local/heimlern/learning.proposal.registration.v1.schema.json",
+  "title": "Heimlern Learning Proposal Registration v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "proposal_id",
+    "consumer",
+    "decision_target",
+    "success_metric",
+    "expires_at",
+    "closure",
+    "boundary"
+  ],
+  "properties": {
+    "schema_version": {"const": "learning.proposal.registration.v1"},
+    "proposal_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,127}$"},
+    "consumer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["organ", "use"],
+      "properties": {
+        "organ": {"type": "string", "minLength": 1},
+        "use": {"type": "string", "minLength": 10}
+      }
+    },
+    "decision_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["question", "owner"],
+      "properties": {
+        "question": {"type": "string", "minLength": 10},
+        "owner": {"type": "string", "minLength": 1}
+      }
+    },
+    "success_metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "measure", "success", "falsification"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "measure": {"type": "string", "minLength": 10},
+        "success": {"type": "string", "minLength": 5},
+        "falsification": {"type": "string", "minLength": 5}
+      }
+    },
+    "expires_at": {"type": "string", "format": "date-time"},
+    "closure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["review_at", "allowed_outcomes", "archive_path"],
+      "properties": {
+        "review_at": {"type": "string", "format": "date-time"},
+        "allowed_outcomes": {
+          "type": "array",
+          "minItems": 3,
+          "uniqueItems": true,
+          "contains": {"const": "archive"},
+          "items": {"enum": ["promote", "reject", "archive"]}
+        },
+        "archive_path": {"type": "string", "pattern": "^proposals/_archive/[^/]+\\.json$"}
+      }
+    },
+    "boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proposal_only", "no_auto_policy", "no_auto_routing", "no_queue_authority", "no_runtime_authority"],
+      "properties": {
+        "proposal_only": {"const": true},
+        "no_auto_policy": {"const": true},
+        "no_auto_routing": {"const": true},
+        "no_queue_authority": {"const": true},
+        "no_runtime_authority": {"const": true}
+      }
+    }
+  }
+}

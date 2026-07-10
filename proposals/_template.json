@@ -1,0 +1,31 @@
+{
+  "schema_version": "learning.proposal.registration.v1",
+  "proposal_id": "replace-with-stable-id",
+  "consumer": {
+    "organ": "replace-with-consumer",
+    "use": "Describe the concrete downstream use of this proposal."
+  },
+  "decision_target": {
+    "question": "Which reviewed decision will this proposal inform?",
+    "owner": "replace-with-decision-owner"
+  },
+  "success_metric": {
+    "name": "replace-with-metric",
+    "measure": "Describe how the effect will be measured reproducibly.",
+    "success": "Define the success threshold.",
+    "falsification": "Define the failure threshold."
+  },
+  "expires_at": "2026-10-10T00:00:00Z",
+  "closure": {
+    "review_at": "2026-09-10T00:00:00Z",
+    "allowed_outcomes": ["promote", "reject", "archive"],
+    "archive_path": "proposals/_archive/replace-with-stable-id.json"
+  },
+  "boundary": {
+    "proposal_only": true,
+    "no_auto_policy": true,
+    "no_auto_routing": true,
+    "no_queue_authority": true,
+    "no_runtime_authority": true
+  }
+}
