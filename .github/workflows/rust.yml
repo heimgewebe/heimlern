@@ -45,12 +45,16 @@ jobs:
         with:
           python-version: '3.x'
       - name: Install jsonschema
-        run: python -m pip install --upgrade pip jsonschema
+        run: python -m pip install --upgrade pip jsonschema pytest
       - name: Validate sample JSONs
         run: |
           python scripts/validate_json.py \
           --schemas contracts/ \
           --samples data/samples/
+      - name: Validate active proposal registrations
+        run: python scripts/validate_proposal_registrations.py
+      - name: Test proposal registration gate
+        run: python -m pytest -q tests/test_proposal_registrations.py
       - name: Reject invalid feedback fixture
         run: |
           if python scripts/validate_json.py contracts/policy.feedback.schema.json data/samples/policy.feedback.rejected.json; then

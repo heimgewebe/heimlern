@@ -10,6 +10,7 @@ This correction supersedes older wording that frames heimlern mainly as a househ
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Siehe auch: **Policy-Lifecycle**: `docs/policy-lifecycle.md` und **Contracts** in `contracts/`.
+Neue Lern- und Policy-Vorschläge müssen zusätzlich als [consumer-bound proposal registration](proposals/README.md) angelegt werden. Ohne Consumer, Entscheidungsziel, Messkriterium, Ablaufdatum und proposal-only Boundary schlägt CI fehl.
 
 `heimlern` ist ein retrospektiver Lern- und Policy-Adaptionsmotor für den Heimgewebe-Organismus. Das Repository hält Rust-Kerne, Feedback-Analyse und auditable Vorschlagsformate bereit, damit Outcomes aus Chronik, Metriken und explizitem Feedback zu nachvollziehbaren Anpassungsvorschlägen werden.
 
