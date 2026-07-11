@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import subprocess
 import tempfile
 from datetime import datetime, timezone
@@ -20,6 +22,7 @@ DEFAULT_POLICY_ID = "grabowski-routing-v0"
 _ROUTE_DELTA_KEY_INVALID = "route_delta_key_invalid"
 _ROUTE_DELTA_KEY_COLLISION = "route_delta_key_collision"
 _ROUTE_DELTA_KEY_ERROR_KINDS = frozenset({_ROUTE_DELTA_KEY_INVALID, _ROUTE_DELTA_KEY_COLLISION})
+_OLA_COMMAND_TIMEOUT_SECONDS = 300
 
 
 class RouteDeltaKeyError(ValueError):
@@ -36,6 +39,16 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def cargo_binary() -> str:
+    configured = shutil.which("cargo")
+    if configured:
+        return configured
+    user_cargo = Path.home() / ".cargo" / "bin" / "cargo"
+    if user_cargo.is_file() and os.access(user_cargo, os.X_OK):
+        return str(user_cargo)
+    raise RuntimeError("cargo executable not found in PATH or ~/.cargo/bin")
+
+
 def iso_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -48,15 +61,19 @@ def _json_from_text(text: str) -> dict[str, Any]:
 
 
 def _run_ola(args: list[str]) -> dict[str, Any]:
-    cmd = ["cargo", "run", "-q", "-p", "heimlern-cli", "--bin", "heimlern-ola", "--", *args]
-    result = subprocess.run(
-        cmd,
-        cwd=repo_root(),
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
+    cmd = [cargo_binary(), "run", "-q", "-p", "heimlern-cli", "--bin", "heimlern-ola", "--", *args]
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=repo_root(),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=_OLA_COMMAND_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("heimlern-ola command timed out") from exc
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or result.stdout.strip() or f"heimlern-ola exited {result.returncode}")
     return _json_from_text(result.stdout)
@@ -79,7 +96,7 @@ def to_decision_outcome(routing_outcome: dict[str, Any], policy_id: str = DEFAUL
 
 def route_delta_key(action: str) -> tuple[str, str]:
     cmd = [
-        "cargo",
+        cargo_binary(),
         "run",
         "-q",
         "-p",
@@ -90,14 +107,18 @@ def route_delta_key(action: str) -> tuple[str, str]:
         "route-delta-key",
         action,
     ]
-    result = subprocess.run(
-        cmd,
-        cwd=repo_root(),
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=repo_root(),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=_OLA_COMMAND_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("heimlern-ola command timed out") from exc
     if result.returncode != 0:
         try:
             payload = _json_from_text(result.stderr)
@@ -113,9 +134,10 @@ def route_delta_key(action: str) -> tuple[str, str]:
 
 def run_self_test() -> None:
     subprocess.run(
-        ["cargo", "test", "-q", "-p", "heimlern-core", "ola::"],
+        [cargo_binary(), "test", "-q", "-p", "heimlern-core", "ola::"],
         cwd=repo_root(),
         check=True,
+        timeout=_OLA_COMMAND_TIMEOUT_SECONDS,
     )
     sample = {
         "decision_id": "gr-example-001",

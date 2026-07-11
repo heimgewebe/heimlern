@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "authority": "mirror_only",
+  "owner": "heimgewebe/metarepo",
+  "source_repository": "heimgewebe/metarepo",
+  "source_revision": "10daa1c84469dce76e93cdc24c47c1dfc5e156d6",
+  "source_path": "contracts/policy.weight_adjustment.v1.schema.json",
+  "sha256": "5998e43de8465e55a133294c16231377cfd1c7d66a06bfab3d22f83d17170e78",
+  "does_not_establish": [
+    "heimlern_owns_policy_weight_contract",
+    "automatic_mirror_refresh",
+    "proposal_application_permission"
+  ]
+}

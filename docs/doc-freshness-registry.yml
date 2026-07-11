@@ -102,28 +102,30 @@ entries:
       not prove proposal quality or suitability for automatic application.
 
   - id: chronik-routing-outcome-ingest
-    doc: docs/operator-ecosystem-alignment.md
-    locator: "Operator ecosystem alignment"
-    claim: "heimlern can consume redacted Grabowski or Chronik-style outcomes as offline learning inputs without receiving live routing authority."
+    doc: docs/chronik-routing-outcome-consumer.md
+    locator: "Chronik routing-outcome consumer"
+    claim: "heimlern validates digest-pinned Chronik routing-outcome envelopes and consumes only fresh, unique, redacted payloads as review-only offline learning inputs."
     status: done
     normative: false
     owner: operator-learning-axis
-    last_verified: "2026-07-10"
+    last_verified: "2026-07-11"
     evidence:
       - kind: symbol
-        target: "scripts/ola_adapter.py::adapt"
+        target: "scripts/chronik_outcome_consumer.py::consume_exports"
       - kind: symbol
-        target: "scripts/ola_adapter.py::to_decision_outcome"
-      - kind: symbol
-        target: "scripts/ola_probe.py::probe"
+        target: "scripts/ola_probe.py::probe_routing_outcomes"
       - kind: file
-        target: "tests/fixtures/ola/success.ok.json"
+        target: "contracts/mirrors/chronik/operator-routing-outcome-export-v1.pin.json"
       - kind: file
-        target: "tests/fixtures/ola/failed.ok.json"
+        target: "contracts/mirrors/metarepo/policy.weight_adjustment.v1.pin.json"
       - kind: file
-        target: "tests/fixtures/ola/failclosed.ok.json"
+        target: "tests/fixtures/chronik-outcome/operator-routing-outcome-export.v1.json"
+      - kind: test
+        target: "tests/test_chronik_outcome_consumer.py"
     notes: >-
-      This is an offline observation/proposal path, not live routing control.
+      This proves a fixture-equivalent review-only consumer, not a live
+      Grabowski producer, Chronik runtime readiness, production sample
+      sufficiency or permission to apply proposals.
 
   - id: metrics-workflow-local-contract
     doc: .github/workflows/metrics.yml
