@@ -41,8 +41,10 @@ werden sie in ein standardisiertes Envelope eingebettet mit Feldern wie:
 - `ts`: Event-Zeitstempel
 - `id`: Event-ID
 
-Die Envelope-Spezifikation ist Teil der übergeordneten Event-Architektur und 
-wird im metarepo definiert.
+Die Envelope-Spezifikation ist Teil der übergeordneten Event-Architektur und
+bleibt beim jeweiligen Transport-Owner. Für Routing-Outcomes konsumiert
+Heimlern den Chronik-Contract als exakten, digest-gepinnten Mirror unter
+`contracts/mirrors/chronik/`; daraus entsteht kein Contract-Eigentum.
 
 ## Quickstart
 ```sh
@@ -62,14 +64,15 @@ just schema:validate
 | `policy.feedback.schema.json` | Feedback zu Entscheidungen | hausKI | heimlern |
 | `aussen.event.schema.json` | Externe Sensor-Events | Sensoren, APIs | heimlern, hausKI |
 
-**Schemas referenziert aus metarepo (nicht in diesem Repo):**
+**Konsumierte Schemas als exakte Mirrors (nicht Heimlern-owned):**
 
 | Schema | Zweck | Produzenten | Konsumenten |
 |--------|-------|-------------|-------------|
 | `decision.outcome.v1` | Retrospektive Outcome-Bewertung | hausKI, chronik | heimlern |
 | `policy.weight_adjustment.v1` | Gewichtsanpassungsvorschläge | heimlern | hausKI |
 
-Für Details siehe: [heimgewebe/metarepo/contracts/](https://github.com/heimgewebe/metarepo/tree/main/contracts)
+Die Mirrors liegen mit Source-Revision, Source-Pfad, SHA-256 und Non-Claims
+unter `contracts/mirrors/`. Kanonisch bleiben Chronik beziehungsweise Metarepo.
 
 ## Operator routing
 

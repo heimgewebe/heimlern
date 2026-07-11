@@ -97,7 +97,14 @@ def summarize(decision_outcomes: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def maybe_propose(summary: dict[str, Any], min_decisions: int, min_action_count: int, failure_threshold: float) -> dict[str, Any] | None:
+def maybe_propose(
+    summary: dict[str, Any],
+    min_decisions: int,
+    min_action_count: int,
+    failure_threshold: float,
+    *,
+    proposal_ts: str | None = None,
+) -> dict[str, Any] | None:
     if summary["total"] < min_decisions:
         return None
     deltas: dict[str, Any] = {}
@@ -125,7 +132,7 @@ def maybe_propose(summary: dict[str, Any], min_decisions: int, min_action_count:
     return {
         "version": "v1",
         "basis_policy": DEFAULT_POLICY_ID,
-        "ts": iso_now(),
+        "ts": proposal_ts or iso_now(),
         "deltas": deltas,
         "confidence": confidence,
         "evidence": {
@@ -140,12 +147,23 @@ def maybe_propose(summary: dict[str, Any], min_decisions: int, min_action_count:
     }
 
 
-def probe(inputs: list[dict[str, Any]], min_decisions: int = DEFAULT_MIN_DECISIONS) -> dict[str, Any]:
-    routing_outcomes = [adapt(item) for item in inputs]
+def probe_routing_outcomes(
+    routing_outcomes: list[dict[str, Any]],
+    min_decisions: int = DEFAULT_MIN_DECISIONS,
+    *,
+    proposal_ts: str | None = None,
+) -> dict[str, Any]:
+    """Analyze already contract-valid routing outcomes without adapting them twice."""
     decision_outcomes = [to_decision_outcome(item) for item in routing_outcomes]
     summary = summarize(decision_outcomes)
     try:
-        proposal = maybe_propose(summary, min_decisions, DEFAULT_MIN_ACTION_COUNT, DEFAULT_FAILURE_THRESHOLD)
+        proposal = maybe_propose(
+            summary,
+            min_decisions,
+            DEFAULT_MIN_ACTION_COUNT,
+            DEFAULT_FAILURE_THRESHOLD,
+            proposal_ts=proposal_ts,
+        )
     except RouteDeltaKeyError as exc:
         return {
             "schema_version": 1,
@@ -167,6 +185,11 @@ def probe(inputs: list[dict[str, Any]], min_decisions: int = DEFAULT_MIN_DECISIO
         "proposal": proposal,
         "does_not_establish": list(_DOES_NOT_ESTABLISH),
     }
+
+
+def probe(inputs: list[dict[str, Any]], min_decisions: int = DEFAULT_MIN_DECISIONS) -> dict[str, Any]:
+    routing_outcomes = [adapt(item) for item in inputs]
+    return probe_routing_outcomes(routing_outcomes, min_decisions)
 
 
 def run_self_test() -> None:

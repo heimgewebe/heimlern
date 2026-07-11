@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.heimgewebe.org/contracts/policy.weight_adjustment.v1.schema.json",
+  "title": "heimlern policy weight adjustment proposal v1",
+  "x-producers": ["heimlern"],
+  "x-consumers": ["hausKI", "chronik"],
+  "type": "object",
+  "required": ["version", "basis_policy", "ts", "deltas", "confidence", "evidence"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v1"
+    },
+    "basis_policy": {
+      "type": "string",
+      "description": "ID/Hash der Policy, auf der diese Anpassung basiert."
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "deltas": {
+      "type": "object",
+      "description": "Map von Policy-ID zu Delta-Objekt.",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^[a-zA-Z0-9_.-]+$",
+        "description": "Keys must be valid identifiers (alphanumeric, dot, underscore, dash)."
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "description": "Absolute adjustment.",
+            "type": "object",
+            "properties": {
+              "kind": { "const": "absolute" },
+              "value": { "type": "number", "description": "New absolute value." },
+              "unit": {
+                "type": "string",
+                "enum": ["weight", "probability", "score", "factor"],
+                "description": "Optional unit for absolute values (e.g., 'weight', 'probability', 'score', 'factor')."
+              }
+            },
+            "required": ["kind", "value"],
+            "additionalProperties": false
+          },
+          {
+            "description": "Relative adjustment.",
+            "type": "object",
+            "properties": {
+              "kind": { "const": "relative" },
+              "value": { "type": "number", "minimum": -5.0, "maximum": 5.0, "description": "Relative multiplier or percentage change." },
+              "unit": {
+                "type": "string",
+                "enum": ["percent", "factor"],
+                "description": "Unit required for relative changes to clarify semantics. Must be either 'percent' or 'factor'."
+              }
+            },
+            "required": ["kind", "value", "unit"],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Confidence score for this adjustment."
+    },
+    "decisions_analyzed": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of decisions that contributed to this adjustment."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["proposed", "accepted", "rejected", "superseded"],
+      "description": "Status of this adjustment proposal."
+    },
+    "reasoning": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Explanation for the adjustment. Required if status is not 'proposed'."
+    },
+    "evidence": {
+      "type": "object",
+      "description": "Evidence or simulation results backing this adjustment.",
+      "properties": {
+        "decisions_analyzed": { "type": "integer", "minimum": 0 },
+        "failure_rate_before": { "type": "number", "minimum": 0, "maximum": 1 },
+        "failure_rate_after_sim": {
+          "type": "number",
+          "description": "Projected failure rate after applying the adjustment."
+        },
+        "simulation_method": {
+          "type": "string",
+          "description": "The method used for simulation. Required if failure_rate_after_sim is present."
+        },
+        "patterns": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "required": ["failure_rate_after_sim"] },
+          "then": { "required": ["simulation_method"] }
+        },
+        {
+          "if": { "required": ["simulation_method"] },
+          "then": { "required": ["failure_rate_after_sim"] }
+        }
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": { "status": { "enum": ["accepted", "rejected", "superseded"] } },
+        "required": ["status"]
+      },
+      "then": { "required": ["reasoning"] }
+    }
+  ]
+}

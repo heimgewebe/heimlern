@@ -27,6 +27,8 @@ schema-validate: venv
 	python3 -m json.tool contracts/operator.routing_decision.v1.schema.json >/dev/null
 	python3 -m json.tool contracts/operator.routing_outcome.v1.schema.json >/dev/null
 	. .venv/bin/activate && python -m pytest -q tests/test_doc_freshness_registry.py
+	. .venv/bin/activate && python -m pytest -q tests/test_chronik_outcome_consumer.py
+	. .venv/bin/activate && python scripts/chronik_outcome_consumer.py --review-time 2026-07-10T23:00:00Z --max-age-seconds 7200 tests/fixtures/chronik-outcome/operator-routing-outcome-export.v1.json >/tmp/heimlern_chronik_outcome_report.json
 	@echo "✓ alle Beispiel-Dokumente und das RepoBrief-Register sind valide"
 
 # Lokaler Helper: Schnelltests & Linter – sicher mit Null-Trennung und Quoting

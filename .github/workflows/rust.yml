@@ -77,6 +77,16 @@ jobs:
           python scripts/ola_probe.py > /tmp/ola-probe.json
           python -m json.tool /tmp/ola-probe.json >/dev/null
 
+      - name: Validate review-only Chronik outcome consumer
+        run: |
+          python -m pytest -q tests/test_chronik_outcome_consumer.py
+          python scripts/chronik_outcome_consumer.py \
+            --review-time 2026-07-10T23:00:00Z \
+            --max-age-seconds 7200 \
+            tests/fixtures/chronik-outcome/operator-routing-outcome-export.v1.json \
+            > /tmp/chronik-outcome-consumer-report.json
+          python -c "import json; r=json.load(open('/tmp/chronik-outcome-consumer-report.json', encoding='utf-8')); assert r['status']=='insufficient_evidence'; assert r['review_only'] is True; assert r['writes']==[]"
+
       - name: Validate weight adjustment coherence against metarepo contract
         run: |
           mkdir -p .ci
