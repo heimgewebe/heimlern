@@ -1,5 +1,7 @@
 # Beitrag leisten
 
+> Dieses Repository ist historisiert. Zulässig sind Erhaltungsarbeiten, Sicherheitskorrekturen und sachliche Dokumentationsberichtigungen. Neue Produkt-, Evaluator-, Routing-, Friction- oder Runtime-Funktionen benötigen vorab den in `docs/historical-status.md` beschriebenen externen Reaktivierungsnachweis.
+
 Danke für deinen Beitrag zu **heimlern**.
 
 ## Setup

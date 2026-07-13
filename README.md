@@ -1,10 +1,14 @@
 # heimlern
 
-## Operator ecosystem correction
+> **Historical repository — no active product or operator role.**
+>
+> Heimlern is frozen as implementation and design history. Its analyzers, proposal formats and examples remain available for audit and reference, but they are not a promoted evaluator, routing service, friction system, policy engine or runtime component. New feature development is out of scope unless a separately registered, non-circular usefulness experiment first establishes material operator value. See [Historical status](docs/historical-status.md).
 
-Heimlern is the retrospective learning and policy-adaptation proposal engine in the new operator ecosystem. It may read Chronik history, outcomes, metrics and explicit feedback, then produce auditable learning reports or weight-adjustment proposals. It must not silently apply policy, own tasks, execute operations, or become the source of event history. Bureau owns commitments, Grabowski owns local execution, Chronik owns history, and Leitstand may display learning outputs.
+## Historical operator-ecosystem context
 
-This correction supersedes older wording that frames heimlern mainly as a household reminder or autonomous policy engine.
+Heimlern was implemented as a retrospective learning and policy-adaptation proposal engine. It could read Chronik history, outcomes, metrics and explicit feedback, then produce auditable learning reports or weight-adjustment proposals. It was never permitted to silently apply policy, own tasks, execute operations, or become the source of event history. Bureau owns commitments, Grabowski owns local execution, and Chronik owns history.
+
+The repository is now retained only as historical evidence. Generic deterministic capture and effect-calculation utilities remain unpromoted in Vibe-Lab; they are not Heimlern capabilities.
 
 [![rust (cached)](https://github.com/heimgewebe/heimlern/actions/workflows/rust.yml/badge.svg)](https://github.com/heimgewebe/heimlern/actions/workflows/rust.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -12,7 +16,7 @@ This correction supersedes older wording that frames heimlern mainly as a househ
 Siehe auch: **Policy-Lifecycle**: `docs/policy-lifecycle.md` und **Contracts** in `contracts/`.
 Neue Lern- und Policy-Vorschläge müssen zusätzlich als [consumer-bound proposal registration](proposals/README.md) angelegt werden. Ohne Consumer, Entscheidungsziel, Messkriterium, Ablaufdatum und proposal-only Boundary schlägt CI fehl.
 
-`heimlern` ist ein retrospektiver Lern- und Policy-Adaptionsmotor für den Heimgewebe-Organismus. Das Repository hält Rust-Kerne, Feedback-Analyse und auditable Vorschlagsformate bereit, damit Outcomes aus Chronik, Metriken und explizitem Feedback zu nachvollziehbaren Anpassungsvorschlägen werden.
+`heimlern` war als retrospektiver Lern- und Policy-Adaptionsmotor für den Heimgewebe-Organismus entworfen. Das Repository bewahrt die Rust-Kerne, Feedback-Analyse und auditierbaren Vorschlagsformate als historische Implementierung; es verarbeitet keine aktiven Outcomes und erzeugt keine operativ verwendeten Anpassungsvorschläge.
 
 ## Inhaltsverzeichnis
 
