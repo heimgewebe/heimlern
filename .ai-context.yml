@@ -9,8 +9,9 @@ ai_context_version: 1.1
 
 project:
   name: heimlern
-  summary: Retrospective learning and policy-adaptation proposal engine (Rust)
-  role: learning_proposal_engine
+  summary: Historical reference for retired retrospective learning and policy-proposal experiments (Rust)
+  role: historical_learning_reference
+  lifecycle: historical
   primary_language: rust
   visibility: internal
 
@@ -20,41 +21,30 @@ heimgewebe:
     - Learning
     - Contracts
   fleet:
-    enabled: true
+    enabled: false
   wgx:
     profile_expected: true
     guard_smoke_expected: true
 
 role_contract:
-  name: learning_proposal_engine
-  authority: retrospective_analysis_only
+  name: historical_learning_reference
+  authority: none
   owns:
-    - learning_reports
-    - weight_adjustment_proposals
-    - reproducibility_metadata
-  consumes:
-    - historical_outcomes
-    - completion_truth
-    - run_receipts
-    - metrics
-  produces:
-    - gated_learning_reports
-    - non_applying_weight_proposals
+    - historical_implementation_evidence
+    - historical_contract_examples
+  consumes: []
+  produces: []
   limits:
     - no_task_ownership
     - no_ledger_writes
-    - no_silent_weight_changes
-  unavailable_effect: existing_rules_remain_static
+    - no_policy_or_weight_changes
+    - no_runtime_or_routing_authority
+    - no_claim_of_evaluator_usefulness
+  unavailable_effect: no_active_system_effect
 
 interfaces:
-  consumes:
-    - "event.line"
-    - "contracts"
-    - "historical outcomes"
-    - "completion truth and run receipts"
-  produces:
-    - "learning_reports"
-    - "weight_adjustment_proposals"
+  consumes: []
+  produces: []
 
 contracts:
   schemas:
@@ -91,14 +81,15 @@ architecture:
     - path: docs/
       purpose: "Operator docs / ADRs"
   data_flow:
-    input: events/metrics from chronik
-    processing: scoring + feedback
-    output: reports/signals
+    input: historical fixtures and retained examples only
+    processing: no active processing; code retained for audit
+    output: no active outputs
 
 boundaries:
   not_responsible_for:
-    - "Defining canonical schemas (metarepo/contracts do that)."
-    - "Applying policy or weight changes without an explicit gate."
+    - "Active learning, evaluation, routing, friction analysis or policy adaptation."
+    - "Defining canonical schemas or operating a runtime service."
+    - "Applying policy or weight changes."
     - "Owning tasks, execution, leases or event history."
   dangerous_assumptions:
     - "Treat style as policy without explicit rule."
@@ -116,10 +107,9 @@ documentation:
 
 ai_guidance:
   do:
-    - log model versions and seeds for reproducibility
-    - "Start with entrypoints and key_paths."
-    - "Prefer contract-compatible changes."
+    - "Treat the repository as historical evidence and preserve existing reproducibility metadata."
+    - "Use Vibe-Lab for any newly registered evaluation design."
   dont:
-    - change scoring semantics without a version bump
-    - "Invent missing schemas."
-    - "Change repo role without updating ai-context."
+    - "Start feature development without a separately registered usefulness proof."
+    - "Promote the existing analyzers as an evaluator, routing layer or runtime service."
+    - "Invent observations or reinterpret the blocked Vibe-Lab experiment as an effectiveness result."
