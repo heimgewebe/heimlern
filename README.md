@@ -142,14 +142,11 @@ In einem Binary kann ein einfacher Subscriber gesetzt werden:
 }
 ```
 
-## Organismus-Kontext
+## Systemkontext
 
-Dieses Repository ist Teil des **Heimgewebe-Organismus**.
+`heimlern` ist eine historische Referenz und keine aktive Lernkomponente. Der aktuelle Status
+der Heimgewebe-Systeme wird im [Systemkatalog](https://github.com/heimgewebe/systemkatalog) geführt; die
+[gerenderte Systemübersicht](https://github.com/heimgewebe/systemkatalog/blob/main/rendered/system-catalog.md)
+ist die lesbare Gesamtsicht.
 
-Die übergeordnete Architektur, Achsen, Rollen und Contracts sind zentral beschrieben im  
-👉 [`metarepo/docs/system/heimgewebe-organismus.md`](https://github.com/heimgewebe/metarepo/blob/main/docs/heimgewebe-organismus.md)  
-sowie im Zielbild  
-👉 [`metarepo/docs/heimgewebe-zielbild.md`](https://github.com/heimgewebe/metarepo/blob/main/docs/heimgewebe-zielbild.md).
-
-Alle Rollen-Definitionen, Datenflüsse und Contract-Zuordnungen dieses Repos
-sind dort verankert.
+Die historische Implementierungs- und Entscheidungsdokumentation bleibt in diesem Repository.

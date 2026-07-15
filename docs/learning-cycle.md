@@ -1,6 +1,11 @@
 # Learning Cycle Workflow
 
-Dieses Dokument beschreibt den vollständigen Lernzyklus im Heimgewebe-Organismus zwischen **hausKI** (Entscheider) und **heimlern** (Lerner).
+> **Historischer Stand:** Dieser Ablauf dokumentiert die frühere Zielarchitektur zwischen
+> `hausKI` und `heimlern`. Er ist keine aktuelle Betriebs- oder Rollenwahrheit. Aktuelle
+> Systemzwecke und Lifecycle-Stände werden im [Systemkatalog](https://github.com/heimgewebe/systemkatalog) geführt.
+
+Dieses Dokument beschreibt den früher vorgesehenen Lernzyklus zwischen **hausKI** (Entscheider)
+und **heimlern** (Lerner).
 
 ## Übersicht
 
