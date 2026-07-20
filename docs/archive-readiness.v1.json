@@ -1,0 +1,205 @@
+{
+  "consumer_freeze": {
+    "diff_sha256": "d790aa1af2cb6c9bae9ac5f56110a027c54ebbe0ca0acacad27cbed211e2ccf1",
+    "head": "da03d620c25e762882251af493a00929570ca854",
+    "merge_commit": "4af4d397c67acefd3dc385393f1ef55b88adc097",
+    "pull_request": 759,
+    "repository": "heimgewebe/hausKI",
+    "status": "merged_and_green"
+  },
+  "does_not_establish": [
+    "github_archive_effect_completed",
+    "deletion_of_historical_branches",
+    "runtime_or_policy_authority",
+    "automatic_proposal_application",
+    "current_semantic_validity_of_historical_local_contracts",
+    "permission_for_new_feature_development"
+  ],
+  "kind": "heimlern_archive_readiness",
+  "local_contracts": [
+    {
+      "canonical_authority": {
+        "path": "contracts/aussen.event.schema.json",
+        "repository": "heimgewebe/metarepo",
+        "revision": "90fef7585b473ef499847ad92a21f76abd2b1c41",
+        "sha256": "2410e7ccd2a94271d6b292d4e8df5a4190a111376f26ae509901c8995a888f37"
+      },
+      "classification": "canonical_mirror",
+      "local_path": "contracts/aussen.event.schema.json",
+      "local_sha256": "2410e7ccd2a94271d6b292d4e8df5a4190a111376f26ae509901c8995a888f37"
+    },
+    {
+      "canonical_authority": {
+        "path": "contracts/metrics.snapshot.schema.json",
+        "repository": "heimgewebe/metarepo",
+        "revision": "90fef7585b473ef499847ad92a21f76abd2b1c41",
+        "sha256": "1b1de44ea326ce8de36da6fc6d8f2da0abe279df8c47ab10e58ddc2cf604b914"
+      },
+      "classification": "historical_divergent_copy",
+      "local_path": "contracts/metrics.snapshot.schema.json",
+      "local_sha256": "e04bb990ea37997ab8b04aa931d065743bf431dd00c9ae2316672b40aaf47ce7"
+    },
+    {
+      "canonical_authority": {
+        "path": "contracts/policy.decision.schema.json",
+        "repository": "heimgewebe/metarepo",
+        "revision": "90fef7585b473ef499847ad92a21f76abd2b1c41",
+        "sha256": "2de890b578285100f57839d6fe7f8dd43326fa9c1c7c84759dd5a3604c025bce"
+      },
+      "classification": "historical_divergent_copy",
+      "local_path": "contracts/policy.decision.schema.json",
+      "local_sha256": "a6c193d33f006b959036dce189cb2b97cfbdbeda2ae5fbdb08aae526356c52b9"
+    },
+    {
+      "canonical_authority": {
+        "path": "contracts/policy.feedback.schema.json",
+        "repository": "heimgewebe/metarepo",
+        "revision": "90fef7585b473ef499847ad92a21f76abd2b1c41",
+        "sha256": "b718aedfb33d00330602cdb5fe1168693c0137df87f6afcf4e0bf33d8b0821b3"
+      },
+      "classification": "historical_divergent_copy",
+      "local_path": "contracts/policy.feedback.schema.json",
+      "local_sha256": "cb331af69325c6b10bd1910b7eb2a4d6f6c13d6c9517706b2b6b6741663e620b"
+    },
+    {
+      "canonical_authority": {
+        "path": "contracts/policy.snapshot.schema.json",
+        "repository": "heimgewebe/metarepo",
+        "revision": "90fef7585b473ef499847ad92a21f76abd2b1c41",
+        "sha256": "6a51ba574f9d0575b8c6298eda4b08a6f483035502a2d5511f5f8fb831e5fbe7"
+      },
+      "classification": "historical_divergent_copy",
+      "local_path": "contracts/policy.snapshot.schema.json",
+      "local_sha256": "4a3e8cf8d51c58ac6e88a744e2bb139a5ee36f1f8ad39d6da8b815f2e355a454"
+    },
+    {
+      "canonical_authority": {
+        "path": "contracts/heimlern.ingest.state.schema.json",
+        "repository": "heimgewebe/metarepo",
+        "revision": "90fef7585b473ef499847ad92a21f76abd2b1c41",
+        "sha256": "accd33e387f954d2dfc2e96b96e2941847e275830c01fe8142fc44618b2c089f"
+      },
+      "classification": "historical_divergent_copy",
+      "local_path": "ops/schemas/heimlern.ingest.state.schema.json",
+      "local_sha256": "f155095517e8f0006e1e543692603531c2e61436d58d33d6372be41bee93c8db"
+    },
+    {
+      "canonical_authority": null,
+      "classification": "historical_local_only",
+      "local_path": "contracts/learning.proposal.registration.v1.schema.json",
+      "local_sha256": "e76d565c5f1b0aed8f74bf6c1ae7a4b03cee168aeef1198b0a1378879fd4878d"
+    },
+    {
+      "canonical_authority": null,
+      "classification": "historical_local_only",
+      "local_path": "contracts/learning_path.schema.json",
+      "local_sha256": "a185ef2a263309cb8e17c938f6a477c7d1d9c44ce6cd2c06e85e3a3eb5a34a0c"
+    },
+    {
+      "canonical_authority": null,
+      "classification": "historical_local_only",
+      "local_path": "contracts/operator.routing_decision.v1.schema.json",
+      "local_sha256": "046160abe104602f98ec34c58a57ac6f41b65cd25e65e4afed3f6ac3fbd2be57"
+    },
+    {
+      "canonical_authority": {
+        "path": "contracts/operator.routing_outcome.v1.schema.json",
+        "repository": "heimgewebe/heimlern",
+        "revision": "6d70e4900377c92b540d07bd6b71fe36677c2ba5",
+        "sha256": "cff1f19814d33dd0ba084b3b5d9e2d4b6c36b1276dab35c3256912b5c457712d"
+      },
+      "classification": "historical_payload_pin",
+      "local_path": "contracts/operator.routing_outcome.v1.schema.json",
+      "local_sha256": "cff1f19814d33dd0ba084b3b5d9e2d4b6c36b1276dab35c3256912b5c457712d"
+    }
+  ],
+  "normative_mirrors": [
+    {
+      "authority": {
+        "path": "contracts/policy.weight_adjustment.v1.schema.json",
+        "repository": "heimgewebe/metarepo",
+        "revision": "90fef7585b473ef499847ad92a21f76abd2b1c41",
+        "sha256": "5998e43de8465e55a133294c16231377cfd1c7d66a06bfab3d22f83d17170e78"
+      },
+      "local_schema": "contracts/mirrors/metarepo/policy.weight_adjustment.v1.schema.json",
+      "local_sha256": "5998e43de8465e55a133294c16231377cfd1c7d66a06bfab3d22f83d17170e78",
+      "pin": "contracts/mirrors/metarepo/policy.weight_adjustment.v1.pin.json"
+    },
+    {
+      "authority": {
+        "path": "docs/chronik/operator-routing-outcome-export-v1.schema.json",
+        "repository": "heimgewebe/chronik",
+        "revision": "de1287423f3156cfae86c3cae6f4538732356c01",
+        "sha256": "d7c3709caaadcf599321f5abef77064631bd1a7b534346488baec595f65b3c91"
+      },
+      "local_schema": "contracts/mirrors/chronik/operator-routing-outcome-export-v1.schema.json",
+      "local_sha256": "d7c3709caaadcf599321f5abef77064631bd1a7b534346488baec595f65b3c91",
+      "pin": "contracts/mirrors/chronik/operator-routing-outcome-export-v1.pin.json"
+    }
+  ],
+  "offline_proposal_only_boundary": {
+    "file_bindings": [
+      {
+        "path": "crates/heimlern-cli/src/main.rs",
+        "sha256": "c09b582ace201af0eb87b77a170a650d0617710f91ee74c47c1e8888f0bf2249"
+      },
+      {
+        "path": "scripts/ola_probe.py",
+        "sha256": "ebcc6800cffd18014d5abd131abcbc461c3f8fe125579097fa05e643a3e2fe56"
+      },
+      {
+        "path": "scripts/ola_circle_smoke.py",
+        "sha256": "287e2f7156cd78c1f4c7de53144d6ffeca8ae385988fee1e18c795ce4d70af21"
+      },
+      {
+        "path": "scripts/chronik_outcome_consumer.py",
+        "sha256": "f6f66955386f8cfa649aaf6d46c35d639c04330e9b7f8dd16daa38a8c878f04a"
+      },
+      {
+        "path": "contracts/learning_path.schema.json",
+        "sha256": "a185ef2a263309cb8e17c938f6a477c7d1d9c44ce6cd2c06e85e3a3eb5a34a0c"
+      },
+      {
+        "path": "contracts/learning.proposal.registration.v1.schema.json",
+        "sha256": "e76d565c5f1b0aed8f74bf6c1ae7a4b03cee168aeef1198b0a1378879fd4878d"
+      }
+    ],
+    "required_properties": [
+      "writes_production_false",
+      "writes_empty",
+      "no_auto_policy",
+      "no_auto_routing",
+      "no_queue_authority",
+      "no_runtime_authority",
+      "no_live_grabowski_producer"
+    ],
+    "status": "preserved"
+  },
+  "prearchive_github_snapshot": {
+    "branch_count": 181,
+    "branch_policy": "preserve_all_historical_branches; no bulk deletion",
+    "default_branch": "main",
+    "default_branch_commit": "d0a5d1bf26c9a5f555b7541d97fadb27a7cf9b31",
+    "is_archived": false,
+    "observed_at": "2026-07-20T09:06:00+02:00",
+    "open_issues": 0,
+    "open_pull_requests": 0,
+    "releases": 0
+  },
+  "proposal_inventory": {
+    "active_registration_count": 0,
+    "allowed_files": [
+      "proposals/README.md",
+      "proposals/_template.json"
+    ]
+  },
+  "protobuf_inventory": {
+    "classification": "none_present; documentation mentions are historical and non-normative",
+    "count": 0
+  },
+  "repository": "heimgewebe/heimlern",
+  "repository_base_commit": "d0a5d1bf26c9a5f555b7541d97fadb27a7cf9b31",
+  "schema_version": 1,
+  "status": "ready_for_archive_effect",
+  "target_state": "archived_reference"
+}

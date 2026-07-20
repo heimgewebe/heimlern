@@ -21,6 +21,8 @@ feedback-example:
 
 # ---- Validierung ----
 schema-validate: venv
+	. .venv/bin/activate && python scripts/validate_archive_readiness.py
+	. .venv/bin/activate && python -m pytest -q tests/test_archive_readiness.py
 	. .venv/bin/activate && python scripts/examples.py
 	. .venv/bin/activate && python scripts/validate_json.py contracts/policy.snapshot.schema.json /tmp/heimlern_snapshot.json
 	. .venv/bin/activate && python scripts/validate_json.py contracts/policy.feedback.schema.json /tmp/heimlern_feedback.json
