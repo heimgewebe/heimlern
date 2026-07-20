@@ -53,6 +53,8 @@ jobs:
           python scripts/validate_json.py \
           --schemas contracts/ \
           --samples data/samples/
+      - name: Validate archive readiness and contract authority
+        run: python scripts/validate_archive_readiness.py
       - name: Validate active proposal registrations
         run: python scripts/validate_proposal_registrations.py
       - name: Test proposal registration gate
@@ -87,12 +89,9 @@ jobs:
             > /tmp/chronik-outcome-consumer-report.json
           python -c "import json; r=json.load(open('/tmp/chronik-outcome-consumer-report.json', encoding='utf-8')); assert r['status']=='insufficient_evidence'; assert r['review_only'] is True; assert r['writes']==[]"
 
-      - name: Validate weight adjustment coherence against metarepo contract
+      - name: Validate weight adjustment coherence against the pinned metarepo mirror
         run: |
-          mkdir -p .ci
-          curl -fsSL https://raw.githubusercontent.com/heimgewebe/metarepo/a1984186a98a1e4214769f87649c5affc9686a53/contracts/policy.weight_adjustment.v1.schema.json \
-            -o .ci/policy.weight_adjustment.v1.schema.json
           python scripts/validate_weight_adjustment_coherence.py \
-            --schema .ci/policy.weight_adjustment.v1.schema.json
+            --schema contracts/mirrors/metarepo/policy.weight_adjustment.v1.schema.json
           python scripts/ola_circle_smoke.py \
-            --schema .ci/policy.weight_adjustment.v1.schema.json
+            --schema contracts/mirrors/metarepo/policy.weight_adjustment.v1.schema.json

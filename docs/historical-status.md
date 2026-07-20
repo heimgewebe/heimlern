@@ -39,3 +39,16 @@ Reactivation requires a new, separately registered experiment that:
 6. is reviewed and adopted outside this repository before implementation work begins.
 
 Absent that evidence, only preservation, security fixes and documentation corrections are in scope.
+
+## Final archive readiness
+
+The final archive declaration is machine-readable in `docs/archive-readiness.v1.json` and validated by `scripts/validate_archive_readiness.py`. It records:
+
+- HausKI PR #759, merged as `4af4d397c67acefd3dc385393f1ef55b88adc097`, which proves that the remaining compatibility crates are local, digest-bound and disabled by default;
+- zero open Heimlern pull requests, issues, releases and active proposal registrations at the pre-archive readback;
+- preservation of all 181 historical branches rather than destructive bulk cleanup;
+- exact Metarepo and Chronik mirror commits and SHA-256 values;
+- explicit classification of divergent repository-local schemas as historical references, not current contract authority;
+- no protobuf definitions and no live Grabowski producer, queue, routing or policy authority.
+
+The declaration is a precondition for the GitHub archive effect. It does not itself prove that GitHub has applied that effect; the post-effect readback belongs in the operator registry and ecosystem projections.

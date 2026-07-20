@@ -4,6 +4,8 @@
 >
 > Heimlern is frozen as implementation and design history. Its analyzers, proposal formats and examples remain available for audit and reference, but they are not a promoted evaluator, routing service, friction system, policy engine or runtime component. New feature development is out of scope unless a separately registered, non-circular usefulness experiment first establishes material operator value. See [Historical status](docs/historical-status.md).
 
+The machine-readable final archive gate is [`docs/archive-readiness.v1.json`](docs/archive-readiness.v1.json). It binds the merged HausKI compatibility freeze, exact external contract authorities, the preserved proposal-only boundary and the pre-archive GitHub inventory.
+
 ## Historical operator-ecosystem context
 
 Heimlern was implemented as a retrospective learning and policy-adaptation proposal engine. It could read Chronik history, outcomes, metrics and explicit feedback, then produce auditable learning reports or weight-adjustment proposals. It was never permitted to silently apply policy, own tasks, execute operations, or become the source of event history. Bureau owns commitments, Grabowski owns local execution, and Chronik owns history.

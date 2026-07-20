@@ -1,82 +1,22 @@
-# Contracts für heimlern (Snapshots & Feedback)
+# Heimlern contract archive
 
-Diese Verträge definieren das externe Austauschformat:
-- **PolicySnapshot**: Zustandsstand einer Policy (Arme, Zähler, Werte …)
-- **PolicyFeedback**: Rückmeldung zu einer Entscheidung (Reward, Notizen)
-- **Außensensor-Event**: Normalisierte JSON-Struktur für eingehende Sensor-Events
+This directory is preserved as implementation history. It is not an active contract authority. The exact classification and SHA-256 binding of every local JSON schema is recorded in `../docs/archive-readiness.v1.json`.
 
-Ziele:
-- Reproduzierbarkeit (Versionierung)
-- Strikte Validierung (keine schleichende Schema-Drift)
-- Tool-agnostisch (Rust, Python, Shell …)
+## Normative external mirrors
 
-## Contract Ownership & Architecture
+Only two repository copies are treated as exact, authority-bound mirrors:
 
-**Heimlern-eigene Schemas (in diesem Repo):**
+- `mirrors/metarepo/policy.weight_adjustment.v1.schema.json`, owned by `heimgewebe/metarepo`;
+- `mirrors/chronik/operator-routing-outcome-export-v1.schema.json`, owned by `heimgewebe/chronik`.
 
-Dieses Repo besitzt und verwaltet Schemas für Payloads, die heimlern selbst produziert:
-- `policy.snapshot.schema.json` - Policy-Zustand (heimlern → hausKI, chronik)
-- `policy.decision.schema.json` - Entscheidungsdokumentation (heimlern → hausKI, chronik)
-- `policy.feedback.schema.json` - Feedback zu Entscheidungen (hausKI → heimlern)
-- `aussen.event.schema.json` - Externe Sensor-Events (Sensoren → heimlern, hausKI)
+Each mirror has a neighboring pin containing the exact source repository, commit, path and digest. Heimlern does not own those contracts. CI validates the local pinned copies and performs no live schema download.
 
-**Konsumierte Contracts (Owner: metarepo):**
+## Historical local schemas
 
-Heimlern **konsumiert** folgende interne Heimgewebe-Contracts aus dem **metarepo**:
-- `decision.outcome.v1` - Retrospektive Bewertung von Entscheidungen (hausKI, chronik → heimlern)
-- `policy.weight_adjustment.v1` - Gewichtsanpassungsvorschläge (heimlern → hausKI)
+Top-level schemas in this directory are frozen historical references. Some have a current contract with the same filename in Metarepo but differ byte-for-byte; the archive manifest labels them `historical_divergent_copy`. `aussen.event.schema.json` is currently byte-identical to its Metarepo authority, but ownership still remains with Metarepo. Local-only learning and routing schemas are historical experiment formats and grant no runtime or routing authority.
 
-Die kanonischen Definitionen liegen im **heimgewebe/metarepo/contracts/**.
-Heimlern referenziert diese Schemas zur Compile-/Laufzeit, besitzt sie aber nicht.
+`operator.routing_outcome.v1.schema.json` remains pinned as the historical payload expected by the exact Chronik envelope mirror. That pin preserves replayability only; it does not keep Heimlern active.
 
-## Payload vs Event Envelope
+## Proposal-only boundary
 
-**Wichtig:** Die referenzierten Schemas definieren **Payload-Strukturen**, nicht Event-Envelopes.
-
-Wenn diese Daten über ein Event-System (z.B. chronik, plexer) transportiert werden, 
-werden sie in ein standardisiertes Envelope eingebettet mit Feldern wie:
-- `type`: Event-Typ
-- `source`: Quelle des Events
-- `payload`: Die hier definierten Strukturen
-- `ts`: Event-Zeitstempel
-- `id`: Event-ID
-
-Die Envelope-Spezifikation ist Teil der übergeordneten Event-Architektur und
-bleibt beim jeweiligen Transport-Owner. Für Routing-Outcomes konsumiert
-Heimlern den Chronik-Contract als exakten, digest-gepinnten Mirror unter
-`contracts/mirrors/chronik/`; daraus entsteht kein Contract-Eigentum.
-
-## Quickstart
-```sh
-just snapshot:example
-just feedback:example
-just schema:validate
-```
-
-## Schema-Übersicht
-
-**Schemas in diesem Repo (heimlern-owned):**
-
-| Schema | Zweck | Produzenten | Konsumenten |
-|--------|-------|-------------|-------------|
-| `policy.snapshot.schema.json` | Policy-Zustand persistieren | heimlern | hausKI, chronik |
-| `policy.decision.schema.json` | Entscheidungsdokumentation | heimlern | hausKI, chronik |
-| `policy.feedback.schema.json` | Feedback zu Entscheidungen | hausKI | heimlern |
-| `aussen.event.schema.json` | Externe Sensor-Events | Sensoren, APIs | heimlern, hausKI |
-
-**Konsumierte Schemas als exakte Mirrors (nicht Heimlern-owned):**
-
-| Schema | Zweck | Produzenten | Konsumenten |
-|--------|-------|-------------|-------------|
-| `decision.outcome.v1` | Retrospektive Outcome-Bewertung | hausKI, chronik | heimlern |
-| `policy.weight_adjustment.v1` | Gewichtsanpassungsvorschläge | heimlern | hausKI |
-
-Die Mirrors liegen mit Source-Revision, Source-Pfad, SHA-256 und Non-Claims
-unter `contracts/mirrors/`. Kanonisch bleiben Chronik beziehungsweise Metarepo.
-
-## Operator routing
-
-- `operator.routing_decision.v1.schema.json`: records one bounded operator routing choice before the result is known.
-- `operator.routing_outcome.v1.schema.json`: records the retrospective result, reward and redacted friction metrics.
-
-These files are offline-learning inputs only. They do not authorize live routing changes.
+The preserved examples and analyzers may validate historical data and produce review-only proposal candidates. They must retain `writes_production: false`, `writes: []`, no automatic policy or routing changes, no queue authority and no live Grabowski producer.
